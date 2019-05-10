@@ -8,38 +8,20 @@ class Layer:
     def __init__(self):
         pass
 
-    def num_parameters(self):
-        return 0
-
     def __call__(self):
         raise Exception("This is not how you are supposed to call this layer")
 
 
-class WeightLayer(Layer):
-    """ All layer types that contain weights """
-
-    def __init__(self, shape):
+class ConvLayer(Layer):
+    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
         super().__init__()
         self._shape = shape
-
-    def num_parameters(self):
-        # Override parent function in this case
-        n = 1
-        for size in self._shape:
-            n *= size
-
-        return n
-
-    def get_shape(self):
-        return self._shape
-
-
-class ConvLayer(WeightLayer):
-    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
-        super().__init__(shape)
         self._strides = strides
         self._padding = padding
         self._use_bias = use_bias
+
+    def get_shape(self):
+        return self._shape
 
     def using_bias(self):
         return self._use_bias
@@ -56,10 +38,14 @@ class ConvLayer(WeightLayer):
         return net
 
 
-class FullyConnectedLayer(WeightLayer):
+class FullyConnectedLayer(Layer):
     def __init__(self, shape, use_bias=True):
-        super().__init__(shape)
+        super().__init__()
+        self._shape = shape
         self._use_bias = use_bias
+
+    def get_shape(self):
+        return self._shape
 
     def using_bias(self):
         return self._use_bias

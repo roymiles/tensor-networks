@@ -16,12 +16,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 if __name__ == '__main__':
     # These hyperparameters control the compression
     # of the convolutional and fully connected weights
-    conv_ranks = [5, 5, 5, 5]
-    fc_ranks = [3, 3, 3]
+    conv_ranks = [20, 20, 20, 20]
+    fc_ranks = [20, 20, 20]
 
     # NOTE: Just change architecture here
     architecture = CIFAR100Example()
-    print("Number of parameters *before* = {}".format(architecture.num_parameters()))
 
     # See available datasets
     print(tfds.list_builders())
@@ -44,51 +43,45 @@ if __name__ == '__main__':
         y = tf.placeholder(tf.float32, shape=[None, 10])
         learning_rate = tf.placeholder(tf.float32, shape=[])
 
-    #model = TensorNetV1(architecture=architecture,
-    #                    conv_ranks=conv_ranks,
-    #                    fc_ranks=fc_ranks)
+    model_v1 = TensorNetV1(architecture=architecture,
+                           conv_ranks=conv_ranks,
+                           fc_ranks=fc_ranks)
 
-    model = StandardNetwork(architecture=architecture)
+    model_v2 = StandardNetwork(architecture=architecture)
 
-    #print("Number of parameters *after* = {}".format(model.num_parameters()))
+    print("Number of parameters *model_v1* = {}".format(model_v1.num_parameters()))
+    print("Number of parameters *model_v2* = {}".format(model_v2.num_parameters()))
 
     # Single forward pass
-    logits = model(x)
+    logits = model_v1(x)
 
     loss = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
     avg_loss = tf.reduce_mean(loss)  # Over entire batch
 
-    train_op = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+    train_op = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss, global_step=global_step)
     init_op = tf.global_variables_initializer()
 
     with tf.Session() as sess:
         # Initialize weights
         sess.run(init_op)
 
-        for batch in tfds.as_numpy(ds_train):
-            images, labels = batch['image'], batch['label']
+        for epoch in range(conf.epochs):
 
-            # One hot encode
-            labels = np.eye(10)[labels]
+            for batch in tfds.as_numpy(ds_train):
+                images, labels = batch['image'], batch['label']
 
-            feed_dict = {
-                x: images,
-                y: labels,
-                learning_rate: conf.initial_learning_rate
-            }
+                # One hot encode
+                labels = np.eye(10)[labels]
 
-            fetches = [avg_loss, train_op]
+                feed_dict = {
+                    x: images,
+                    y: labels,
+                    learning_rate: conf.initial_learning_rate
+                }
 
-            train_loss, _ = sess.run(fetches, feed_dict)
+                fetches = [avg_loss, train_op]
 
-            print("Loss: {}".format(train_loss))
+                train_loss, _ = sess.run(fetches, feed_dict)
 
-    """
-    # The compile step specifies the training configuration.
-    model.compile(optimizer=tf.train.RMSPropOptimizer(0.001),
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
-
-    # Trains for 5 epochs.
-    model.fit(x_train, y_train, batch_size=32, epochs=5)
-    """
+                print("Loss: {}".format(train_loss))

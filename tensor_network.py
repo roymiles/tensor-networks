@@ -32,6 +32,19 @@ class Weights(IWeights):
     def __init__(self):
         pass
 
+    def num_parameters(self):
+        weight_list = []
+        for dict in [self.conv_wh, self.conv_c, self.conv_n, self.fc_in, self.fc_out, self.bias, self.bn_mean,
+                     self.bn_variance, self.bn_scale, self.bn_offset]:
+            for layer_idx, variable in dict.items():
+                weight_list.append(variable)
+
+        # And the ones that are not dictionaries (same across all layers)
+        weight_list.append(self.conv_core)
+        weight_list.append(self.fc_core)
+
+        return IWeights.num_parameters(weight_list)
+
 
 class TensorNetV1(INetwork):
 
@@ -75,40 +88,40 @@ class TensorNetV1(INetwork):
 
                     # W, H
                     self._weights.conv_wh[layer_idx] = tf.get_variable('t_wh_{}'.format(layer_idx),
-                                                           shape=(shape[0], shape[1], conv_ranks[0]),
-                                                           initializer=initializer)
+                                                                       shape=(shape[0], shape[1], conv_ranks[0]),
+                                                                       initializer=initializer)
 
                     # N
                     self._weights.conv_n[layer_idx] = tf.get_variable('t_n_{}'.format(layer_idx),
-                                                          shape=(shape[3], conv_ranks[1], conv_ranks[2]),
-                                                          initializer=initializer)
+                                                                      shape=(shape[3], conv_ranks[1], conv_ranks[2]),
+                                                                      initializer=initializer)
 
                     # C
                     self._weights.conv_c[layer_idx] = tf.get_variable('t_c_{}'.format(layer_idx),
-                                                          shape=(shape[2], conv_ranks[2], conv_ranks[3]),
-                                                          initializer=initializer)
+                                                                      shape=(shape[2], conv_ranks[2], conv_ranks[3]),
+                                                                      initializer=initializer)
 
                     if cur_layer.using_bias():
                         self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
-                                                                 shape=shape[3],  # W x H x C x N
-                                                                 initializer=initializer)
+                                                                        shape=shape[3],  # W x H x C x N
+                                                                        initializer=initializer)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
                     shape = cur_layer.get_shape()
 
                     self._weights.fc_in[layer_idx] = tf.get_variable('t_in_{}'.format(layer_idx),
-                                                           shape=(shape[0], fc_ranks[0], fc_ranks[1]),
-                                                           initializer=initializer)
+                                                                     shape=(shape[0], fc_ranks[0], fc_ranks[1]),
+                                                                     initializer=initializer)
 
                     self._weights.fc_out[layer_idx] = tf.get_variable('t_out_{}'.format(layer_idx),
-                                                            shape=(shape[1], fc_ranks[1], fc_ranks[2]),
-                                                            initializer=initializer)
+                                                                      shape=(shape[1], fc_ranks[1], fc_ranks[2]),
+                                                                      initializer=initializer)
 
                     if cur_layer.using_bias():
                         self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
-                                                                 shape=shape[1],  # I x O
-                                                                 initializer=initializer)
+                                                                        shape=shape[1],  # I x O
+                                                                        initializer=initializer)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
                     # num_features is effectively the depth of the input feature map
@@ -116,16 +129,18 @@ class TensorNetV1(INetwork):
 
                     # Create the mean and variance weights
                     self._weights.bn_mean[layer_idx] = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features,
-                                                             initializer=initializer)
+                                                                       initializer=initializer)
                     self._weights.bn_variance[layer_idx] = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features,
-                                                                 initializer=initializer)
+                                                                           initializer=initializer)
 
                     if cur_layer.is_affine():
                         # Scale (gamma) and offset (beta) parameters
-                        self._weights.bn_scale[layer_idx] = tf.get_variable('scale_{}'.format(layer_idx), shape=num_features,
-                                                                  initializer=initializer)
-                        self._weights.bn_offset[layer_idx] = tf.get_variable('offset_{}'.format(layer_idx), shape=num_features,
-                                                                   initializer=initializer)
+                        self._weights.bn_scale[layer_idx] = tf.get_variable('scale_{}'.format(layer_idx),
+                                                                            shape=num_features,
+                                                                            initializer=initializer)
+                        self._weights.bn_offset[layer_idx] = tf.get_variable('offset_{}'.format(layer_idx),
+                                                                             shape=num_features,
+                                                                             initializer=initializer)
                     else:
                         self._weights.bn_scale[layer_idx] = None
                         self._weights.bn_offset[layer_idx] = None
@@ -134,10 +149,10 @@ class TensorNetV1(INetwork):
             # NOTE: This is the same across all layers
             # This high dimension core tensor is connected to all layer dim core tensors
             self._weights.conv_core = tf.get_variable('t_core', shape=(conv_ranks[0], conv_ranks[1], conv_ranks[3]),
-                                          initializer=initializer)
+                                                      initializer=initializer)
 
             self._weights.fc_core = tf.get_variable('t_fc', shape=(fc_ranks[0], fc_ranks[2]),
-                                        initializer=initializer)
+                                                    initializer=initializer)
 
     def run_layer(self, input, layer_idx, name):
         """ Pass input through a single layer
@@ -160,11 +175,11 @@ class TensorNetV1(INetwork):
             if isinstance(cur_layer, ConvLayer):
                 # Spatial and core tensor
                 # out [shape[0], shape[1], ranks[1], ranks[3]]
-                c1 = tf.tensordot(self._weights.conv_wh[layer_idx], self.t_core, axes=[[2], [0]])
+                c1 = tf.tensordot(self._weights.conv_wh[layer_idx], self._weights.conv_core, axes=[[2], [0]])
 
                 # Channel tensors
                 # out [shape[2], ranks[3], shape[3], ranks[1]]
-                c2 = tf.tensordot(self._weights.conv_c[layer_idx], self.t_n[layer_idx], axes=[[1], [2]])
+                c2 = tf.tensordot(self._weights.conv_c[layer_idx], self._weights.conv_n[layer_idx], axes=[[1], [2]])
 
                 # Final combine
                 # out [shape[0], shape[1], shape[2], shape[3]]
@@ -215,39 +230,6 @@ class TensorNetV1(INetwork):
 
         return net
 
-    def get_info(self):
-        """ TODO: Print some helpful information about the network (pretty print) """
-        print("Number of layers = {}".format(self.num_layers))
-
-        # TODO: Why did this print not work?
-        print("CONV Ranks ->".format(self.conv_ranks))
-        print("FC Ranks ->".format(self.fc_ranks))
-
     def num_parameters(self):
         """ Get the total number of parameters (sum of all parameters in each core tensor) """
-        # TODO: This is outdated significantly now
-        n = 0
-        for layer_idx in range(self.num_layers):
-
-            cur_layer = self.architecture.get_layer(layer_idx)
-            # NOTE: Not all the layers have weights
-            if isinstance(cur_layer, ConvLayer):
-
-                for t in [self._weights.conv_wh[layer_idx], self._weights.conv_c[layer_idx],
-                          self._weights.conv_n[layer_idx]]:
-                    n += np.prod(list(t.get_shape()))
-
-                # Core tensor is not an array for each layer
-                n += np.prod(list(self._weights.conv_core.get_shape()))
-
-            elif isinstance(cur_layer, FullyConnectedLayer):
-
-                # Similarly for the fully connected layers
-                for t in [self._weights.fc_in[layer_idx], self._weights.fc_out[layer_idx]]:
-                    n += np.prod(list(t.get_shape()))
-
-                n += np.prod(list(self._weights.fc_core.get_shape()))
-
-            # TODO: Batch normalisation has weights
-
-        return n
+        return self._weights.num_parameters()

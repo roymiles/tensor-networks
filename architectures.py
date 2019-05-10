@@ -110,27 +110,27 @@ class HardNet(Architecture):
     # See: https://github.com/DagnyT/hardnet
     def __init__(self):
         network = [
-            ConvLayer(shape=[3, 3, 1, 32], name="conv1", use_bias=False),
-            BatchNormalisationLayer(32, name="bn1", affine=False),
+            ConvLayer(shape=[3, 3, 1, 32], use_bias=False),
+            BatchNormalisationLayer(32, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 32, 32], name="conv2", use_bias=False),
-            BatchNormalisationLayer(32, name="bn2", affine=False),
+            ConvLayer(shape=[3, 3, 32, 32], use_bias=False),
+            BatchNormalisationLayer(32, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 32, 64], name="conv3", use_bias=False),
-            BatchNormalisationLayer(64, name="bn3", affine=False),
+            ConvLayer(shape=[3, 3, 32, 64], use_bias=False),
+            BatchNormalisationLayer(64, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 64, 64], name="conv4", use_bias=False),
-            BatchNormalisationLayer(64, name="bn4", affine=False),
+            ConvLayer(shape=[3, 3, 64, 64], use_bias=False),
+            BatchNormalisationLayer(64, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 64, 128], name="conv5", use_bias=False),
-            BatchNormalisationLayer(128, name="bn5", affine=False),
+            ConvLayer(shape=[3, 3, 64, 128], use_bias=False),
+            BatchNormalisationLayer(128, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 128, 128], name="conv6", use_bias=False),
-            BatchNormalisationLayer(128, name="bn6", affine=False),
+            ConvLayer(shape=[3, 3, 128, 128], use_bias=False),
+            BatchNormalisationLayer(128, affine=False),
             ReLU(),
             DropoutLayer(0.3),
-            ConvLayer(shape=[8, 8, 128, 128], name="conv7", use_bias=False, padding="VALID"),
-            BatchNormalisationLayer(128, name="bn7", affine=False)
+            ConvLayer(shape=[8, 8, 128, 128], use_bias=False, padding="VALID"),
+            BatchNormalisationLayer(128, affine=False)
         ]
 
         super().__init__(network)

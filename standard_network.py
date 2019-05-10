@@ -19,6 +19,14 @@ class Weights(IWeights):
     def __init__(self):
         pass
 
+    def num_parameters(self):
+        weight_list = []
+        for dict in [self.conv, self.fc, self.bias, self.bn_mean, self.bn_variance, self.bn_scale, self.bn_offset]:
+            for layer_idx, variable in dict.items():
+                weight_list.append(variable)
+
+        return IWeights.num_parameters(weight_list)
+
 
 class StandardNetwork(INetwork):
     def __init__(self, architecture):
@@ -39,24 +47,24 @@ class StandardNetwork(INetwork):
 
                     shape = cur_layer.get_shape()
                     self._weights.conv[layer_idx] = tf.get_variable('t_conv_{}'.format(layer_idx),
-                                                             shape=shape,
-                                                             initializer=initializer)
+                                                                    shape=shape,
+                                                                    initializer=initializer)
 
                     self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
-                                                             shape=shape[3],  # W x H x C x N
-                                                             initializer=initializer)
+                                                                    shape=shape[3],  # W x H x C x N
+                                                                    initializer=initializer)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
                     # Exactly the same as convolutional layer (pretty much)
                     shape = cur_layer.get_shape()
                     self._weights.fc[layer_idx] = tf.get_variable('t_fc_{}'.format(layer_idx),
-                                                           shape=shape,
-                                                           initializer=initializer)
+                                                                  shape=shape,
+                                                                  initializer=initializer)
 
                     self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
-                                                             shape=shape[1],  # I x O (Except here)
-                                                             initializer=initializer)
+                                                                    shape=shape[1],  # I x O (Except here)
+                                                                    initializer=initializer)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
                     # num_features is effectively the depth of the input feature map
@@ -64,16 +72,16 @@ class StandardNetwork(INetwork):
 
                     # Create the mean and variance weights
                     self._weights.bn_mean[layer_idx] = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features,
-                                                             initializer=initializer)
+                                                                       initializer=initializer)
                     self._weights.bn_variance[layer_idx] = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features,
-                                                                 initializer=initializer)
+                                                                           initializer=initializer)
 
                     if cur_layer.is_affine():
                         # Scale (gamma) and offset (beta) parameters
                         self._weights.bn_scale[layer_idx] = tf.get_variable('scale_{}'.format(layer_idx), shape=num_features,
-                                                                  initializer=initializer)
+                                                                            initializer=initializer)
                         self._weights.bn_offset[layer_idx] = tf.get_variable('offset_{}'.format(layer_idx), shape=num_features,
-                                                                   initializer=initializer)
+                                                                             initializer=initializer)
                     else:
                         self._weights.bn_scale[layer_idx] = None
                         self._weights.bn_offset[layer_idx] = None
@@ -113,3 +121,7 @@ class StandardNetwork(INetwork):
             net = self.run_layer(net, layer_idx=n, name="layer_{}".format(n))
 
         return net
+
+    def num_parameters(self):
+        """ Get the total number of parameters (sum of all parameters in each core tensor) """
+        return self._weights.num_parameters()

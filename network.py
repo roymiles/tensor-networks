@@ -1,4 +1,4 @@
-""" Abstract class for all network types """
+""" Define interfaces for a network and the weights inside the network """
 import tensorflow as tf
 from layers import *
 
@@ -8,9 +8,17 @@ class IWeights:
         raise Exception("You cannot instantiate me")
 
     @staticmethod
-    def num_parameters():
-        # TODO: DO it
-        return 0
+    def num_parameters(weight_list):
+        """" Calculates the number of parameters from a list of weights
+             Each elements consists of an arbitrary dimensional tensor """
+
+        num_params_op = 0
+        for weight in weight_list:
+            num_params_op += tf.size(weight)
+
+        sess = tf.Session()
+        num_params = sess.run(num_params_op)
+        return num_params
 
 
 class INetwork:
