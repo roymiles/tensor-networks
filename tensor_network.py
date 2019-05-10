@@ -1,9 +1,39 @@
+""" Use core tensors to parametrise the layers """
 import tensorflow as tf
 import numpy as np
 from layers import *
+import config as conf
+from base import *
+from network import INetwork, IWeights
 
 
-class TensorNetV1(tf.keras.Model):
+class Weights(IWeights):
+    # NOTE: These are dictionaries where the index is the layer_idx
+    # Core tensors for convolutional layers
+    conv_wh = {}
+    conv_c = {}
+    conv_n = {}
+    conv_core = None
+
+    # Core tensors for fully connected layers
+    fc_in = {}
+    fc_out = {}
+    fc_core = None
+
+    # Biases (same dimensions for both fc and conv layers)
+    bias = {}
+
+    # Batch normalisation variables
+    bn_mean = {}
+    bn_variance = {}
+    bn_scale = {}
+    bn_offset = {}
+
+    def __init__(self):
+        pass
+
+
+class TensorNetV1(INetwork):
 
     def __init__(self, architecture, conv_ranks, fc_ranks):
         """ Build an example tensor network
@@ -21,33 +51,19 @@ class TensorNetV1(tf.keras.Model):
         Number of layers can be inferred from the network configuration
         """
 
-        super(TensorNetV1, self).__init__(name='TensorNetV1')
-
-        with tf.variable_scope("ExampleNetwork"):
+        with tf.variable_scope("TensorNetwork"):
 
             self.architecture = architecture
             self.conv_ranks = conv_ranks
             self.fc_ranks = fc_ranks
             self.num_layers = architecture.num_layers()
 
-            # Wide compression suggests to use Gaussian initialization
-            initializer = tf.contrib.layers.variance_scaling_initializer()
-
             # If they are not being used, just set the elements to -1 or None
             assert len(conv_ranks) == 4, "Must have 4 rank values for the convolution decomposition"
             assert len(fc_ranks) == 3, "Must have 3 rank values for the fully connected weight decomposition"
 
-            # NOTE: These are dictionaries where the index is the layer_idx
-            # Core tensors for convolutional layers
-            self.t_wh = {}
-            self.t_c = {}
-            self.t_n = {}
-            self.t_core = {}
-
-            # Core tensors for fully connected layers
-            self.t_in = {}
-            self.t_out = {}
-            self.t_fc = {}
+            # A container for all the core tensors, bn variables etc
+            self._weights = Weights()
 
             for layer_idx in range(self.num_layers):
 
@@ -58,39 +74,69 @@ class TensorNetV1(tf.keras.Model):
                     shape = cur_layer.get_shape()
 
                     # W, H
-                    self.t_wh[layer_idx] = tf.get_variable('t_wh_{}'.format(layer_idx),
+                    self._weights.conv_wh[layer_idx] = tf.get_variable('t_wh_{}'.format(layer_idx),
                                                            shape=(shape[0], shape[1], conv_ranks[0]),
                                                            initializer=initializer)
 
                     # N
-                    self.t_n[layer_idx] = tf.get_variable('t_n_{}'.format(layer_idx),
+                    self._weights.conv_n[layer_idx] = tf.get_variable('t_n_{}'.format(layer_idx),
                                                           shape=(shape[3], conv_ranks[1], conv_ranks[2]),
                                                           initializer=initializer)
 
                     # C
-                    self.t_c[layer_idx] = tf.get_variable('t_c_{}'.format(layer_idx),
+                    self._weights.conv_c[layer_idx] = tf.get_variable('t_c_{}'.format(layer_idx),
                                                           shape=(shape[2], conv_ranks[2], conv_ranks[3]),
                                                           initializer=initializer)
+
+                    if cur_layer.using_bias():
+                        self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
+                                                                 shape=shape[3],  # W x H x C x N
+                                                                 initializer=initializer)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
                     shape = cur_layer.get_shape()
 
-                    self.t_in[layer_idx] = tf.get_variable('t_in_{}'.format(layer_idx),
+                    self._weights.fc_in[layer_idx] = tf.get_variable('t_in_{}'.format(layer_idx),
                                                            shape=(shape[0], fc_ranks[0], fc_ranks[1]),
                                                            initializer=initializer)
 
-                    self.t_out[layer_idx] = tf.get_variable('t_out_{}'.format(layer_idx),
+                    self._weights.fc_out[layer_idx] = tf.get_variable('t_out_{}'.format(layer_idx),
                                                             shape=(shape[1], fc_ranks[1], fc_ranks[2]),
                                                             initializer=initializer)
+
+                    if cur_layer.using_bias():
+                        self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
+                                                                 shape=shape[1],  # I x O
+                                                                 initializer=initializer)
+
+                elif isinstance(cur_layer, BatchNormalisationLayer):
+                    # num_features is effectively the depth of the input feature map
+                    num_features = cur_layer.get_num_features()
+
+                    # Create the mean and variance weights
+                    self._weights.bn_mean[layer_idx] = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features,
+                                                             initializer=initializer)
+                    self._weights.bn_variance[layer_idx] = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features,
+                                                                 initializer=initializer)
+
+                    if cur_layer.is_affine():
+                        # Scale (gamma) and offset (beta) parameters
+                        self._weights.bn_scale[layer_idx] = tf.get_variable('scale_{}'.format(layer_idx), shape=num_features,
+                                                                  initializer=initializer)
+                        self._weights.bn_offset[layer_idx] = tf.get_variable('offset_{}'.format(layer_idx), shape=num_features,
+                                                                   initializer=initializer)
+                    else:
+                        self._weights.bn_scale[layer_idx] = None
+                        self._weights.bn_offset[layer_idx] = None
 
             # Core tensors provides basis vectors
             # NOTE: This is the same across all layers
             # This high dimension core tensor is connected to all layer dim core tensors
-            self.t_core = tf.get_variable('t_core', shape=(conv_ranks[0], conv_ranks[1], conv_ranks[3]),
+            self._weights.conv_core = tf.get_variable('t_core', shape=(conv_ranks[0], conv_ranks[1], conv_ranks[3]),
                                           initializer=initializer)
 
-            self.t_fc = tf.get_variable('t_fc', shape=(fc_ranks[0], fc_ranks[2]),
+            self._weights.fc_core = tf.get_variable('t_fc', shape=(fc_ranks[0], fc_ranks[2]),
                                         initializer=initializer)
 
     def run_layer(self, input, layer_idx, name):
@@ -114,56 +160,52 @@ class TensorNetV1(tf.keras.Model):
             if isinstance(cur_layer, ConvLayer):
                 # Spatial and core tensor
                 # out [shape[0], shape[1], ranks[1], ranks[3]]
-                c1 = tf.tensordot(self.t_wh[layer_idx], self.t_core, axes=[[2], [0]])
+                c1 = tf.tensordot(self._weights.conv_wh[layer_idx], self.t_core, axes=[[2], [0]])
 
                 # Channel tensors
                 # out [shape[2], ranks[3], shape[3], ranks[1]]
-                c2 = tf.tensordot(self.t_c[layer_idx], self.t_n[layer_idx], axes=[[1], [2]])
+                c2 = tf.tensordot(self._weights.conv_c[layer_idx], self.t_n[layer_idx], axes=[[1], [2]])
 
                 # Final combine
                 # out [shape[0], shape[1], shape[2], shape[3]]
                 c3 = tf.tensordot(c1, c2, axes=[[2, 3], [3, 1]])
 
-                print("----- {} -----".format(layer_idx))
-                print("Input {}".format(input.get_shape()))
-                print("Kernel for convolution = {}".format(c3.get_shape()))
-                print("--------------")
-                print("")
+                if conf.is_debugging:
+                    print("----- {} -----".format(layer_idx))
+                    print("Input {}".format(input.get_shape()))
+                    print("Kernel for convolution = {}".format(c3.get_shape()))
+                    print("--------------")
+                    print("")
 
                 # Call the function and return the result
-                return cur_layer(input, c2)
+                return cur_layer(input, c3, self._weights.bias[layer_idx])
 
             elif isinstance(cur_layer, FullyConnectedLayer):
                 # Input and output channel core tensors
-                # out [shape[2], ranks[5], shape[3], ranks[7]]
-                c1 = tf.tensordot(self.t_in[layer_idx], self.t_out[layer_idx], axes=[[2], [1]])
+                # out [shape[0], ranks[0], shape[1], ranks[2]]
+                c1 = tf.tensordot(self._weights.fc_in[layer_idx], self._weights.fc_out[layer_idx], axes=[[2], [1]])
 
                 # Final combine
-                # out [shape[2], shape[3]] - in, out
-                c2 = tf.tensordot(c1, self.t_core, axes=[[2], [0]])
+                # out [shape[0], shape[1]] - in, out
+                c2 = tf.tensordot(c1, self._weights.fc_core, axes=[[1, 3], [0, 1]])
 
-                print("----- {} -----".format(layer_idx))
-                print("Input {}".format(input.get_shape()))
-                print("Kernel for fc = {}".format(c2.get_shape()))
-                print("--------------")
-                print("")
+                if conf.is_debugging:
+                    print("----- {} -----".format(layer_idx))
+                    print("Input {}".format(input.get_shape()))
+                    print("Kernel for fc = {}".format(c2.get_shape()))
+                    print("--------------")
+                    print("")
 
-                return cur_layer(input, c2)
+                return cur_layer(input, c2, self.t_bias[layer_idx])
 
-            # For both pooling layers, there are no weights and so we
-            # effectively just run their __call__ methods
-            elif isinstance(cur_layer, AveragePoolingLayer):
-
-                return cur_layer(input)
-
-            elif isinstance(cur_layer, MaxPoolingLayer):
-
-                return cur_layer(input)
-
+            elif isinstance(cur_layer, BatchNormalisationLayer):
+                return cur_layer(input, self._weights.bn_mean[layer_idx], self._weights.bn_variance[layer_idx],
+                                 self._weights.bn_offset[layer_idx], self._weights.bn_offset[layer_idx])
             else:
-                raise Exception("Invalid layer type")
+                # These layers are not overridden
+                return INetwork.run_layer(cur_layer, input)
 
-    def call(self, input):
+    def __call__(self, input):
         """ Complete forward pass for the entire network """
 
         # Loop through all the layers
@@ -171,7 +213,6 @@ class TensorNetV1(tf.keras.Model):
         for n in range(self.num_layers):
             net = self.run_layer(net, layer_idx=n, name="layer_{}".format(n))
 
-        # TODO: More, softmax etc
         return net
 
     def get_info(self):
@@ -184,27 +225,29 @@ class TensorNetV1(tf.keras.Model):
 
     def num_parameters(self):
         """ Get the total number of parameters (sum of all parameters in each core tensor) """
-
+        # TODO: This is outdated significantly now
         n = 0
         for layer_idx in range(self.num_layers):
 
-            if isinstance(self.architecture.get_layer(n), ConvLayer):
+            cur_layer = self.architecture.get_layer(layer_idx)
+            # NOTE: Not all the layers have weights
+            if isinstance(cur_layer, ConvLayer):
 
-                for t in [self.t_wh[layer_idx], self.t_c[layer_idx], self.t_n[layer_idx]]:
+                for t in [self._weights.conv_wh[layer_idx], self._weights.conv_c[layer_idx],
+                          self._weights.conv_n[layer_idx]]:
                     n += np.prod(list(t.get_shape()))
 
                 # Core tensor is not an array for each layer
-                n += np.prod(list(self.t_core.get_shape()))
+                n += np.prod(list(self._weights.conv_core.get_shape()))
 
-            elif isinstance(self.architecture.get_layer(n), FullyConnectedLayer):
+            elif isinstance(cur_layer, FullyConnectedLayer):
 
                 # Similarly for the fully connected layers
-                for t in [self.t_in[layer_idx], self.t_out[layer_idx]]:
+                for t in [self._weights.fc_in[layer_idx], self._weights.fc_out[layer_idx]]:
                     n += np.prod(list(t.get_shape()))
 
-                n += np.prod(list(self.t_fc.get_shape()))
+                n += np.prod(list(self._weights.fc_core.get_shape()))
 
-            else:
-                raise Exception("Invalid layer type")
+            # TODO: Batch normalisation has weights
 
         return n

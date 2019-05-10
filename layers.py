@@ -1,4 +1,5 @@
 import tensorflow as tf
+from base import *
 
 
 class Layer:
@@ -11,7 +12,7 @@ class Layer:
         return 0
 
     def __call__(self):
-        raise Exception("Must override call method")
+        raise Exception("This is not how you are supposed to call this layer")
 
 
 class WeightLayer(Layer):
@@ -23,9 +24,9 @@ class WeightLayer(Layer):
 
     def num_parameters(self):
         # Override parent function in this case
-        n = 0
+        n = 1
         for size in self._shape:
-            n += size
+            n *= size
 
         return n
 
@@ -34,36 +35,61 @@ class WeightLayer(Layer):
 
 
 class ConvLayer(WeightLayer):
-    def __init__(self, shape, strides=[1, 1, 1, 1]):
+    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
         super().__init__(shape)
         self._strides = strides
+        self._padding = padding
+        self._use_bias = use_bias
+
+    def using_bias(self):
+        return self._use_bias
 
     def get_strides(self):
         return self._strides
 
-    def __call__(self, input, kernel):
-        return tf.nn.conv2d(input, kernel, strides=self._strides, padding="SAME")
+    def __call__(self, input, kernel, bias=None):
+        net = tf.nn.conv2d(input, kernel, strides=self._strides, padding=self._padding)
+
+        if bias:
+            net = tf.nn.bias_add(net, bias)
+
+        return net
 
 
 class FullyConnectedLayer(WeightLayer):
-    def __init__(self, shape):
+    def __init__(self, shape, use_bias=True):
         super().__init__(shape)
+        self._use_bias = use_bias
 
-    def __call__(self, input, kernel):
-        net = tf.layers.flatten(input)
-        net = tf.linalg.matmul(net, kernel)
+    def using_bias(self):
+        return self._use_bias
+
+    def __call__(self, input, kernel, bias=None):
+        net = tf.linalg.matmul(input, kernel)
+
+        if bias:
+            net = tf.nn.bias_add(net, bias)
 
         return net
 
 
 class PoolingLayer(Layer):
-    def __init__(self, shape):
+    def __init__(self, ksize, strides=None):
         """ In this case shape is the receptive field size to average over """
         super().__init__()
-        self._shape = shape
+        self._ksize = ksize
 
-    def get_pool_size(self):
-        return self._shape
+        if strides:
+            self._strides = strides
+        else:
+            # Just shift by the pool size (default pooling operation)
+            self._strides = ksize
+
+    def get_ksize(self):
+        return self._ksize
+
+    def get_strides(self):
+        return self._strides
 
 
 class AveragePoolingLayer(PoolingLayer):
@@ -71,7 +97,8 @@ class AveragePoolingLayer(PoolingLayer):
         super().__init__(shape)
 
     def __call__(self, input):
-        return tf.nn.avg_pool(input, PoolingLayer.get_pool_size(), strides=[1, 1, 1, 1], padding="SAME")
+        return tf.nn.avg_pool(input, ksize=super(AveragePoolingLayer, self).get_ksize(),
+                              strides=super(AveragePoolingLayer, self).get_strides(), padding="SAME")
 
 
 class MaxPoolingLayer(PoolingLayer):
@@ -79,7 +106,8 @@ class MaxPoolingLayer(PoolingLayer):
         super().__init__(shape)
 
     def __call__(self, input):
-        return tf.nn.max_pool(input, PoolingLayer.get_pool_size(), strides=[1, 1, 1, 1], padding="SAME")
+        return tf.nn.max_pool(input, ksize=super(MaxPoolingLayer, self).get_ksize(),
+                              strides=super(MaxPoolingLayer, self).get_strides(), padding="SAME")
 
 
 class DropoutLayer(Layer):
@@ -92,11 +120,24 @@ class DropoutLayer(Layer):
 
 
 class BatchNormalisationLayer(Layer):
-    def __init__(self):
+    def __init__(self, num_features, affine=True, variance_epsilon=0.001):
+        """ If affine is False, the scale and offset parameters won't be used """
         super().__init__()
+        self._num_features = num_features
+        self._affine = affine
+        self._variance_epsilon = variance_epsilon
 
-    def __call__(self, input):
-        return tf.layers.batch_normalization(input)
+    def is_affine(self):
+        return self._affine
+
+    def get_num_features(self):
+        return self._num_features
+
+    def get_variance_epsilon(self):
+        return self._variance_epsilon
+
+    def __call__(self, input, mean, variance, offset, scale):
+        return tf.nn.batch_normalization(input, mean, variance, offset, scale, variance_epsilon=self._variance_epsilon)
 
 
 class ReLU(Layer):
