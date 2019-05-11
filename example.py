@@ -1,8 +1,5 @@
-import tensorflow as tf
-import numpy as np
-from layers import *
 from architectures import *
-from tensor_network import TensorNetV1
+from Networks.tensor_network import TensorNetV1
 
 conv_ranks = [5, 5, 5, 5]
 fc_ranks = [3, 3, 3]

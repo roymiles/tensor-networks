@@ -1,17 +1,15 @@
-import tensorflow as tf
 import numpy as np
-from layers import *
 from architectures import *
-from tensor_network import TensorNetV1
-from standard_network import StandardNetwork
-import datasets
+from Networks.tensor_network import TensorNetV1
+from Networks.standard_network import StandardNetwork
 import tensorflow_datasets as tfds
 import config as conf
-from tqdm import tqdm
 
-import os
+print(tf.__version__)
+
+#import os
 # Suppress warning messages
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 if __name__ == '__main__':
     # These hyperparameters control the compression
@@ -49,11 +47,8 @@ if __name__ == '__main__':
 
     model_v2 = StandardNetwork(architecture=architecture)
 
-    print("Number of parameters *model_v1* = {}".format(model_v1.num_parameters()))
-    print("Number of parameters *model_v2* = {}".format(model_v2.num_parameters()))
-
     # Single forward pass
-    logits = model_v1(x)
+    logits = model_v2(x)
 
     loss = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
     avg_loss = tf.reduce_mean(loss)  # Over entire batch
@@ -65,6 +60,11 @@ if __name__ == '__main__':
     with tf.Session() as sess:
         # Initialize weights
         sess.run(init_op)
+
+        #acc_op = tf.metrics.accuracy(y, logits)
+
+        print("Number of parameters *model_v1* = {}".format(model_v1.num_parameters()))
+        print("Number of parameters *model_v2* = {}".format(model_v2.num_parameters()))
 
         for epoch in range(conf.epochs):
 
@@ -80,8 +80,9 @@ if __name__ == '__main__':
                     learning_rate: conf.initial_learning_rate
                 }
 
-                fetches = [avg_loss, train_op]
+                fetches = [global_step, train_op]
 
-                train_loss, _ = sess.run(fetches, feed_dict)
+                step, _ = sess.run(fetches, feed_dict)
 
-                print("Loss: {}".format(train_loss))
+                #if step % 100 == 0:
+                #    print("Epoch: {}, Step {}, Acc: {}".format(epoch, step, train_acc))
