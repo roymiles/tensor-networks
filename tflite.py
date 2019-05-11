@@ -25,7 +25,7 @@ def invoke_tflite(model_path, input_data):
     input_shape = input_details[0]['shape']
     assert input_shape == input_data.shape, "Invalid shape for the input node"
     # TODO: Check data type too
-    
+
     interpreter.set_tensor(input_details[0]['index'], input_data)
 
     interpreter.invoke()
