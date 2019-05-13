@@ -1,4 +1,6 @@
-from layers import *
+""" Defines some common architectures under the framework """
+from Layers.core import *
+import Layers.axel
 
 
 class Architecture:
@@ -49,7 +51,8 @@ class MobileNetV1(Architecture):
             AveragePoolingLayer(shape=[1, 7, 7, 1]),
 
             # Finally a fully connected layer (1000 classes)
-            FullyConnectedLayer(shape=[1024, 1000])
+            Flatten(),
+            FullyConnectedLayer(shape=[1024, 100])
         ]
 
         super().__init__(network)
@@ -75,35 +78,83 @@ class AlexNet(Architecture):
 
 class CIFAR100Example(Architecture):
     # See: https://github.com/dribnet/kerosene/blob/master/examples/cifar100.py
-    # ... CIFAR100, but 10 logits dimension?
     def __init__(self):
         network = [
-            ConvLayer(shape=[3, 3, 1, 32]),
-            BatchNormalisationLayer(32),
+            ConvLayer(shape=[3, 3, 3, 32]),
+            # BatchNormalisationLayer(32),
             ReLU(),
             ConvLayer(shape=[3, 3, 32, 32]),
-            BatchNormalisationLayer(32),
+            # BatchNormalisationLayer(32),
             ReLU(),
             MaxPoolingLayer(shape=[1, 2, 2, 1]),
             DropoutLayer(0.25),
 
             ConvLayer(shape=[3, 3, 32, 64]),
-            BatchNormalisationLayer(64),
+            # BatchNormalisationLayer(64),
             ReLU(),
             ConvLayer(shape=[3, 3, 64, 64]),
-            BatchNormalisationLayer(64),
+            # BatchNormalisationLayer(64),
             ReLU(),
             MaxPoolingLayer(shape=[1, 2, 2, 1]),
             DropoutLayer(0.25),
 
             Flatten(),
-            FullyConnectedLayer(shape=[3136, 512]),
+            FullyConnectedLayer(shape=[4096, 512]),
             ReLU(),
             DropoutLayer(0.5),
-            FullyConnectedLayer(shape=[512, 10])
+            FullyConnectedLayer(shape=[512, 100])
         ]
 
         super().__init__(network)
+
+
+class KeyNet(Architecture):
+    # Axel's Key.Net
+    def __init__(self):
+        network = [
+            Layers.axel.GaussianSmoothLayer(),
+
+            # Makes a parallel split
+            Layers.axel.PyramidScaleSplitLayer(pyramid_levels=3, scaling_factor=1.2),
+            Layers.axel.HandcraftedFeaturesLayer(),
+            Layers.axel.ConvLayer(shape=(5, 5, 9, 8), strides=[1, 1, 1, 1], use_bias=False),
+            Layers.axel.ConvLayer(shape=(5, 5, 8, 8), strides=[1, 1, 1, 1], use_bias=False),
+            Layers.axel.ConvLayer(shape=(5, 5, 8, 8), strides=[1, 1, 1, 1], use_bias=False),
+            # Combines the parallel split
+            Layers.axel.PyramidScaleCombineLayer(),
+
+            # Back to standard layers
+            BatchNormalisationLayer(24, affine=False),
+            ConvLayer(shape=[5, 5, 24, 1])
+        ]
+
+        super().__init__(network)
+
+        MSIP_sizes = [8, 16, 24, 32, 40]
+        self.create_kernels(MSIP_sizes, "KeyNet")
+
+    def create_kernels(self, MSIP_sizes, name_scope):
+        # create_kernels
+        self.kernels = {}
+
+        # Grid Indexes for MSIP
+        for ksize in MSIP_sizes:
+            from KeyNet.model.keynet_architecture import ones_multiple_channels, grid_indexes, linear_upsample_weights
+            ones_kernel = ones_multiple_channels(ksize, 1)
+            indexes_kernel = grid_indexes(ksize)
+            upsample_filter_np = linear_upsample_weights(int(ksize / 2), 1)
+
+            self.ones_kernel = tf.constant(ones_kernel, name=name_scope +'_Ones_kernel_'+str(ksize))
+            self.kernels['ones_kernel_'+str(ksize)] = self.ones_kernel
+
+            self.upsample_filter_np = tf.constant(upsample_filter_np, name=name_scope+'_upsample_filter_np_'+str(ksize))
+            self.kernels['upsample_filter_np_'+str(ksize)] = self.upsample_filter_np
+
+            self.indexes_kernel = tf.constant(indexes_kernel, name=name_scope +'_indexes_kernel_'+str(ksize))
+            self.kernels['indexes_kernel_'+str(ksize)] = self.indexes_kernel
+
+    def get_kernels(self):
+        return self.kernels
 
 
 class HardNet(Architecture):
