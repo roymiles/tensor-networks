@@ -26,6 +26,7 @@ class Architecture:
 class MobileNetV1(Architecture):
     """ This is the original MobileNet architecture for ImageNet """
     def __init__(self):
+        num_classes = 10
         network = [
             # NOTE: Comments are for input size
             ConvLayer(shape=[3, 3, 3, 32], strides=[1, 2, 2, 1]),  # 224 x 224 x 3
@@ -50,9 +51,9 @@ class MobileNetV1(Architecture):
             # Global average pooling
             AveragePoolingLayer(shape=[1, 7, 7, 1]),
 
-            # Finally a fully connected layer (1000 classes)
+            # Finally a fully connected layer
             Flatten(),
-            FullyConnectedLayer(shape=[1024, 100])
+            FullyConnectedLayer(shape=[1024, num_classes])
         ]
 
         super().__init__(network)

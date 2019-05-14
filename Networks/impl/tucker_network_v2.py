@@ -55,13 +55,13 @@ class Weights(IWeights):
     # NOTE: These are dictionaries where the index is the layer_idx
 
     # Container for the core tensors for the convolutional layers
-    conv_graph = None
+    conv_graph = {}
 
     # Biases (same dimensions for both fc and conv layers)
     bias = {}
 
     # Core tensors for fully connected layers
-    fc_graph = None
+    fc_graph = {}
 
     # Batch normalisation variables
     bn_mean = {}
@@ -81,11 +81,8 @@ class Weights(IWeights):
 
         return IWeights.num_parameters(weight_list)
 
-    def from_layer(self, layer_idx):
-        pass
 
-
-class TuckerNet(INetwork):
+class TuckerNetV2(INetwork):
 
     def __init__(self, architecture, conv_ranks, fc_ranks):
         """ Build an example tensor network
@@ -119,21 +116,21 @@ class TuckerNet(INetwork):
 
                     shape = cur_layer.get_shape()
 
-                    self._weights.conv_graph = Graph
+                    self._weights.conv_graph[layer_idx] = Graph("conv_{}".format(layer_idx))
 
                     # Two exposed edges for WH dims
-                    self._weights.conv_graph.add_edge("WH", "_D1_", shape[0], dummy_node=True)
-                    self._weights.conv_graph.add_edge("WH", "_D2_", shape[1], dummy_node=True)
-                    self._weights.conv_graph.add_edge("C", "_D3_", shape[2], dummy_node=True)
-                    self._weights.conv_graph.add_edge("N", "_D4_", shape[3], dummy_node=True)
+                    self._weights.conv_graph[layer_idx].add_edge("WH", "D1", name="W", length=shape[0], dummy_node=True)
+                    self._weights.conv_graph[layer_idx].add_edge("WH", "D2", name="H", length=shape[1], dummy_node=True)
+                    self._weights.conv_graph[layer_idx].add_edge("C", "D3", name="C", length=shape[2], dummy_node=True)
+                    self._weights.conv_graph[layer_idx].add_edge("N", "D4", name="N", length=shape[3], dummy_node=True)
 
                     # Auxilliary indices
-                    self._weights.conv_graph.add_edge("WH", "G", conv_ranks[0])
-                    self._weights.conv_graph.add_edge("C", "G", conv_ranks[1])
-                    self._weights.conv_graph.add_edge("N", "G", conv_ranks[2])
+                    self._weights.conv_graph[layer_idx].add_edge("WH", "G", name="r0", length=conv_ranks[0])
+                    self._weights.conv_graph[layer_idx].add_edge("C", "G", name="r1", length=conv_ranks[1])
+                    self._weights.conv_graph[layer_idx].add_edge("N", "G", name="r2", length=conv_ranks[2])
 
                     # Compile/generate the tf.Variables
-                    self._weights.conv_graph.compile()
+                    self._weights.conv_graph[layer_idx].compile()
 
                     if cur_layer.using_bias():
                         self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
@@ -144,17 +141,13 @@ class TuckerNet(INetwork):
 
                     shape = cur_layer.get_shape()
 
-                    self._weights.fc_in[layer_idx] = tf.get_variable('fc_in_{}'.format(layer_idx),
-                                                                     shape=(shape[0], fc_ranks[0]),
-                                                                     initializer=initializer)
+                    self._weights.fc_graph[layer_idx] = Graph("fc_{}".format(layer_idx))
 
-                    self._weights.fc_out[layer_idx] = tf.get_variable('fc_out_{}'.format(layer_idx),
-                                                                      shape=(shape[1], fc_ranks[1]),
-                                                                      initializer=initializer)
-
-                    self._weights.fc_g[layer_idx] = tf.get_variable('fc_g_{}'.format(layer_idx),
-                                                                    shape=(fc_ranks[0], fc_ranks[1]),
-                                                                    initializer=initializer)
+                    self._weights.fc_graph[layer_idx].add_edge("IN", "D1", name="IN", length=shape[0], dummy_node=True)
+                    self._weights.fc_graph[layer_idx].add_edge("OUT", "D2", name="OUT", length=shape[1], dummy_node=True)
+                    self._weights.fc_graph[layer_idx].add_edge("IN", "G", name="r0", length=fc_ranks[0])
+                    self._weights.fc_graph[layer_idx].add_edge("OUT", "G", name="r1", length=fc_ranks[1])
+                    self._weights.fc_graph[layer_idx].compile()
 
                     if cur_layer.using_bias():
                         self._weights.bias[layer_idx] = tf.get_variable('t_bias_{}'.format(layer_idx),
@@ -204,7 +197,11 @@ class TuckerNet(INetwork):
             if isinstance(cur_layer, ConvLayer):
 
                 # Combine the core tensors
-                c = self._weights.conv_graph.combine()
+                c = self._weights.conv_graph[layer_idx].combine()
+
+                # Reshape to proper ordering
+                s = tf.shape(c)
+                c = tf.reshape(c, [s[2], s[3], s[1], s[0]])
 
                 # Call the function and return the result
                 return cur_layer(input, c, self._weights.bias[layer_idx])
@@ -212,7 +209,11 @@ class TuckerNet(INetwork):
             elif isinstance(cur_layer, FullyConnectedLayer):
 
                 # Combine the core tensors
-                c = self._weights.conv_graph.combine()
+                c = self._weights.fc_graph[layer_idx].combine()
+
+                # Reshape to proper ordering
+                s = tf.shape(c)
+                c = tf.reshape(c, [s[1], s[0]])
 
                 if conf.is_debugging:
                     print("----- {} -----".format(layer_idx))

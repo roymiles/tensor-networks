@@ -3,6 +3,7 @@
 import tensorflow as tf
 from base import *
 from enum import Enum
+from abc import abstractmethod
 
 
 class LayerTypes(Enum):
@@ -17,9 +18,9 @@ class Layer:
     def __init__(self):
         pass
 
-    @abs
+    @abstractmethod
     def __call__(self):
-        raise Exception("This is not how you are supposed to call this layer")
+        pass
 
 
 class ConvLayer(Layer):
@@ -40,6 +41,10 @@ class ConvLayer(Layer):
         return self._strides
 
     def __call__(self, input, kernel, bias=None):
+
+        print(kernel.shape)
+        print(bias)
+
         net = tf.nn.conv2d(input, kernel, strides=self._strides, padding=self._padding)
 
         if bias:

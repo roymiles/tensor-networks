@@ -29,5 +29,5 @@ tfds_dir = "/media/roy/New Volume/tensorflow-datasets/"
 # 'starcraft_video', 'sun397', 'svhn_cropped', 'ted_hrlr_translate', 'ted_multi_translate', 'tf_flowers', 'titanic',
 # 'ucf101', 'voc2007', 'wikipedia', 'wmt15_translate', 'wmt16_translate', 'wmt17_translate', 'wmt18_translate',
 # 'wmt19_translate', 'wmt_translate', 'xnli']
-tfds_dataset_name = "imagenet2012"
-num_classes = 100
+tfds_dataset_name = "cifar10"
+num_classes = 10

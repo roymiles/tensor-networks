@@ -29,15 +29,15 @@ class Weights(IWeights):
         return IWeights.num_parameters(weight_list)
 
     """ The weights are inferred from their argument name """
-    def set_layer_weights(self, layer_idx, conv=None, bias=None):
+    def set_conv_layer_weights(self, layer_idx, conv, bias):
         self.conv[layer_idx] = conv
         self.bias[layer_idx] = bias
 
-    def set_layer_weights(self, layer_idx, fc=None, bias=None):
+    def set_fc_layer_weights(self, layer_idx, fc, bias):
         self.fc[layer_idx] = fc
         self.bias[layer_idx] = bias
 
-    def set_layer_weights(self, layer_idx, mean=None, variance=None, scale=None, offset=None):
+    def set_bn_layer_weights(self, layer_idx, mean, variance, scale, offset):
         self.bn_mean[layer_idx] = mean
         self.bn_variance[layer_idx] = variance
         self.bn_scale[layer_idx] = scale
@@ -81,7 +81,7 @@ class StandardNetwork(INetwork):
                     bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[3],  # W x H x C x N
                                            initializer=initializer)
 
-                    self._weights.set_layer_weights(layer_idx=layer_idx, conv=kernel, bias=bias)
+                    self._weights.set_conv_layer_weights(layer_idx=layer_idx, conv=kernel, bias=bias)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
@@ -91,7 +91,7 @@ class StandardNetwork(INetwork):
                     bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O (Except here)
                                            initializer=initializer)
 
-                    self._weights.set_layer_weights(layer_idx=layer_idx, fc=kernel, bias=bias)
+                    self._weights.set_fc_layer_weights(layer_idx=layer_idx, fc=kernel, bias=bias)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
                     # num_features is effectively the depth of the input feature map
@@ -109,7 +109,7 @@ class StandardNetwork(INetwork):
                         scale = None
                         offset = None
 
-                    self._weights.set_layer_weights(layer_idx=layer_idx, bn_mean=mean, bn_variance=variance,
+                    self._weights.set_bn_layer_weights(layer_idx=layer_idx, bn_mean=mean, bn_variance=variance,
                                                     bn_scale=scale, bn_offset=offset)
 
     def run_layer(self, input, layer_idx, name, **kwargs):

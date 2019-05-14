@@ -15,8 +15,12 @@ class Graph:
     # Once compiled, can no longer add edges (as this will change dimensions of node tensors)
     _is_compiled = False
 
-    def __init__(self):
+    # Tensorflow naming scope
+    _name = None
+
+    def __init__(self, name):
         self._graph = nx.Graph()
+        self._name = name
 
     def add_edge(self, u_of_edge, v_of_edge, length, name, dummy_node=False):
         """
@@ -45,20 +49,20 @@ class Graph:
         """ Create the tf.Variables with the dimensions outlined in the graph """
 
         # Loop through all the _nodes and make appropriate Tensors
+        with tf.variable_scope(self._name):
+            for node in self._graph.nodes():
+                # e.g. [('A', 'B'), ('A', 'C')]
+                connected_edges = self._graph.edges(node)
+                dims = []  # Will build the shape of the tensor
+                edge_names = []
+                for e in connected_edges:
+                    edge_data = self._graph.get_edge_data(e[0], e[1])
+                    dims.append(edge_data["weight"])
+                    edge_names.append(edge_data["name"])
 
-        for node in self._graph.nodes():
-            # e.g. [('A', 'B'), ('A', 'C')]
-            connected_edges = self._graph.edges(node)
-            dims = []  # Will build the shape of the tensor
-            edge_names = []
-            for e in connected_edges:
-                edge_data = self._graph.get_edge_data(e[0], e[1])
-                dims.append(edge_data["weight"])
-                edge_names.append(edge_data["name"])
-
-            # Add the tfvar to the node details
-            self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
-            self._graph.nodes[node]["edge_names"] = edge_names
+                # Add the tfvar to the node details
+                self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
+                self._graph.nodes[node]["edge_names"] = edge_names
 
         self._is_compiled = True
 
@@ -98,11 +102,11 @@ class Graph:
 
         # We start with the first tensor and loop through all factors and merge
         # NOTE: Could reorder prior to make this more efficient
-        g = self._graph
+        g = self._graph.copy()
         updated_graph = False
         while Graph.number_of_nodes(g) > 1:
             # Keep contracting nodes until we get one
-            keys = list(self._graph.nodes.keys())
+            keys = list(g.nodes.keys())
             nkeys = len(keys)
             for i in range(nkeys):
                 n1 = keys[i]
@@ -120,6 +124,8 @@ class Graph:
                     if n1 == n2:
                         # Don't bother trying to contract the node with itself...
                         continue
+
+                    print("{} : {}".format(n1, n2))
 
                     node_data = g.nodes(data=True)
 
@@ -185,7 +191,6 @@ class Graph:
         if not Graph.nodes_connected(g, n1, n2):
             raise Exception("Unable to contract the two nodes (not connected). Perform this check a-priori.")
 
-        print("{} : {}".format(n1, n2))
         assert not g.nodes[n1]["dummy_node"] or not g.nodes[n2]["dummy_node"], "Cannot contract dummy nodes"
 
         # Just for a sanity check
@@ -194,7 +199,7 @@ class Graph:
         n1_edges = list(g.edges(n1))
         n2_edges = list(g.edges(n2))
 
-        n3 = str(n1 + n2)  # New node name just concatenates names
+        n3 = str(n1 + "_" + n2)  # New node name just concatenates names
         g.add_node(node_for_adding=n3)
         open_edges = []
 
@@ -253,19 +258,20 @@ class Graph:
         c = tf.tensordot(u_data['tfvar'], v_data['tfvar'], axes=[u_ind, v_ind])
         return c  # The dimensions are the open edges
 
-    def get_dims(self, node):
-        raise Exception("Are we even still using this function??")
+    def num_parameters(self):
+        """ Return the total number of parameters across all (non-dummy) nodes """
+        assert self._is_compiled, "Must be compiled first"
 
-        """ Get shape of edge aka dimension of Tensor
-            Each edge is stored in order and the edges are returned as edge_data
-            e.g. [{"weight": 10, "name":r1} ...] """
-        connected_edges = self._graph.edges(node)
-        dims = []
-        for e in connected_edges:
-            edge_data = self._graph.get_edge_data(e[0], e[1])
-            dims.append(edge_data)
+        num_params = 0
+        nodes = list(self._graph.nodes.keys())
+        for node in nodes:
 
-        return dims
+            if self._graph.nodes[node]["dummy_node"]:
+                continue
+
+            num_params += tfvar_size(self._graph.nodes[node]["tfvar"])
+
+        return num_params
 
 
 if __name__ == "__main__":
@@ -273,9 +279,11 @@ if __name__ == "__main__":
     g = Graph()
     g.add_edge("A", "B", 213, "r1")
     g.add_edge("A", "C", 122, "r2")
-    g.add_edge("C", "Ddummy", 444, "W", dummy_node=True)
-    g.add_edge("B", "Ddummy", 90, "H", dummy_node=True)
+    g.add_edge("C", "D1", 444, "W", dummy_node=True)
+    g.add_edge("B", "D2", 90, "H", dummy_node=True)
     g.compile()
     g.debug(g.get_graph(), "debug1")
     tfvar = g.combine()
+    print("Compressed size {}".format(g.num_parameters()))
+    print("Merged size {}".format(tfvar_size(tfvar)))
     print("Combined shape {}".format(tfvar))
