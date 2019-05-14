@@ -17,6 +17,7 @@ class Layer:
     def __init__(self):
         pass
 
+    @abs
     def __call__(self):
         raise Exception("This is not how you are supposed to call this layer")
 
