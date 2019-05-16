@@ -67,9 +67,9 @@ parser.add_argument('--experiment-name', default='liberty_train/',
                     help='experiment path')
 parser.add_argument('--training-set', default='liberty',
                     help='Other options: notredame, yosemite')
-parser.add_argument('--loss', default='softmax',
+parser.add_argument('--loss', default='triplet_margin',
                     help='Other options: triplet_margin, softmax, contrastive')
-parser.add_argument('--batch-reduce', default='L2Net',
+parser.add_argument('--batch-reduce', default='min',
                     help='Other options: min, average, random, random_global, L2Net')
 parser.add_argument('--num-workers', default=0, type=int,
                     help='Number of workers to be created')
@@ -97,7 +97,7 @@ parser.add_argument('--batch-size', type=int, default=1024, metavar='BS',
                     help='input batch size for training (default: 1024)')
 parser.add_argument('--test-batch-size', type=int, default=1024, metavar='BST',
                     help='input batch size for testing (default: 1024)')
-parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',
+parser.add_argument('--n-triplets', type=int, default=500000, metavar='N',   # 5000000
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=1.0, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
@@ -310,7 +310,7 @@ def create_loaders(load_random_triplets=False):
     return train_loader, test_loaders
 
 
-def train(sess, train_loader, model, train_op, loss_op, pl, epoch, load_triplets=False):
+def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, epoch, load_triplets=False):
     """ A single epoch of the training data
         NOTE: pl is the placeholder dict """
     pbar = tqdm(enumerate(train_loader))
@@ -321,21 +321,35 @@ def train(sess, train_loader, model, train_op, loss_op, pl, epoch, load_triplets
 
         if load_triplets:
             data_a, data_p, data_n = data
+
+            data_a = data_a.numpy().reshape(new_shape)
+            data_p = data_p.numpy().reshape(new_shape)
+            data_n = data_n.numpy().reshape(new_shape)
+
             feed_dict = {
-                pl['data_a']: data_a.numpy().reshape(new_shape),
-                pl['data_p']: data_p.numpy().reshape(new_shape),
-                pl['data_n']: data_n.numpy().reshape(new_shape)
+                pl['data_a']: data_a,
+                pl['data_p']: data_p,
+                pl['data_n']: data_n
             }
 
         else:
             data_a, data_p = data
+
+            data_a = data_a.numpy().reshape(new_shape)
+            data_p = data_p.numpy().reshape(new_shape)
+
             feed_dict = {
-                pl['data_a']: data_a.numpy().reshape(new_shape),
-                pl['data_p']: data_p.numpy().reshape(new_shape)
+                pl['data_a']: data_a,
+                pl['data_p']: data_p
             }
 
-        fetches = [train_op, loss_op]
-        _, loss = sess.run(fetches, feed_dict)
+        print("data_a {}".format(data_a.shape))
+
+        fetches = [train_op, loss_op, debug_op]
+        _, loss, debug_var = sess.run(fetches, feed_dict)
+
+        print(debug_var.keys())
+        print(debug_var["anchor"])
 
         if batch_idx % args.log_interval == 0:
             pbar.set_description(
@@ -405,14 +419,16 @@ def main(train_loader, test_loaders, model):
         # 3 inputs for the triplet loss
         # data_n may or may not be used (will be pruned from graph if not)
         pl = dict()
-        pl['data_a'] = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
-        pl['data_p'] = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
-        pl['data_n'] = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
+        pl['data_a'] = tf.placeholder(tf.float32, shape=[args.test_batch_size, 32, 32, 1])
+        pl['data_p'] = tf.placeholder(tf.float32, shape=[args.test_batch_size, 32, 32, 1])
+        pl['data_n'] = tf.placeholder(tf.float32, shape=[args.test_batch_size, 32, 32, 1])
 
     # Output node
     out_a = HardNet_forward(model, input=pl['data_a'])
     out_p = HardNet_forward(model, input=pl['data_p'])
     out_n = HardNet_forward(model, input=pl['data_n'])
+
+    print("out_a {}".format(out_a.get_shape().as_list()))
 
     # Loss node
     print("Batch reduce = {}".format(args.batch_reduce))
@@ -425,7 +441,7 @@ def main(train_loader, test_loaders, model):
                                        anchor_swap=args.anchorswap,
                                        loss_type=args.loss)
     else:
-        loss_op = loss_HardNet(out_a, out_p,
+        loss_op, debug_op = loss_HardNet(out_a, out_p,
                                margin=args.margin,
                                anchor_swap=args.anchorswap,
                                anchor_ave=args.anchorave,
@@ -470,7 +486,7 @@ def main(train_loader, test_loaders, model):
         for epoch in range(start, end):
 
             # iterate over test loaders and test results
-            train(sess, train_loader, model, train_op, loss_op, pl, epoch, triplet_flag)
+            train(sess, train_loader, model, train_op, loss_op, debug_op, pl, epoch, triplet_flag)
             for test_loader in test_loaders:
                 test(test_loader['dataloader'], model, epoch, test_loader['name'])
 

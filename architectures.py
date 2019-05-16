@@ -210,6 +210,6 @@ class HardNet(Architecture):
     def end(x_features):
         """ Input is output of network """
         x = tf.layers.flatten(x_features)
-        x = tf.expand_dims(x, axis=2)
+        #x = tf.expand_dims(x, axis=2)
         x_norm = tf.math.l2_normalize(x, axis=1)
         return x_norm
