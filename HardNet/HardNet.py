@@ -28,23 +28,25 @@ import PIL
 from EvalMetrics import ErrorRateAt95Recall
 from Losses import loss_HardNet, loss_random_sampling, loss_L2Net, global_orthogonal_regularization
 from W1BS import w1bs_extract_descs_and_save
-from Utils import L2Norm, cv2_scale, np_reshape
-from Utils import str2bool
+from Utils import L2Norm, cv2_scale, np_reshape, str2bool
+import tensorflow as tf
+from architectures import HardNet
+from Networks.impl.standard import StandardNetwork
+
+import torch
+import torchvision.datasets as dset
+import torchvision.transforms as transforms
 
 
-class CorrelationPenaltyLoss(nn.Module):
-    def __init__(self):
-        super(CorrelationPenaltyLoss, self).__init__()
-
-    @staticmethod
-    def forward(input):
-        mean1 = torch.mean(input, dim=0)
-        zeroed = input - mean1.expand_as(input)
-        cor_mat = torch.bmm(torch.t(zeroed).unsqueeze(0), zeroed.unsqueeze(0)).squeeze(0)
-        d = torch.diag(torch.diag(cor_mat))
-        no_diag = cor_mat - d
-        d_sq = no_diag * no_diag
-        return torch.sqrt(d_sq.sum()) / input.size(0)
+def CorrelationPenaltyLoss(input):
+    exit("Not today")
+    mean1 = tf.math.reduce_mean(input, dim=0)
+    zeroed = input - mean1.expand_as(input)
+    cor_mat = torch.bmm(torch.t(zeroed).unsqueeze(0), zeroed.unsqueeze(0)).squeeze(0)
+    d = torch.diag(torch.diag(cor_mat))
+    no_diag = cor_mat - d
+    d_sq = no_diag * no_diag
+    return torch.sqrt(d_sq.sum()) / input.size(0)
 
 
 # Training settings
@@ -57,8 +59,6 @@ parser.add_argument('--w1bsroot', type=str,
 parser.add_argument('--dataroot', type=str,
                     default='data/sets/',
                     help='path to dataset')
-parser.add_argument('--enable-logging', type=str2bool, default=False,
-                    help='output to tensorlogger')
 parser.add_argument('--log-dir', default='data/logs/',
                     help='folder to output log')
 parser.add_argument('--model-dir', default='data/models/',
@@ -67,10 +67,10 @@ parser.add_argument('--experiment-name', default='liberty_train/',
                     help='experiment path')
 parser.add_argument('--training-set', default='liberty',
                     help='Other options: notredame, yosemite')
-parser.add_argument('--loss', default='triplet_margin',
-                    help='Other options: softmax, contrastive')
-parser.add_argument('--batch-reduce', default='min',
-                    help='Other options: average, random, random_global, L2Net')
+parser.add_argument('--loss', default='softmax',
+                    help='Other options: triplet_margin, softmax, contrastive')
+parser.add_argument('--batch-reduce', default='L2Net',
+                    help='Other options: min, average, random, random_global, L2Net')
 parser.add_argument('--num-workers', default=0, type=int,
                     help='Number of workers to be created')
 parser.add_argument('--pin-memory', type=bool, default=True,
@@ -117,13 +117,7 @@ parser.add_argument('--lr-decay', default=1e-6, type=float, metavar='LRD',
                     help='learning rate decay ratio (default: 1e-6')
 parser.add_argument('--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('--optimizer', default='sgd', type=str,
-                    metavar='OPT', help='The optimizer to use (default: SGD)')
 # Device options
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='enables CUDA training')
-parser.add_argument('--gpu-id', default='0', type=str,
-                    help='id(s) for CUDA_VISIBLE_DEVICES')
 parser.add_argument('--seed', type=int, default=0, metavar='S',
                     help='random seed (default: 0)')
 parser.add_argument('--log-interval', type=int, default=10, metavar='LI',
@@ -154,26 +148,11 @@ if os.path.isdir(args.w1bsroot):
 
     TEST_ON_W1BS = True
 
-# set the device to use by setting CUDA_VISIBLE_DEVICES env variable in
-# order to prevent any memory allocation on unused GPUs
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
-
-args.cuda = not args.no_cuda and torch.cuda.is_available()
-
-print(("NOT " if not args.cuda else "") + "Using cuda")
-
-if args.cuda:
-    cudnn.benchmark = True
-    torch.cuda.manual_seed_all(args.seed)
-torch.backends.cudnn.deterministic = True
-
-# create loggin directory
-if not os.path.exists(args.log_dir):
-    os.makedirs(args.log_dir)
 
 # set random seeds
 random.seed(args.seed)
-torch.manual_seed(args.seed)
+tf.random.set_random_seed(args.seed)
+torch.random.manual_seed(args.seed)
 np.random.seed(args.seed)
 
 
@@ -183,8 +162,7 @@ class TripletPhotoTour(dset.PhotoTour):
     note: a triplet is composed by a pair of matching images and one of
     different class.
     """
-
-    def __init__(self, train=True, transform=None, batch_size=None, load_random_triplets=False, *arg, **kw):
+    def __init__(self, train=True, transform=None, batch_size = None,load_random_triplets = False,  *arg, **kw):
         super(TripletPhotoTour, self).__init__(*arg, **kw)
         self.transform = transform
         self.out_triplets = load_random_triplets
@@ -280,66 +258,9 @@ class TripletPhotoTour(dset.PhotoTour):
             return self.matches.size(0)
 
 
-class HardNet(nn.Module):
-    """HardNet model definition
-    """
-
-    def __init__(self):
-        super(HardNet, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(32, affine=False),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(32, affine=False),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(64, affine=False),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(64, affine=False),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(128, affine=False),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(128, affine=False),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Conv2d(128, 128, kernel_size=8, bias=False),
-            nn.BatchNorm2d(128, affine=False),
-        )
-        self.features.apply(weights_init)
-        return
-
-    def input_norm(self, x):
-        flat = x.view(x.size(0), -1)
-        mp = torch.mean(flat, dim=1)
-        sp = torch.std(flat, dim=1) + 1e-7
-        return (x - mp.detach().unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand_as(x)) / sp.detach().unsqueeze(
-            -1).unsqueeze(-1).unsqueeze(1).expand_as(x)
-
-    def forward(self, input):
-        x_features = self.features(self.input_norm(input))
-        x = x_features.view(x_features.size(0), -1)
-        return L2Norm()(x)
-
-
-def weights_init(m):
-    if isinstance(m, nn.Conv2d):
-        nn.init.orthogonal(m.weight.data, gain=0.6)
-        try:
-            nn.init.constant(m.bias.data, 0.01)
-        except:
-            pass
-    return
-
-
 def create_loaders(load_random_triplets=False):
     test_dataset_names = copy.copy(dataset_names)
     test_dataset_names.remove(args.training_set)
-
-    kwargs = {'num_workers': args.num_workers, 'pin_memory': args.pin_memory} if args.cuda else {}
 
     np_reshape64 = lambda x: np.reshape(x, (64, 64, 1))
     transform_test = transforms.Compose([
@@ -362,6 +283,7 @@ def create_loaders(load_random_triplets=False):
     if not args.augmentation:
         transform_train = transform
         transform_test = transform
+
     train_loader = torch.utils.data.DataLoader(
         TripletPhotoTour(train=True,
                          load_random_triplets=load_random_triplets,
@@ -371,7 +293,7 @@ def create_loaders(load_random_triplets=False):
                          download=True,
                          transform=transform_train),
         batch_size=args.batch_size,
-        shuffle=False, **kwargs)
+        shuffle=False)
 
     test_loaders = [{'name': name,
                      'dataloader': torch.utils.data.DataLoader(
@@ -382,67 +304,44 @@ def create_loaders(load_random_triplets=False):
                                           download=True,
                                           transform=transform_test),
                          batch_size=args.test_batch_size,
-                         shuffle=False, **kwargs)}
+                         shuffle=False)}
                     for name in test_dataset_names]
 
     return train_loader, test_loaders
 
 
-def train(train_loader, model, optimizer, epoch, logger, load_triplets=False):
-    # switch to train mode
-    model.train()
+def train(sess, train_loader, model, train_op, loss_op, pl, epoch, load_triplets=False):
+    """ A single epoch of the training data
+        NOTE: pl is the placeholder dict """
     pbar = tqdm(enumerate(train_loader))
     for batch_idx, data in pbar:
+
+        # Don't super like hardcoding shape here
+        new_shape = (-1, 32, 32, 1)
+
         if load_triplets:
             data_a, data_p, data_n = data
+            feed_dict = {
+                pl['data_a']: data_a.numpy().reshape(new_shape),
+                pl['data_p']: data_p.numpy().reshape(new_shape),
+                pl['data_n']: data_n.numpy().reshape(new_shape)
+            }
+
         else:
             data_a, data_p = data
+            feed_dict = {
+                pl['data_a']: data_a.numpy().reshape(new_shape),
+                pl['data_p']: data_p.numpy().reshape(new_shape)
+            }
 
-        if args.cuda:
-            data_a, data_p = data_a.cuda(), data_p.cuda()
-            data_a, data_p = Variable(data_a), Variable(data_p)
-            out_a = model(data_a)
-            out_p = model(data_p)
-        if load_triplets:
-            data_n = data_n.cuda()
-            data_n = Variable(data_n)
-            out_n = model(data_n)
+        fetches = [train_op, loss_op]
+        _, loss = sess.run(fetches, feed_dict)
 
-        if args.batch_reduce == 'L2Net':
-            loss = loss_L2Net(out_a, out_p, anchor_swap=args.anchorswap,
-                              margin=args.margin, loss_type=args.loss)
-        elif args.batch_reduce == 'random_global':
-            loss = loss_random_sampling(out_a, out_p, out_n,
-                                        margin=args.margin,
-                                        anchor_swap=args.anchorswap,
-                                        loss_type=args.loss)
-        else:
-            loss = loss_HardNet(out_a, out_p,
-                                margin=args.margin,
-                                anchor_swap=args.anchorswap,
-                                anchor_ave=args.anchorave,
-                                batch_reduce=args.batch_reduce,
-                                loss_type=args.loss)
-
-        if args.decor:
-            loss += CorrelationPenaltyLoss()(out_a)
-
-        if args.gor:
-            loss += args.alpha * global_orthogonal_regularization(out_a, out_n)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        adjust_learning_rate(optimizer)
         if batch_idx % args.log_interval == 0:
             pbar.set_description(
                 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data_a), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader),
-                    loss.data[0]))
-
-    if (args.enable_logging):
-        logger.log_value('loss', loss.data[0]).step()
+                           100. * batch_idx / len(train_loader), loss))
 
     try:
         os.stat('{}{}'.format(args.model_dir, suffix))
@@ -453,7 +352,7 @@ def train(train_loader, model, optimizer, epoch, logger, load_triplets=False):
                '{}{}/checkpoint_{}.pth'.format(args.model_dir, suffix, epoch))
 
 
-def test(test_loader, model, epoch, logger, logger_test_name):
+def test(test_loader, model, epoch, logger_test_name):
     # switch to evaluate mode
     model.eval()
 
@@ -465,11 +364,14 @@ def test(test_loader, model, epoch, logger, logger_test_name):
         if args.cuda:
             data_a, data_p = data_a.cuda(), data_p.cuda()
 
-        data_a, data_p, label = Variable(data_a, volatile=True), \
-                                Variable(data_p, volatile=True), Variable(label)
+        data_a = tf.Variable(data_a, trainable=False)
+        data_p = tf.Variable(data_p, trainable=False)
+        label = tf.Variable(label, trainable=False)
+
         out_a = model(data_a)
         out_p = model(data_p)
-        dists = torch.sqrt(torch.sum((out_a - out_p) ** 2, 1))  # euclidean distance
+        # TODO: Could just use tf.l2loss
+        dists = tf.math.sqrt(tf.math.reduce_sum((out_a - out_p) ** 2, 1))  # euclidean distance
         distances.append(dists.data.cpu().numpy().reshape(-1, 1))
         ll = label.data.cpu().numpy().reshape(-1, 1)
         labels.append(ll)
@@ -486,101 +388,121 @@ def test(test_loader, model, epoch, logger, logger_test_name):
     fpr95 = ErrorRateAt95Recall(labels, 1.0 / (distances + 1e-8))
     print('\33[91mTest set: Accuracy(FPR95): {:.8f}\n\33[0m'.format(fpr95))
 
-    if (args.enable_logging):
-        logger.log_value(logger_test_name + ' fpr95', fpr95)
-    return
+
+def HardNet_forward(model, input):
+    """ Includes input and output norm stuff """
+    input_norm = HardNet.start(input=input)
+    x_features = model(input=input_norm)
+    return HardNet.end(x_features)
 
 
-def adjust_learning_rate(optimizer):
-    """Updates the learning rate given the learning rate decay.
-    The routine has been implemented according to the original Lua SGD optimizer
-    """
-    for group in optimizer.param_groups:
-        if 'step' not in group:
-            group['step'] = 0.
-        else:
-            group['step'] += 1.
-        group['lr'] = args.lr * (
-                1.0 - float(group['step']) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
-    return
-
-
-def create_optimizer(model, new_lr):
-    # setup optimizer
-    if args.optimizer == 'sgd':
-        optimizer = optim.SGD(model.parameters(), lr=new_lr,
-                              momentum=0.9, dampening=0.9,
-                              weight_decay=args.wd)
-    elif args.optimizer == 'adam':
-        optimizer = optim.Adam(model.parameters(), lr=new_lr,
-                               weight_decay=args.wd)
-    else:
-        raise Exception('Not supported optimizer: {0}'.format(args.optimizer))
-    return optimizer
-
-
-def main(train_loader, test_loaders, model, logger, file_logger):
+def main(train_loader, test_loaders, model):
     # print the experiment configuration
     print('\nparsed options:\n{}\n'.format(vars(args)))
 
-    # if (args.enable_logging):
-    #    file_logger.log_string('logs.txt', '\nparsed options:\n{}\n'.format(vars(args)))
+    with tf.variable_scope("input"):
+        # aka gray scale patches
+        # 3 inputs for the triplet loss
+        # data_n may or may not be used (will be pruned from graph if not)
+        pl = dict()
+        pl['data_a'] = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
+        pl['data_p'] = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
+        pl['data_n'] = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
 
-    if args.cuda:
-        model.cuda()
+    # Output node
+    out_a = HardNet_forward(model, input=pl['data_a'])
+    out_p = HardNet_forward(model, input=pl['data_p'])
+    out_n = HardNet_forward(model, input=pl['data_n'])
 
-    optimizer1 = create_optimizer(model.features, args.lr)
+    # Loss node
+    print("Batch reduce = {}".format(args.batch_reduce))
+    if args.batch_reduce == 'L2Net':
+        loss_op = loss_L2Net(out_a, out_p, anchor_swap=args.anchorswap,
+                             margin=args.margin, loss_type=args.loss)
+    elif args.batch_reduce == 'random_global':
+        loss_op = loss_random_sampling(out_a, out_p, out_n,
+                                       margin=args.margin,
+                                       anchor_swap=args.anchorswap,
+                                       loss_type=args.loss)
+    else:
+        loss_op = loss_HardNet(out_a, out_p,
+                               margin=args.margin,
+                               anchor_swap=args.anchorswap,
+                               anchor_ave=args.anchorave,
+                               batch_reduce=args.batch_reduce,
+                               loss_type=args.loss)
 
-    # optionally resume from a checkpoint
-    if args.resume:
-        if os.path.isfile(args.resume):
-            print('=> loading checkpoint {}'.format(args.resume))
-            checkpoint = torch.load(args.resume)
-            args.start_epoch = checkpoint['epoch']
-            checkpoint = torch.load(args.resume)
-            model.load_state_dict(checkpoint['state_dict'])
-        else:
-            print('=> no checkpoint found at {}'.format(args.resume))
+    # Add extra loss terms
+    if args.decor:
+        loss_op += CorrelationPenaltyLoss(out_a)
 
-    start = args.start_epoch
-    end = start + args.epochs
-    for epoch in range(start, end):
+    if args.gor:
+        loss_op += args.alpha * global_orthogonal_regularization(out_a, out_n)
 
-        # iterate over test loaders and test results
-        train(train_loader, model, optimizer1, epoch, logger, triplet_flag)
-        for test_loader in test_loaders:
-            test(test_loader['dataloader'], model, epoch, logger, test_loader['name'])
+    # Standard SGD. ignoring args.optimizer for now
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+    train_op = tf.train.MomentumOptimizer(learning_rate=args.lr,
+                                          momentum=0.9, use_nesterov=True).minimize(loss_op, global_step=global_step)
 
-        if TEST_ON_W1BS:
-            # print(weights_path)
-            patch_images = w1bs.get_list_of_patch_images(
-                DATASET_DIR=args.w1bsroot.replace('/code', '/data/W1BS'))
-            desc_name = 'curr_desc'  # + str(random.randint(0,100))
+    # Save and restore variables
+    saver = tf.train.Saver()
 
-            DESCS_DIR = LOG_DIR + '/temp_descs/'  # args.w1bsroot.replace('/code', "/data/out_descriptors")
-            OUT_DIR = DESCS_DIR.replace('/temp_descs/', "/out_graphs/")
+    # Initialising variables
+    init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
-            for img_fname in patch_images:
-                w1bs_extract_descs_and_save(img_fname, model, desc_name, cuda=args.cuda,
-                                            mean_img=args.mean_image,
-                                            std_img=args.std_image, out_dir=DESCS_DIR)
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.6
+    config.gpu_options.allow_growth = True
+    with tf.Session(config=config) as sess:
+        # Initialize weights
+        sess.run(init_op)
 
-            force_rewrite_list = [desc_name]
-            w1bs.match_descriptors_and_save_results(DESC_DIR=DESCS_DIR, do_rewrite=True,
-                                                    dist_dict={},
-                                                    force_rewrite_list=force_rewrite_list)
-            if (args.enable_logging):
-                w1bs.draw_and_save_plots_with_loggers(DESC_DIR=DESCS_DIR, OUT_DIR=OUT_DIR,
-                                                      methods=["SNN_ratio"],
-                                                      descs_to_draw=[desc_name],
-                                                      logger=file_logger,
-                                                      tensor_logger=logger)
+        # optionally resume from a checkpoint
+        if args.resume:
+            if os.path.isfile(args.resume):
+                print('=> loading checkpoint {}'.format(args.resume))
+                saver.restore(sess, args.resume)
             else:
-                w1bs.draw_and_save_plots(DESC_DIR=DESCS_DIR, OUT_DIR=OUT_DIR,
-                                         methods=["SNN_ratio"],
-                                         descs_to_draw=[desc_name])
-        # randomize train loader batches
-        train_loader, test_loaders2 = create_loaders(load_random_triplets=triplet_flag)
+                print('=> no checkpoint found at {}'.format(args.resume))
+
+        start = args.start_epoch
+        end = start + args.epochs
+        for epoch in range(start, end):
+
+            # iterate over test loaders and test results
+            train(sess, train_loader, model, train_op, loss_op, pl, epoch, triplet_flag)
+            for test_loader in test_loaders:
+                test(test_loader['dataloader'], model, epoch, test_loader['name'])
+
+            if TEST_ON_W1BS:
+                patch_images = w1bs.get_list_of_patch_images(
+                    DATASET_DIR=args.w1bsroot.replace('/code', '/data/W1BS'))
+                desc_name = 'curr_desc'  # + str(random.randint(0,100))
+
+                DESCS_DIR = LOG_DIR + '/temp_descs/'  # args.w1bsroot.replace('/code', "/data/out_descriptors")
+                OUT_DIR = DESCS_DIR.replace('/temp_descs/', "/out_graphs/")
+
+                for img_fname in patch_images:
+                    w1bs_extract_descs_and_save(img_fname, model, desc_name, cuda=args.cuda,
+                                                mean_img=args.mean_image,
+                                                std_img=args.std_image, out_dir=DESCS_DIR)
+
+                force_rewrite_list = [desc_name]
+                w1bs.match_descriptors_and_save_results(DESC_DIR=DESCS_DIR, do_rewrite=True,
+                                                        dist_dict={},
+                                                        force_rewrite_list=force_rewrite_list)
+                if (args.enable_logging):
+                    w1bs.draw_and_save_plots_with_loggers(DESC_DIR=DESCS_DIR, OUT_DIR=OUT_DIR,
+                                                          methods=["SNN_ratio"],
+                                                          descs_to_draw=[desc_name],
+                                                          logger=file_logger,
+                                                          tensor_logger=logger)
+                else:
+                    w1bs.draw_and_save_plots(DESC_DIR=DESCS_DIR, OUT_DIR=OUT_DIR,
+                                             methods=["SNN_ratio"],
+                                             descs_to_draw=[desc_name])
+            # randomize train loader batches
+            train_loader, test_loaders2 = create_loaders(load_random_triplets=triplet_flag)
 
 
 if __name__ == '__main__':
@@ -592,12 +514,12 @@ if __name__ == '__main__':
     if TEST_ON_W1BS:
         if not os.path.isdir(DESCS_DIR):
             os.makedirs(DESCS_DIR)
-    logger, file_logger = None, None
-    model = HardNet()
-    if (args.enable_logging):
-        from Loggers import Logger, FileLogger
 
-        logger = Logger(LOG_DIR)
-        # file_logger = FileLogger(./log/+suffix)
+    # Create the architecture
+    architecture = HardNet()
+    # Use standard network
+    model = StandardNetwork(architecture=architecture)
+    model.build("StandardNetwork_HardNet")
+
     train_loader, test_loaders = create_loaders(load_random_triplets=triplet_flag)
-    main(train_loader, test_loaders, model, logger, file_logger)
+    main(train_loader, test_loaders, model)

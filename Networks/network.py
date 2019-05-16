@@ -1,13 +1,6 @@
 """ Define interfaces for a network and the weights inside the network """
 from Layers.core import *
 from abc import abstractmethod
-from enum import Enum
-
-
-class LayerTypes(Enum):
-    CONV = 1
-    FC = 2
-    BN = 3
 
 
 class IWeights:
@@ -32,35 +25,54 @@ class IWeights:
         """ Return the weights for a given layer """
         pass
 
-    @abstractmethod
-    def set_layer_weights(self, layer_idx):
-        """ Set the weights for a given layer """
-        pass
-
 
 class INetwork:
+
     def __init__(self):
-        raise Exception("You cannot instantiate me")
+        # The following define state which is common across all networks
+        self._architecture = None
+        self._num_layers = None
+        self._weights = None
 
-    @abstractmethod
     def set_weights(self, weights):
-        pass
+        self._weights = weights
 
-    @abstractmethod
     def get_weights(self):
-        pass
+        return self._weights
 
-    @abstractmethod
-    def num_layers(self):
-        pass
+    def set_num_layers(self, num_layers):
+        self._num_layers = num_layers
 
-    @abstractmethod
+    def get_num_layers(self):
+        return self._num_layers
+
+    def set_architecture(self, architecture):
+        self._architecture = architecture
+
+    def get_architecture(self):
+        return self._architecture
+
     def num_parameters(self):
-        pass
+        """ Get the total number of parameters in the network
+            For example, in a Tucker network this will be the sum of all parameters in each core tensor """
+        return self._weights.num_parameters()
+
+    # The following methods must be overridden by every network ...
 
     @staticmethod
+    @abstractmethod
     def run_layer(layer, input, **kwargs):
         """ Input is compulsory """
 
         # If the child classes have not overridden the behaviour, just call them with all the same arguments
         return layer(input=input, **kwargs)
+
+    @abstractmethod
+    def __call__(self):
+        """ Complete forward pass for the entire network """
+        pass
+
+    #@abstractmethod
+    #def build(self, name):
+    #    """ Build the weights used by the network """
+    #    pass

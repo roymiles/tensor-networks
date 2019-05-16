@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import tensorflow as tf
 
 # resize image to size 32x32
 cv2_scale36 = lambda x: cv2.resize(x, dsize=(36, 36),
@@ -10,24 +11,22 @@ cv2_scale = lambda x: cv2.resize(x, dsize=(32, 32),
 np_reshape = lambda x: np.reshape(x, (32, 32, 1))
 
 
-class L2Norm(nn.Module):
+class L2Norm:
     def __init__(self):
-        super(L2Norm,self).__init__()
         self.eps = 1e-10
 
     def forward(self, x):
-        norm = torch.sqrt(torch.sum(x * x, dim = 1) + self.eps)
+        norm = tf.math.sqrt(tf.math.reduce_sum(x * x, dim = 1) + self.eps)
         x= x / norm.unsqueeze(-1).expand_as(x)
         return x
 
 
-class L1Norm(nn.Module):
+class L1Norm:
     def __init__(self):
-        super(L1Norm,self).__init__()
         self.eps = 1e-10
 
     def forward(self, x):
-        norm = torch.sum(torch.abs(x), dim = 1) + self.eps
+        norm = tf.math.reduce_sum(tf.math.abs(x), dim=1) + self.eps
         x= x / norm.expand_as(x)
         return x
 

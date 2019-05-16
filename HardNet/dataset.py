@@ -13,7 +13,8 @@ from tqdm import tqdm
 import random
 import cv2
 import copy
-from Utils import str2bool
+from Hardnet.Utils import str2bool
+import tensorflow as tf
 
 
 def find_files(_data_dir, _image_ext):
@@ -29,11 +30,11 @@ def find_files(_data_dir, _image_ext):
 
 def np2torch(npr):
     if len(npr.shape) == 4:
-        return torch.from_numpy(np.rollaxis(npr, 3, 1))
+        return tf.convert_to_tensor(np.rollaxis(npr, 3, 1))
     elif len(npr.shape) == 3:
-        torch.from_numpy(np.rollaxis(npr, 2, 0))
+        return tf.convert_to_tensor(np.rollaxis(npr, 2, 0))
     else:
-        return torch.from_numpy(npr)
+        return tf.convert_to_tensor(npr)
 
 
 def read_patch_file(fname, patch_w = 65, patch_h = 65, start_patch_idx = 0):
@@ -81,7 +82,7 @@ def read_image_dir(dir_name, ext, patch_w, patch_h, good_fnames):
         idxs = idxs + p_idxs_list
         print (f, len(idxs))
     print( 'torch.cat')
-    patches = torch.cat(patches, dim = 0)
+    patches = torch.cat(patches, dim=0)
     print ('done')
     return patches, idxs
 
@@ -90,7 +91,7 @@ class HPatchesDM(data.Dataset):
     image_ext = 'png'
 
     def __init__(self, root, name, train=True, transform=None,
-                 download=True, pw = 65, ph = 65,
+                 download=True, pw=65, ph=65,
                  n_pairs = 1000, batch_size = 128, split_name = 'b'):
         self.root = os.path.expanduser(root)
         self.name = name

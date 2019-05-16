@@ -168,13 +168,13 @@ class HardNet(Architecture):
             ConvLayer(shape=[3, 3, 32, 32], use_bias=False),
             BatchNormalisationLayer(32, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 32, 64], use_bias=False),
+            ConvLayer(shape=[3, 3, 32, 64], use_bias=False, strides=[1, 2, 2, 1]),
             BatchNormalisationLayer(64, affine=False),
             ReLU(),
             ConvLayer(shape=[3, 3, 64, 64], use_bias=False),
             BatchNormalisationLayer(64, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 64, 128], use_bias=False),
+            ConvLayer(shape=[3, 3, 64, 128], use_bias=False, strides=[1, 2, 2, 1]),
             BatchNormalisationLayer(128, affine=False),
             ReLU(),
             ConvLayer(shape=[3, 3, 128, 128], use_bias=False),
@@ -195,17 +195,21 @@ class HardNet(Architecture):
         x_mu = tf.expand_dims(x_mu, axis=1)
         x_std = tf.expand_dims(x_std, axis=1)
         x_norm = (x_flatten - x_mu) / (x_std + eps)
-        return tf.reshape(x_norm, shape=x.shape)
 
-    def forward(self, input):
-        # TODO: Not using Keras anymore mate
-        input_norm = self.input_norm(input)
-        # Need to reshape input to: [batch, in_height, in_width, in_channels]
-        # Before it was: [batch, in_channels, in_height, in_width]
-        new_shape = (input_norm.shape[0], input_norm.shape[2], input_norm.shape[3], input_norm.shape[1])
-        input_norm = tf.reshape(input_norm, shape=new_shape)
+        # From 1024 back to 32 x 32 x 1
+        s = x.get_shape().as_list()
+        return tf.reshape(x_norm, shape=(-1, s[1], s[2], s[3]))
 
-        x_features = self.features(input_norm)
-        x = tf.reshape(x_features, shape=(x_features.shape[0], -1))
+    @staticmethod
+    def start(input):
+        """ Called before running network """
+        input_norm = HardNet.input_norm(input)
+        return input_norm  # Then fed into network
+
+    @staticmethod
+    def end(x_features):
+        """ Input is output of network """
+        x = tf.layers.flatten(x_features)
+        x = tf.expand_dims(x, axis=2)
         x_norm = tf.math.l2_normalize(x, axis=1)
         return x_norm

@@ -2,11 +2,11 @@
 
 import tensorflow as tf
 from base import *
-from enum import Enum
+from enum import IntEnum
 from abc import abstractmethod
 
 
-class LayerTypes(Enum):
+class LayerTypes(IntEnum):
     CONV = 1
     FC = 2
     BN = 3
@@ -41,10 +41,6 @@ class ConvLayer(Layer):
         return self._strides
 
     def __call__(self, input, kernel, bias=None):
-
-        print(kernel.shape)
-        print(bias)
-
         net = tf.nn.conv2d(input, kernel, strides=self._strides, padding=self._padding)
 
         if bias:
