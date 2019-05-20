@@ -140,7 +140,8 @@ def loss_HardNet(anchor, positive, anchor_swap=False, anchor_ave=False,
     #print("anchor: {}".format(anchor_shape))
     #print("positive: {}".format(positive_shape))
 
-    dist_matrix, debug_vars_v1 = distance_matrix_vector(anchor, positive) #+ eps
+    dist_matrix, debug_vars_v1 = distance_matrix_vector(anchor, positive)
+    dist_matrix += eps
 
     #print("dist_matrix: {}".format(dist_matrix.get_shape().as_list()))
 

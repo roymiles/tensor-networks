@@ -1,10 +1,9 @@
-from Layers.core import Layer
+from Layers.layer import ILayer
 import tensorflow as tf
-import config as conf
 
 
 # --------- Non standard layers --------- #
-class GaussianSmoothLayer(Layer):
+class GaussianSmoothLayer(ILayer):
     def __init__(self):
         from KeyNet.model.keynet_architecture import gaussian_multiple_channels
         gaussian_avg = gaussian_multiple_channels(1, 1.5)
@@ -18,7 +17,7 @@ class GaussianSmoothLayer(Layer):
         return tf.nn.conv2d(input, self._gaussian_avg, strides=[1, 1, 1, 1], padding='SAME')
 
 
-class PyramidScaleSplitLayer(Layer):
+class PyramidScaleSplitLayer(ILayer):
     """ Let P = pyramid_levels, S = scaling_factor
         Scales images P times using S
         The result is an array of scaled images """
@@ -47,7 +46,7 @@ class PyramidScaleSplitLayer(Layer):
         return scaled_images
 
 
-class PyramidScaleCombineLayer(Layer):
+class PyramidScaleCombineLayer(ILayer):
     """ Inverse of PyramidScaleSplitLayer
         This layers resizes and then concatenates the feature maps """
 
@@ -66,7 +65,7 @@ class PyramidScaleCombineLayer(Layer):
         return tf.concat(resized_images, axis=3)
 
 
-class HandcraftedFeaturesLayer(Layer):
+class HandcraftedFeaturesLayer(ILayer):
     def __init__(self):
         from KeyNet.model.keynet_architecture import create_derivatives_kernel
         super().__init__()
@@ -106,7 +105,7 @@ class HandcraftedFeaturesLayer(Layer):
         return features
 
 
-class ConvLayer(Layer):
+class ConvLayer(ILayer):
     """ Standard convolutional layer, except we assume pyramid input features """
     def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
         super().__init__()

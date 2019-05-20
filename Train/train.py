@@ -1,8 +1,7 @@
 """ Core training script """
 
 import numpy as np
-from architectures import *
-from Networks.tensor_network_v1 import TensorNetV1
+from Architectures.architectures import *
 from Networks.standard_network import StandardNetwork
 import tensorflow_datasets as tfds
 import config as conf

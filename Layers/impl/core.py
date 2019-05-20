@@ -1,29 +1,8 @@
-""" These define the core layers """
-
 import tensorflow as tf
-from base import *
-from enum import IntEnum
-from abc import abstractmethod
+from Layers.layer import ILayer
 
 
-class LayerTypes(IntEnum):
-    CONV = 1
-    FC = 2
-    BN = 3
-
-
-class Layer:
-    """ Most generic abstract class """
-
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def __call__(self):
-        pass
-
-
-class ConvLayer(Layer):
+class ConvLayer(ILayer):
     def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
         super().__init__()
         self._shape = shape
@@ -49,7 +28,7 @@ class ConvLayer(Layer):
         return net
 
 
-class ConvLayerConstant(Layer):
+class ConvLayerConstant(ILayer):
     """ Same as ConvLayer, but fixed, constant filter """
     def __init__(self, kernel, strides=[1, 1, 1, 1], padding="SAME"):
         super().__init__()
@@ -67,7 +46,7 @@ class ConvLayerConstant(Layer):
         return tf.nn.conv2d(input, self._kernel, strides=self._strides, padding=self._padding)
 
 
-class BiasLayerConstant(Layer):
+class BiasLayerConstant(ILayer):
     """ Fixed, constant bias added to a layer """
     def __init__(self, bias):
         super().__init__()
@@ -80,7 +59,7 @@ class BiasLayerConstant(Layer):
         return tf.nn.bias_add(input, self._bias)
 
 
-class FullyConnectedLayer(Layer):
+class FullyConnectedLayer(ILayer):
     def __init__(self, shape, use_bias=True):
         super().__init__()
         self._shape = shape
@@ -102,7 +81,7 @@ class FullyConnectedLayer(Layer):
         return net
 
 
-class PoolingLayer(Layer):
+class PoolingLayer(ILayer):
     def __init__(self, ksize, strides=None):
         """ In this case shape is the receptive field size to average over """
         super().__init__()
@@ -139,7 +118,7 @@ class MaxPoolingLayer(PoolingLayer):
                               strides=super(MaxPoolingLayer, self).get_strides(), padding="SAME")
 
 
-class DropoutLayer(Layer):
+class DropoutLayer(ILayer):
     def __init__(self, keep_prob):
         super().__init__()
         self._keep_prob = keep_prob
@@ -148,7 +127,7 @@ class DropoutLayer(Layer):
         return tf.nn.dropout(input, self._keep_prob)
 
 
-class BatchNormalisationLayer(Layer):
+class BatchNormalisationLayer(ILayer):
     def __init__(self, num_features, affine=True, variance_epsilon=0.001):
         """ If affine is False, the scale and offset parameters won't be used """
         super().__init__()
@@ -169,7 +148,7 @@ class BatchNormalisationLayer(Layer):
         return tf.nn.batch_normalization(input, mean, variance, offset, scale, variance_epsilon=self._variance_epsilon)
 
 
-class ReLU(Layer):
+class ReLU(ILayer):
     def __init__(self):
         super().__init__()
 
@@ -177,7 +156,7 @@ class ReLU(Layer):
         return tf.nn.relu(input)
 
 
-class SoftMax(Layer):
+class SoftMax(ILayer):
     def __init__(self):
         super().__init__()
 
@@ -185,7 +164,7 @@ class SoftMax(Layer):
         return tf.nn.softmax(input)
 
 
-class Flatten(Layer):
+class Flatten(ILayer):
     def __init__(self):
         super().__init__()
 

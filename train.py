@@ -1,9 +1,10 @@
 import numpy as np
-from architectures import *
+#from Architectures.impl import MobileNetV1
 from Networks.tensor_network import TensorNetV1
 from Networks.standard_network import StandardNetwork
 import tensorflow_datasets as tfds
 import config as conf
+import tensorflow as tf
 
 print(tf.__version__)
 

@@ -1,4 +1,6 @@
 import tensorflow as tf
+import random
+import string
 
 """ Generic functions """
 
@@ -13,3 +15,14 @@ def tfvar_size(tfvar):
         i *= n
 
     return i
+
+
+def l2_loss_sum(list_o_tensors):
+    """ Pass in an array of tensors and return the total/summed L2 loss"""
+    return tf.add_n([tf.nn.l2_loss(t) for t in list_o_tensors])
+
+
+def random_string(stringLength=10):
+    """Generate a random string of fixed length e.g. ptmihemlzj """
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for i in range(stringLength))

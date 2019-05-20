@@ -1,5 +1,15 @@
 import tensorflow as tf
 from base import *
+from abc import abstractmethod
+
+"""
+    All these classes define an interface for the layer
+    However, they do not hold any weight information (e.g. Tensorflow tensors)
+    as this is done internally by the Network that is agnostic to the architecture
+    
+    For example, a Network may break down the convolutional layer into multiple core tensors.
+    How the weights are stored is Network dependant.
+"""
 
 
 class Layer:
@@ -9,12 +19,11 @@ class Layer:
         pass
 
     def __call__(self):
-        raise Exception("This is not how you are supposed to call this layer")
+        raise Exception("All layers must override the __call__ function")
 
 
 class ConvLayer(Layer):
     def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
-        super().__init__()
         self._shape = shape
         self._strides = strides
         self._padding = padding
@@ -40,7 +49,6 @@ class ConvLayer(Layer):
 
 class FullyConnectedLayer(Layer):
     def __init__(self, shape, use_bias=True):
-        super().__init__()
         self._shape = shape
         self._use_bias = use_bias
 
@@ -62,7 +70,6 @@ class FullyConnectedLayer(Layer):
 class PoolingLayer(Layer):
     def __init__(self, ksize, strides=None):
         """ In this case shape is the receptive field size to average over """
-        super().__init__()
         self._ksize = ksize
 
         if strides:

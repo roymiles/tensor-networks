@@ -1,11 +1,12 @@
 """ Define interfaces for a network and the weights inside the network """
-from Layers.core import *
+from Layers.layer import *
 from abc import abstractmethod
+from Architectures.architectures import IArchitecture
 
 
 class IWeights:
     def __init__(self):
-        raise Exception("You cannot instantiate me")
+        raise Exception("This is an interface class with no state, you cannot call __init__")
 
     @staticmethod
     def num_parameters(weight_list):
@@ -29,27 +30,47 @@ class IWeights:
 class INetwork:
 
     def __init__(self):
-        # The following define state which is common across all networks
+        # The following define the state which is common across all networks
         self._architecture = None
         self._num_layers = None
         self._weights = None
 
     def set_weights(self, weights):
+
+        assert isinstance(weights, IWeights), "weights must be of type IWeights"
         self._weights = weights
 
     def get_weights(self):
+        """
+
+        :return: IWeights: Return all the weights for the network
+        """
         return self._weights
 
-    def set_num_layers(self, num_layers):
-        self._num_layers = num_layers
-
     def get_num_layers(self):
+        """
+        NOTE: There is not setter, this value is inferred when set_architecture is called
+
+        :return: The number of layers in the architecture
+        """
         return self._num_layers
 
     def set_architecture(self, architecture):
+        """
+        Set the architecture for the network
+
+        :param architecture: Class of type IArchitecture
+        """
+
+        assert isinstance(architecture, IArchitecture), "architecture argument must be of type IArchitecture"
+
         self._architecture = architecture
 
+        # So we don't have to recalculate it every time
+        self._num_layers = architecture.num_layers()
+
     def get_architecture(self):
+        """ Return the underlying architecture of this network, will be of type IArchitecture """
         return self._architecture
 
     def num_parameters(self):
@@ -62,7 +83,7 @@ class INetwork:
     @staticmethod
     @abstractmethod
     def run_layer(layer, input, **kwargs):
-        """ Input is compulsory """
+        """ Input is compulsory, the rest is up to the network """
 
         # If the child classes have not overridden the behaviour, just call them with all the same arguments
         return layer(input=input, **kwargs)
@@ -70,9 +91,4 @@ class INetwork:
     @abstractmethod
     def __call__(self):
         """ Complete forward pass for the entire network """
-        pass
-
-    #@abstractmethod
-    #def build(self, name):
-    #    """ Build the weights used by the network """
-    #    pass
+        raise Exception("All network classes must override a call function, how else do you do inference!")

@@ -6,6 +6,7 @@ import tensorflow as tf
 import networkx as nx
 from base import *
 import numpy as np
+from base import random_string
 
 
 class Graph:
@@ -22,26 +23,52 @@ class Graph:
         self._graph = nx.Graph()
         self._name = name
 
-    def add_edge(self, u_of_edge, v_of_edge, length, name, dummy_node=False):
+    def add_node(self, u_of_edge, shape, names):
+        """ Creates a node with dangling edges defined by shape
+            Internally, these creates dummy nodes on these dangling edges
+
+            :param u_of_edge: Name of the node e.g. "A"
+                   shape: Dimensions of the exposed indices
+                   name: Name of the open indices e.g. "W" for width """
+
+        if self._is_compiled:
+            raise Exception("Unable to add more edge/nodes once the graph is compiled")
+
+        assert len(shape) == len(names), "Must have a name for each open index"
+
+        if not self._graph.has_node(u_of_edge):
+            self._graph.add_node(u_of_edge)
+
+        # Create a dummy node for each of the exposed indices
+        dummy_node_names = []
+        for i in range(len(shape)):
+            dummy_node_names.append(random_string())
+            self._graph.add_node(dummy_node_names[i], dummy_node=True)
+
+        # Now connect to the dummy nodes
+        for i in range(len(shape)):
+            self._graph.add_edge(u_of_edge, dummy_node_names[i], weight=shape[i], name=names[i])
+
+    def add_edge(self, u_of_edge, v_of_edge, length, name):
         """
         Adds an edge between two tensors. If these tensors do not exist, it will create them
 
         :param u_of_edge:
                v_of_edge: Names of the two nodes e.g. "A", "B"
                length: Size/length of the edge/dimension
-               name: Name of the auxilliary index, typically r1, r2 etc or WH, N etc if dummy_node == True
-               dummy_node: If True, v_of_edge is not a tensor, but instead an open index
+               name: Name of the auxilliary index, typically r1, r2 etc
         """
 
         if self._is_compiled:
             raise Exception("Unable to add more edge/nodes once the graph is compiled")
 
+        # Check if the nodes exist. If they do not, add them.
         if not self._graph.has_node(u_of_edge):
             # Dummy is always v_of_edge
             self._graph.add_node(u_of_edge, dummy_node=False)
 
         if not self._graph.has_node(v_of_edge):
-            self._graph.add_node(v_of_edge, dummy_node=dummy_node)
+            self._graph.add_node(v_of_edge, dummy_node=False)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 

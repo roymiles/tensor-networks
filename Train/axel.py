@@ -13,8 +13,6 @@ import KeyNet.aux.tools as aux
 import KeyNet.detector_bench.geometry_tools as geo_tools
 import KeyNet.detector_bench.repeatability_tools as rep_tools
 from KeyNet.datasets.tf_dataset import tf_dataset as tf_dataset
-import config as conf
-
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -133,7 +131,7 @@ def train_keynet_architecture(args, version_network_name):
 
         with tf.name_scope('model_deep_detector'):
 
-            from architectures import KeyNet
+            from Architectures.architectures import KeyNet
             from Networks.standard_network import StandardNetwork
 
             # deep_architecture = hybrid_net(args, MSIP_sizes)

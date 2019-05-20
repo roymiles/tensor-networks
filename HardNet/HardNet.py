@@ -16,21 +16,19 @@ If you use this code, please cite
 from __future__ import division, print_function
 import sys
 from copy import deepcopy
-import math
 import argparse
 import os
 from tqdm import tqdm
 import numpy as np
 import random
-import cv2
 import copy
 import PIL
 from EvalMetrics import ErrorRateAt95Recall
 from Losses import loss_HardNet, loss_random_sampling, loss_L2Net, global_orthogonal_regularization
 from W1BS import w1bs_extract_descs_and_save
-from Utils import L2Norm, cv2_scale, np_reshape, str2bool
+from Utils import cv2_scale, np_reshape, str2bool
 import tensorflow as tf
-from architectures import HardNet
+from Architectures.impl.HardNet import HardNet
 from Networks.impl.standard import StandardNetwork
 
 import torch
@@ -107,8 +105,8 @@ parser.add_argument('--freq', type=float, default=10.0,
                     help='frequency for cyclic learning rate')
 parser.add_argument('--alpha', type=float, default=1.0, metavar='ALPHA',
                     help='gor parameter')
-parser.add_argument('--lr', type=float, default=10.0, metavar='LR',
-                    help='learning rate (default: 10.0. Yes, ten is not typo)')
+parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
+                    help='learning rate (default: 10.0. Yes, ten is not typo)')    # was 10
 parser.add_argument('--fliprot', type=str2bool, default=True,
                     help='turns on flip and 90deg rotation augmentation')
 parser.add_argument('--augmentation', type=str2bool, default=False,
@@ -310,7 +308,11 @@ def create_loaders(load_random_triplets=False):
     return train_loader, test_loaders
 
 
-def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, epoch, load_triplets=False):
+def calc_learning_rate(global_step):
+    return args.lr * (1.0 - float(global_step) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
+
+
+def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_step, epoch, load_triplets=False):
     """ A single epoch of the training data
         NOTE: pl is the placeholder dict """
     pbar = tqdm(enumerate(train_loader))
@@ -342,6 +344,9 @@ def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, epoch, loa
                 pl['data_a']: data_a,
                 pl['data_p']: data_p
             }
+
+        # Decay learning rate
+        pl['learning_rate'] = calc_learning_rate(global_step)
 
         print("data_a {}".format(data_a.shape))
 
@@ -457,7 +462,9 @@ def main(train_loader, test_loaders, model):
 
     # Standard SGD. ignoring args.optimizer for now
     global_step = tf.Variable(0, name='global_step', trainable=False)
-    train_op = tf.train.MomentumOptimizer(learning_rate=args.lr,
+
+    pl['learning_rate'] = tf.placeholder(tf.float32, shape=[])
+    train_op = tf.train.MomentumOptimizer(learning_rate=pl['learning_rate'],
                                           momentum=0.9, use_nesterov=True).minimize(loss_op, global_step=global_step)
 
     # Save and restore variables
@@ -486,7 +493,7 @@ def main(train_loader, test_loaders, model):
         for epoch in range(start, end):
 
             # iterate over test loaders and test results
-            train(sess, train_loader, model, train_op, loss_op, debug_op, pl, epoch, triplet_flag)
+            train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_step, epoch, triplet_flag)
             for test_loader in test_loaders:
                 test(test_loader['dataloader'], model, epoch, test_loader['name'])
 
