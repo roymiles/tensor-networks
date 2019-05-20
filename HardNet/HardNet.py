@@ -346,7 +346,7 @@ def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_ste
             }
 
         # Decay learning rate
-        pl['learning_rate'] = 0.001 # calc_learning_rate(global_step)
+        pl['learning_rate'] = 0.001  # calc_learning_rate(global_step)
 
         print("data_a {}".format(data_a.shape))
 

@@ -1,7 +1,7 @@
-# TensorNetworks
+# Tensor Networks
 
 A wrapper framework for building Tensor networks in Tensorflow.
-These framework leverages NetworkX [1] for a simple interface for creating graphs.
+These framework leverages [NetworkX](https://networkx.github.io/) for a simple interface for creating graphs.
 
 ## Creating Tensor networks ##
 
@@ -32,14 +32,13 @@ Node ('B', {tfvar': <tf.Variable 'my_tensor_network/B:0' shape=(5, 10) dtype=flo
 ## Architectures ##
 
 Architectures are then defined in a similar way and are agnostic to the Tensor network for which they reside. 
-They describe the topology of the neural network and very similar to Keras.Sequential.
+They describe the topology of the neural network and very similar to [Keras.Sequential](https://keras.io/models/sequential/).
 
 ```
 class MyArchitecture(IArchitecture):
     def __init__(self):
         num_classes = 10
         network = [
-            # NOTE: Comments are for input size
             ConvLayer(shape=[3, 3, 3, 32], strides=[1, 2, 2, 1]),
             ConvLayer(shape=[3, 3, 32, 64]),
             ConvLayer(shape=[3, 3, 64, 128], strides=[1, 2, 2, 1]),
@@ -70,5 +69,5 @@ Note that the ranks will need to be determined a-priori.
 my_model = TensorNetV1(architecture=architecture, conv_ranks=..., fc_ranks=...)
 ```
 
-
-[1] Aric A. Hagberg, Daniel A. Schult and Pieter J. Swart, “Exploring network structure, dynamics, and function using NetworkX”, in Proceedings of the 7th Python in Science Conference (SciPy2008), Gäel Varoquaux, Travis Vaught, and Jarrod Millman (Eds), (Pasadena, CA USA), pp. 11–15, Aug 2008
+## Citation ##
+Please cite if you use this framework.
