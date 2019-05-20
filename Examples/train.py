@@ -1,25 +1,29 @@
 import numpy as np
-#from Architectures.impl import MobileNetV1
-from Networks.tensor_network import TensorNetV1
-from Networks.standard_network import StandardNetwork
+from Architectures.impl.CIFAR100Example import CIFAR100Example
+from Networks.impl.standard import StandardNetwork
+from Networks.impl.tucker_like import TuckerNet
 import tensorflow_datasets as tfds
 import config as conf
 import tensorflow as tf
 
 print(tf.__version__)
 
-#import os
-# Suppress warning messages
-#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 if __name__ == '__main__':
-    # These hyperparameters control the compression
-    # of the convolutional and fully connected weights
-    conv_ranks = [20, 20, 20, 20]
-    fc_ranks = [20, 20, 20]
-
     # NOTE: Just change architecture here
     architecture = CIFAR100Example()
+
+    # These hyperparameters control the compression
+    # of the convolutional and fully connected weights
+    conv_ranks = {
+        0: [5, 5, 5],
+        2: [5, 5, 5],
+        6: [5, 5, 5],
+        8: [5, 5, 5]
+    }
+    fc_ranks = {
+        13: [5, 5],
+        16: [5, 5]
+    }
 
     # See available datasets
     print(tfds.list_builders())
@@ -42,14 +46,14 @@ if __name__ == '__main__':
         y = tf.placeholder(tf.float32, shape=[None, 10])
         learning_rate = tf.placeholder(tf.float32, shape=[])
 
-    model_v1 = TensorNetV1(architecture=architecture,
-                           conv_ranks=conv_ranks,
-                           fc_ranks=fc_ranks)
+    model_v1 = TuckerNet(architecture=architecture)
+    model_v1.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, name="MyTuckerNetwork")
 
     model_v2 = StandardNetwork(architecture=architecture)
+    model_v2.build("MyStandardNetwork")
 
     # Single forward pass
-    logits = model_v2(x)
+    logits = model_v2(input=x)
 
     loss = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
     avg_loss = tf.reduce_mean(loss)  # Over entire batch

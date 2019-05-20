@@ -37,7 +37,7 @@ class Graph:
         assert len(shape) == len(names), "Must have a name for each open index"
 
         if not self._graph.has_node(u_of_edge):
-            self._graph.add_node(u_of_edge)
+            self._graph.add_node(u_of_edge, dummy_node=False)
 
         # Create a dummy node for each of the exposed indices
         dummy_node_names = []
@@ -87,8 +87,10 @@ class Graph:
                     dims.append(edge_data["weight"])
                     edge_names.append(edge_data["name"])
 
-                # Add the tfvar to the node details
-                self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
+                if not self._graph.nodes[node]['dummy_node']:
+                    # Dummy nodes do not have an associated tf.Variable
+                    self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
+
                 self._graph.nodes[node]["edge_names"] = edge_names
 
         self._is_compiled = True
@@ -256,6 +258,7 @@ class Graph:
         return g, n3
 
     def get_graph(self):
+        """ Get the underlying NetworkX graph """
         return self._graph
 
     def combine_factors(self, u_data, v_data):
@@ -293,6 +296,7 @@ class Graph:
         nodes = list(self._graph.nodes.keys())
         for node in nodes:
 
+            # Dummy nodes are not stored as tensors, these are "exposed" indices
             if self._graph.nodes[node]["dummy_node"]:
                 continue
 
@@ -303,11 +307,10 @@ class Graph:
 
 if __name__ == "__main__":
     """ Test examples """
-    g = Graph()
-    g.add_edge("A", "B", 213, "r1")
-    g.add_edge("A", "C", 122, "r2")
-    g.add_edge("C", "D1", 444, "W", dummy_node=True)
-    g.add_edge("B", "D2", 90, "H", dummy_node=True)
+    g = Graph("MyGraph")
+    g.add_node("A", shape=[22, 9], names=["a1", "a2"])
+    g.add_node("B", shape=[5], names=["b1"])
+    g.add_edge("A", "B", length=10, name="r1")
     g.compile()
     g.debug(g.get_graph(), "debug1")
     tfvar = g.combine()

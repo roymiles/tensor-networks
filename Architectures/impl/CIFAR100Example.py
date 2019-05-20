@@ -6,7 +6,7 @@ class CIFAR100Example(IArchitecture):
     # See: https://github.com/dribnet/kerosene/blob/master/examples/cifar100.py
     def __init__(self):
         network = [
-            ConvLayer(shape=[3, 3, 3, 32]),
+            ConvLayer(shape=[3, 3, 1, 32]),
             # BatchNormalisationLayer(32),
             ReLU(),
             ConvLayer(shape=[3, 3, 32, 32]),
@@ -25,7 +25,7 @@ class CIFAR100Example(IArchitecture):
             DropoutLayer(0.25),
 
             Flatten(),
-            FullyConnectedLayer(shape=[4096, 512]),
+            FullyConnectedLayer(shape=[3136, 512]),
             ReLU(),
             DropoutLayer(0.5),
             FullyConnectedLayer(shape=[512, 100])

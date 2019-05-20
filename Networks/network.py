@@ -2,6 +2,7 @@
 from Layers.layer import *
 from abc import abstractmethod
 from Architectures.architectures import IArchitecture
+import tensorflow as tf
 
 
 class IWeights:
@@ -10,7 +11,7 @@ class IWeights:
 
     @staticmethod
     def num_parameters(weight_list):
-        """" Calculates the number of parameters from a list of weights
+        """" Calculates the number of parameters from a list of tf.Tensors
              Each elements consists of an arbitrary dimensional tensor """
 
         num_params_op = 0
