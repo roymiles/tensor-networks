@@ -154,7 +154,8 @@ class Graph:
                         # Don't bother trying to contract the node with itself...
                         continue
 
-                    print("{} : {}".format(n1, n2))
+                    # Shows the edges being merged (good debugging line)
+                    # print("{} : {}".format(n1, n2))
 
                     node_data = g.nodes(data=True)
 
@@ -190,7 +191,8 @@ class Graph:
             # Reset (rescan over graph)
             updated_graph = False
 
-        Graph.debug(g, "debug2")
+        # Uncomment if want to see the nodes and edges in the graph
+        #Graph.debug(g, "debug2")
 
         return g.nodes[n3]["tfvar"]
 

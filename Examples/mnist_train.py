@@ -8,6 +8,12 @@ import tensorflow_datasets as tfds
 import config as conf
 import tensorflow as tf
 import cv2
+import os
+from tqdm import tqdm
+
+# The info messages are getting tedious now
+tf.logging.set_verbosity(tf.logging.WARN)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 print(tf.__version__)
 
@@ -17,15 +23,10 @@ if __name__ == '__main__':
 
     # These hyperparameters control the compression
     # of the convolutional and fully connected weights
-    conv_ranks = {
-        0: [5, 5, 5],
-        2: [5, 5, 5],
-        6: [5, 5, 5],
-        8: [5, 5, 5]
-    }
+    conv_ranks = {}
     fc_ranks = {
-        13: [5, 5],
-        16: [5, 5]
+        1: [256, 512],
+        4: [512, 256]
     }
 
     # See available datasets
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
-    ds_train = ds_train.shuffle(1000).batch(conf.batch_size).prefetch(10)
+    ds_train = ds_train.batch(conf.batch_size).prefetch(10)
 
     # No batching just use entire test data
     ds_test = ds_test.batch(10000)
@@ -52,11 +53,13 @@ if __name__ == '__main__':
         y = tf.placeholder(tf.float32, shape=[None, 10])
         learning_rate = tf.placeholder(tf.float32, shape=[])
 
-    # model_v1 = TuckerNet(architecture=architecture)
-    # model_v1.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, name="MyTuckerNetwork")
-
-    model = StandardNetwork(architecture=architecture)
-    model.build("MyStandardNetwork")
+    use_tucker = False
+    if use_tucker:
+        model = TuckerNet(architecture=architecture)
+        model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, name="MyTuckerNetwork")
+    else:
+        model = StandardNetwork(architecture=architecture)
+        model.build("MyStandardNetwork")
 
     # Single forward pass
     logits = model(input=x)
@@ -72,54 +75,94 @@ if __name__ == '__main__':
     train_op = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_op, global_step=global_step)
     init_op = tf.global_variables_initializer()
 
-    with tf.Session() as sess:
-        # Tensorboard
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter('/home/roy/Desktop/Tensorboard', sess.graph)
-        print("Run: \"tensorboard --logdir=/home/roy/Desktop/Tensorboard\"")
+    # Create session and initialize weights
+    sess = tf.Session()
+    sess.run(init_op)
 
-        # Initialize weights
-        sess.run(init_op)
+    # Tensorboard
+    merged = tf.summary.merge_all()
+    train_writer = tf.summary.FileWriter('/home/roy/Desktop/Tensorboard', sess.graph)
+    print("Run: \"tensorboard --logdir=/home/roy/Desktop/Tensorboard\"")
 
-        print("Number of parameters = {}".format(model.num_parameters()))
+    print("Number of parameters = {}".format(model.num_parameters()))
 
-        for epoch in range(conf.epochs):
+    for epoch in tqdm(range(conf.epochs)):
 
-            # Training
-            for batch in tfds.as_numpy(ds_train):
-                images, labels = batch['image'], batch['label']
+        # Training
+        for batch in tfds.as_numpy(ds_train):
+            images, labels = batch['image'], batch['label']
 
-                # For debugging, show first image
-                # cv2.imshow("image", images[0])
-                # cv2.waitKey()
+            # For debugging, show first image
+            # cv2.imshow("image", images[0])
+            # cv2.waitKey()
 
-                # Normalise in range [0, 1)
-                images = images / 255.0
+            # Normalise in range [0, 1)
+            images = images / 255.0
 
-                # One hot encode
-                labels = np.eye(10)[labels]
+            # One hot encode
+            labels = np.eye(10)[labels]
 
-                feed_dict = {
-                    x: images,
-                    y: labels,
-                    learning_rate: conf.initial_learning_rate
-                }
+            feed_dict = {
+                x: images,
+                y: labels,
+                learning_rate: conf.initial_learning_rate
+            }
 
-                fetches = [global_step, train_op, avg_loss]
+            fetches = [global_step, train_op, avg_loss]
 
-                step, _,  loss = sess.run(fetches, feed_dict)
+            step, _,  loss = sess.run(fetches, feed_dict)
 
-                # if step % 100 == 0:
-                #    print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
+            # if step % 100 == 0:
+            #    print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
 
-        # Testing
+    # Testing (after training)
+    for batch in tfds.as_numpy(ds_test):
+        images, labels = batch['image'], batch['label']
+
+        # Normalise in range [0, 1)
+        images = images / 255.0
+
+        print(images.shape)
+
+        # One hot encode
+        labels = np.eye(10)[labels]
+
+        feed_dict = {
+            x: images,
+            y: labels
+        }
+
+        acc = sess.run(accuracy, feed_dict)
+        print("Accuracy = {}".format(acc))
+
+    # Test converting to Tucker variant (not quite tucker)
+    converted_models = True
+    if not use_tucker and converted_models:
+        from Networks.convert import standard_to_tucker
+
+        # Find a reasonable approximation to the weights given these ranks (minimise reconstruction error)
+        converted_model, sess, merged = standard_to_tucker(model, sess, conv_ranks, fc_ranks)
+
+        convert_writer = tf.summary.FileWriter('/home/roy/Desktop/Tensorboard/convert', sess.graph)
+        print("Run: \"tensorboard --logdir=/home/roy/Desktop/Tensorboard/convert\"")
+
+        print("Number of parameters (converted) = {}".format(converted_model.num_parameters()))
+
+        # Single forward pass (of the converted model)
+        logits = converted_model(input=x)
+
+        loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
+        avg_loss = tf.reduce_mean(loss_op)
+
+        correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+        # Now test the accuracy on the converted model
         for batch in tfds.as_numpy(ds_test):
             images, labels = batch['image'], batch['label']
 
             # Normalise in range [0, 1)
             images = images / 255.0
-
-            print(images.shape)
 
             # One hot encode
             labels = np.eye(10)[labels]
@@ -129,5 +172,10 @@ if __name__ == '__main__':
                 y: labels
             }
 
-            acc = sess.run(accuracy, feed_dict)
-            print("Accuracy = {}".format(acc))
+            acc, summary = sess.run([accuracy, merged], feed_dict)
+            print("Accuracy (converted) = {}".format(acc))
+            convert_writer.add_summary(summary)
+
+
+
+

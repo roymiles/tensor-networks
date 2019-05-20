@@ -1,5 +1,4 @@
 """ Define interfaces for a network and the weights inside the network """
-from Layers.layer import *
 from abc import abstractmethod
 from Architectures.architectures import IArchitecture
 import tensorflow as tf
@@ -83,11 +82,9 @@ class INetwork:
 
     @staticmethod
     @abstractmethod
-    def run_layer(layer, input, **kwargs):
-        """ Input is compulsory, the rest is up to the network """
-
+    def run_layer(layer, **kwargs):
         # If the child classes have not overridden the behaviour, just call them with all the same arguments
-        return layer(input=input, **kwargs)
+        return layer(**kwargs)
 
     @abstractmethod
     def __call__(self):
