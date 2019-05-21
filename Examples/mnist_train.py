@@ -1,11 +1,14 @@
 import numpy as np
 
+# temp
+import sys
+sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
+
 from Architectures.impl.MNISTExample import MNISTExample
 from Networks.impl.standard import StandardNetwork
 from Networks.impl.tucker_like import TuckerNet
 
 import tensorflow_datasets as tfds
-import config as conf
 import tensorflow as tf
 import cv2
 import os
@@ -25,8 +28,8 @@ if __name__ == '__main__':
     # of the convolutional and fully connected weights
     conv_ranks = {}
     fc_ranks = {
-        1: [256, 512],
-        4: [512, 256]
+        1: [32, 64],
+        4: [64, 32]
     }
 
     # See available datasets
@@ -43,7 +46,8 @@ if __name__ == '__main__':
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
-    ds_train = ds_train.batch(conf.batch_size).prefetch(10)
+    batch_size = 128
+    ds_train = ds_train.batch(batch_size).prefetch(10)
 
     # No batching just use entire test data
     ds_test = ds_test.batch(10000)
@@ -52,17 +56,18 @@ if __name__ == '__main__':
         x = tf.placeholder(tf.float32, shape=[None, 28, 28, 1])
         y = tf.placeholder(tf.float32, shape=[None, 10])
         learning_rate = tf.placeholder(tf.float32, shape=[])
+        switch = tf.placeholder(tf.float32, shape=[])
 
-    use_tucker = False
+    use_tucker = True
     if use_tucker:
         model = TuckerNet(architecture=architecture)
         model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, name="MyTuckerNetwork")
+        logits = model(input=x, switch=switch)
     else:
         model = StandardNetwork(architecture=architecture)
         model.build("MyStandardNetwork")
+        logits = model(input=x)
 
-    # Single forward pass
-    logits = model(input=x)
 
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
     avg_loss = tf.reduce_mean(loss_op)
@@ -86,7 +91,9 @@ if __name__ == '__main__':
 
     print("Number of parameters = {}".format(model.num_parameters()))
 
-    for epoch in tqdm(range(conf.epochs)):
+    num_epochs = 12
+    initial_learning_rate = 0.01
+    for epoch in tqdm(range(num_epochs)):
 
         # Training
         for batch in tfds.as_numpy(ds_train):
@@ -105,7 +112,8 @@ if __name__ == '__main__':
             feed_dict = {
                 x: images,
                 y: labels,
-                learning_rate: conf.initial_learning_rate
+                learning_rate: initial_learning_rate,
+                switch: 0.1
             }
 
             fetches = [global_step, train_op, avg_loss]
@@ -129,7 +137,8 @@ if __name__ == '__main__':
 
         feed_dict = {
             x: images,
-            y: labels
+            y: labels,
+            switch: 0.1
         }
 
         acc = sess.run(accuracy, feed_dict)

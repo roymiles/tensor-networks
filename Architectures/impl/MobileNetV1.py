@@ -3,7 +3,8 @@ from Layers.impl.core import ConvLayer, AveragePoolingLayer, Flatten, FullyConne
 
 
 class MobileNetV1(IArchitecture):
-    """ This is the original MobileNet architecture for ImageNet """
+    """ This is the original MobileNet architecture for ImageNet
+        Of course, the convolutional layers are replaced with depthwise separable layers """
     def __init__(self):
         num_classes = 10
         network = [

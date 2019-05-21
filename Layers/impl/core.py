@@ -46,6 +46,35 @@ class ConvLayerConstant(ILayer):
         return tf.nn.conv2d(input, self._kernel, strides=self._strides, padding=self._padding)
 
 
+class DepthwiseSeperableLayer(ILayer):
+    """ Depthwise convolution followed by a pointwise convolution """
+    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
+        super().__init__()
+        self._shape = shape
+        self._strides = strides
+        self._padding = padding
+        self._use_bias = use_bias
+
+    def get_shape(self):
+        return self._shape
+
+    def using_bias(self):
+        return self._use_bias
+
+    def get_strides(self):
+        return self._strides
+
+    def __call__(self, input, dw_filters, pw_kernels, bias=None):
+        # Depthwise convolution
+        net = tf.nn.depthwise_conv2d(input, dw_filters, strides=self._strides, padding=self._padding)
+        # Pointwise convolution
+        net = tf.nn.conv2d(net, pw_kernels, strides=[1, 1, 1, 1], padding="SAME")
+
+        if bias:
+            net = tf.nn.bias_add(net, bias)
+
+        return net
+
 class BiasLayerConstant(ILayer):
     """ Fixed, constant bias added to a layer """
     def __init__(self, bias):

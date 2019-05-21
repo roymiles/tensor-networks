@@ -119,22 +119,27 @@ class Graph:
 
         return i
 
-    def combine(self):
+    def combine(self, switch=1.0):
         """ Combine all the nodes into a single tensor - which is likely then used for convolution or something
             returns: tf.Variable with dimensions the same as all exposed edges
+
+            :param
+                switch: Value in range (0, 1] to control compression.
+                        Effectively only uses a percentage of each factor, so s x W
 
             :returns W: Single weight tensor with all the exposed dimensions """
 
         # TODO: Make more efficient merging strategy
 
         assert self._is_compiled == 1, "Must be compiled before can combine the core factors"
+        # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
 
         # We start with the first tensor and loop through all factors and merge
         # NOTE: Could reorder prior to make this more efficient
         g = self._graph.copy()
         updated_graph = False
         while Graph.number_of_nodes(g) > 1:
-            # Keep contracting nodes until we get one
+            # Keep contracting nodes until we get one node left (excluding dummy nodes)
             keys = list(g.nodes.keys())
             nkeys = len(keys)
             for i in range(nkeys):
@@ -177,7 +182,7 @@ class Graph:
                         open_ind = [e for e in all_ind if e not in aux_ind]
 
                         g.nodes[n3]["edge_names"] = open_ind
-                        g.nodes[n3]["tfvar"] = self.combine_factors(n1_data, n2_data)
+                        g.nodes[n3]["tfvar"] = self.combine_factors(n1_data, n2_data, switch)
                         g.nodes[n3]["dummy_node"] = False
 
                         updated_graph = True
@@ -263,31 +268,84 @@ class Graph:
         """ Get the underlying NetworkX graph """
         return self._graph
 
-    def combine_factors(self, u_data, v_data):
+    @staticmethod
+    def multiway_tensor_slice(tensor, axis, widths):
+        """
+        Slice tensor along multiple axis to specified widths
+        Affectively a switch like in Slimmable networks
+
+        :param tensor: The tf.Tensor
+        :param axis: List of indexes that are sliced
+        :param widths: List of widths for each axis
+        :return: Sliced tf.Tensor
+        """
+
+        assert len(axis) == len(widths), "Must specify the width for each sliced axis"
+
+        # Extract the sliced factors across all shared indices (as determined by switch)
+        n = 0  # Keep track on what dim_size we are on
+        slice_ind = ()
+        for i, d in enumerate(tensor.get_shape()):
+            # Affectively trying to do :, :, :, 0:L, ...
+            # Where 0:L is a shared index and L is the dim_size (after compression)
+            if i in axis:
+                # Compressing along this axis
+                slice_ind += (slice(0, widths[n], 1),)
+                n += 1
+            else:
+                # Not compressing, keep entire width
+                slice_ind += (slice(None),)
+
+        # Perform the multi-way slice
+        return tensor[slice_ind]
+
+    def combine_factors(self, u_data, v_data, switch=1.0):
         """ Attempts to combine two tensors using tensor contraction over shared indices
 
             :param
                 u_data, v_data: Node data
                                 e.g. {'tfvar': <tf.Variable 'A:0' shape=(213, 122) dtype=float32_ref>,
                                       'edge_names': ['r1', 'r2']}
+                switch: Value in range (0, 1]. Only use a fraction of the factors across the contracted dimension
             :return
-                Combined weight or None if no shared indices """
+                Combined weight or None if no shared indices !!! Where does it return None?? !!!"""
 
         if not self._is_compiled:
             raise Exception("Graph must be compiled before you can combine factors.")
 
+        # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
+
         # Get index/key of shared (auxiliary indices)
-        u_ind = []
-        v_ind = []
+        u_axis = []
+        v_axis = []
         for i, ud in enumerate(u_data["edge_names"]):
             for j, vd in enumerate(v_data["edge_names"]):
+                # If they have the same edge name (at edge index i, j)
                 if ud == vd:
-                    u_ind.append(i)
-                    v_ind.append(j)
+                    u_axis.append(i)
+                    v_axis.append(j)
 
-        assert len(u_ind) == len(v_ind), "Something has gone horribly wrong"
+        # The dimension size for all the shared indices should be equal
+        u_shape = u_data['tfvar'].get_shape().as_list()
+        v_shape = v_data['tfvar'].get_shape().as_list()
+        # The widths for the auxilliary indices
+        widths = []
+        for i, j in zip(u_axis, v_axis):
+            assert u_shape[i] == v_shape[j], \
+                "Dimension size mismatch for contraction"
 
-        c = tf.tensordot(u_data['tfvar'], v_data['tfvar'], axes=[u_ind, v_ind])
+            # Compress the factors using switch, effectively only use a percentage across this index
+            # The size of the dimension after compression (just multiply by switch)
+            d = tf.dtypes.cast(switch * u_shape[i], dtype=tf.int32)
+            # print("{} -> {}".format(u_shape[i], d))
+            # assert d > 0, "Compressing a bit too much on this index"
+            widths.append(d)
+
+        # Extract appropriate width slices along the shared axis
+        u = Graph.multiway_tensor_slice(u_data['tfvar'], u_axis, widths)
+        v = Graph.multiway_tensor_slice(v_data['tfvar'], v_axis, widths)
+
+        c = tf.tensordot(u, v, axes=[u_axis, v_axis])
         return c  # The dimensions are the open edges
 
     def num_parameters(self):
