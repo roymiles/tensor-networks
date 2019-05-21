@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     # Build your input pipeline
     batch_size = 128
-    ds_train = ds_train.batch(batch_size).prefetch(10)
+    ds_train = ds_train.batch(batch_size).prefetch(1000)
 
     # No batching just use entire test data
     ds_test = ds_test.batch(10000)
@@ -98,8 +98,9 @@ if __name__ == '__main__':
 
     # Tensorboard
     merged = tf.summary.merge_all()
-    train_writer = tf.summary.FileWriter('/home/roy/Desktop/Tensorboard', sess.graph)
-    print("Run: \"tensorboard --logdir=/home/roy/Desktop/Tensorboard\"")
+    log_dir = '/home/roy/Desktop/Tensorboard/CIFAR100'
+    train_writer = tf.summary.FileWriter(log_dir, sess.graph)
+    print("Run: \"tensorboard --logdir={}\"".format(log_dir))
 
     print("Number of parameters = {}".format(model.num_parameters()))
 
@@ -112,7 +113,8 @@ if __name__ == '__main__':
             images, labels = batch['image'], batch['label']
 
             # For debugging, show first image
-            #cv2.imshow("image", images[0])
+            #for i in range(10):
+            #    cv2.imshow("image", images[i])
             #cv2.waitKey()
 
             # Normalise in range [0, 1)
@@ -128,12 +130,15 @@ if __name__ == '__main__':
                 switch_idx: 4
             }
 
-            fetches = [global_step, train_op, avg_loss]
+            fetches = [global_step, train_op, avg_loss, merged]
 
-            step, _,  loss = sess.run(fetches, feed_dict)
+            step, _, loss, summary = sess.run(fetches, feed_dict)
 
-            # if step % 100 == 0:
-            #    print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
+            if step % 10 == 0:
+                train_writer.add_summary(summary, step)
+
+            if step % 100 == 0:
+                print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
 
     # Testing (after training)
     for batch in tfds.as_numpy(ds_test):
@@ -141,8 +146,6 @@ if __name__ == '__main__':
 
         # Normalise in range [0, 1)
         images = images / 255.0
-
-        print(images.shape)
 
         # One hot encode
         labels = np.eye(num_classes)[labels]
