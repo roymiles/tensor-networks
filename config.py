@@ -7,6 +7,8 @@ is_debugging = False
 # Set random seeds
 seed = 1234
 
+# !!! Not really a fan of a global config file !!!
+
 # Number of epochs to run
 epochs = 12
 

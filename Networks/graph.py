@@ -197,7 +197,7 @@ class Graph:
             updated_graph = False
 
         # Uncomment if want to see the nodes and edges in the graph
-        #Graph.debug(g, "debug2")
+        # Graph.debug(g, "debug2")
 
         return g.nodes[n3]["tfvar"]
 
@@ -350,6 +350,7 @@ class Graph:
 
     def num_parameters(self):
         """ Return the total number of parameters across all (non-dummy) nodes """
+        # TODO: This function should take in a switch parameters. Also consider independent BN params rip kill me
         assert self._is_compiled, "Must be compiled first"
 
         num_params = 0

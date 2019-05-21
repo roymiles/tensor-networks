@@ -75,6 +75,7 @@ class DepthwiseSeperableLayer(ILayer):
 
         return net
 
+
 class BiasLayerConstant(ILayer):
     """ Fixed, constant bias added to a layer """
     def __init__(self, bias):
@@ -109,8 +110,10 @@ class FullyConnectedLayer(ILayer):
 
         return net
 
+
 # Alias name
 Dense = FullyConnectedLayer
+
 
 class PoolingLayer(ILayer):
     def __init__(self, ksize, strides=None):
