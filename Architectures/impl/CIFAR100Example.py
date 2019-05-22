@@ -8,28 +8,32 @@ class CIFAR100Example(IArchitecture):
     def __init__(self):
         network = [
             # Batch normalisation layers were added by me
+
+            # 0:7
             ConvLayer(shape=[3, 3, 3, 32]),
-            #BatchNormalisationLayer(32),
-            ReLU(),
+            # BatchNormalisationLayer(32),
+            # ReLU(),
             ConvLayer(shape=[3, 3, 32, 32]),
-            #BatchNormalisationLayer(32),
-            ReLU(),
-            MaxPoolingLayer(shape=[1, 2, 2, 1]),
-            DropoutLayer(0.25),
+            # BatchNormalisationLayer(32),
+            # ReLU(),
+            # MaxPoolingLayer(pool_size=(2, 2)),
+            # DropoutLayer(0.25),
 
+            # 8:15
             ConvLayer(shape=[3, 3, 32, 64]),
-            #BatchNormalisationLayer(64),
-            ReLU(),
+            # BatchNormalisationLayer(64),
+            # ReLU(),
             ConvLayer(shape=[3, 3, 64, 64]),
-            #BatchNormalisationLayer(64),
-            ReLU(),
-            MaxPoolingLayer(shape=[1, 2, 2, 1]),
-            DropoutLayer(0.25),
+            # BatchNormalisationLayer(64),
+            # ReLU(),
+            # MaxPoolingLayer(pool_size=(2, 2)),
+            # DropoutLayer(0.25),
 
+            # 16:20
             Flatten(),
-            FullyConnectedLayer(shape=[4096, 512]),
-            ReLU(),
-            DropoutLayer(0.5),
+            FullyConnectedLayer(shape=[65536, 512]),  # 4096
+            # ReLU(),
+            # DropoutLayer(0.5),
             FullyConnectedLayer(shape=[512, 100])
         ]
 

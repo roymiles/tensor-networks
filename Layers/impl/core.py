@@ -116,16 +116,12 @@ Dense = FullyConnectedLayer
 
 
 class PoolingLayer(ILayer):
-    def __init__(self, ksize, strides=None):
+    def __init__(self, pool_size=(2, 2)):
         """ In this case shape is the receptive field size to average over """
-        super().__init__()
-        self._ksize = ksize
-
-        if strides:
-            self._strides = strides
-        else:
-            # Just shift by the pool size (default pooling operation)
-            self._strides = ksize
+        px = pool_size[0]
+        py = pool_size[1]
+        self._ksize = [1, px, py, 1]
+        self._strides = [1, px, py, 1]
 
     def get_ksize(self):
         return self._ksize
@@ -135,8 +131,8 @@ class PoolingLayer(ILayer):
 
 
 class AveragePoolingLayer(PoolingLayer):
-    def __init__(self, shape):
-        super().__init__(shape)
+    def __init__(self, pool_size):
+        super().__init__(pool_size)
 
     def __call__(self, input):
         return tf.nn.avg_pool(input, ksize=super(AveragePoolingLayer, self).get_ksize(),
@@ -144,8 +140,8 @@ class AveragePoolingLayer(PoolingLayer):
 
 
 class MaxPoolingLayer(PoolingLayer):
-    def __init__(self, shape):
-        super().__init__(shape)
+    def __init__(self, pool_size):
+        super().__init__(pool_size)
 
     def __call__(self, input):
         return tf.nn.max_pool(input, ksize=super(MaxPoolingLayer, self).get_ksize(),

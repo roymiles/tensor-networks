@@ -1,7 +1,7 @@
 """ Define interfaces for a network and the weights inside the network """
 from abc import abstractmethod
 from Architectures.architectures import IArchitecture
-import tensorflow as tf
+from base import tfvar_size
 
 
 class IWeights:
@@ -13,12 +13,14 @@ class IWeights:
         """" Calculates the number of parameters from a list of tf.Tensors
              Each elements consists of an arbitrary dimensional tensor """
 
-        num_params_op = 0
+        num_params = 0
         for weight in weight_list:
-            num_params_op += tf.size(weight)
+            if not weight:
+                # e.g. offset/scale for affine BN
+                continue
 
-        sess = tf.Session()
-        num_params = sess.run(num_params_op)
+            num_params += tfvar_size(weight)
+
         return num_params
 
     @abstractmethod
@@ -78,7 +80,7 @@ class INetwork:
             For example, in a Tucker network this will be the sum of all parameters in each core tensor """
         return self._weights.num_parameters()
 
-    # The following methods must be overridden by every network ...
+    # The following methods must be overridden by every network
 
     @staticmethod
     @abstractmethod

@@ -104,8 +104,12 @@ if __name__ == '__main__':
 
     print("Number of parameters = {}".format(model.num_parameters()))
 
+    # for debugging
+    w = model.get_weights()
+    w0 = w.get_layer_weights(layer_idx=0)["kernel"]
+
     num_epochs = 12
-    initial_learning_rate = 0.01
+    initial_learning_rate = 0.001
     for epoch in tqdm(range(num_epochs)):
 
         # Training
@@ -130,12 +134,15 @@ if __name__ == '__main__':
                 switch_idx: 4
             }
 
-            fetches = [global_step, train_op, avg_loss, merged]
+            fetches = [global_step, train_op, avg_loss, merged, w0]
 
-            step, _, loss, summary = sess.run(fetches, feed_dict)
+            step, _, loss, summary, weights = sess.run(fetches, feed_dict)
 
-            if step % 10 == 0:
-                train_writer.add_summary(summary, step)
+            print(weights[0][0][0])
+            #exit()
+
+            #if step % 10 == 0:
+            train_writer.add_summary(summary, step)
 
             if step % 100 == 0:
                 print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
