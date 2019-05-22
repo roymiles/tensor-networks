@@ -8,6 +8,9 @@ import string
 initializer = tf.contrib.layers.variance_scaling_initializer()
 
 
+l2_reg = tf.contrib.layers.l2_regularizer(scale=1.0)
+
+
 def tfvar_size(tfvar):
     # Loop through all dimensions
     i = 1

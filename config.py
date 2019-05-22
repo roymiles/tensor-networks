@@ -20,6 +20,9 @@ initial_learning_rate = 0.01
 # Where all the tfds datasets are downloaded to
 tfds_dir = "/media/roy/New Volume/tensorflow-datasets/"
 
+# Where tensorboard logs are stored
+log_dir = "/home/roy/Desktop/Tensorboard/"
+
 # Dataset to load
 # ['abstract_reasoning', 'bair_robot_pushing_small', 'caltech101', 'cats_vs_dogs', 'celeb_a', 'celeb_a_hq', 'chexpert',
 # 'cifar10', 'cifar100', 'cifar10_corrupted', 'cnn_dailymail', 'coco2014', 'colorectal_histology',
