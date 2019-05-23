@@ -14,6 +14,7 @@ import cv2
 import os
 from tqdm import tqdm
 import config as conf
+import random
 
 
 # The info messages are getting tedious now
@@ -25,6 +26,12 @@ print(tf.__version__)
 if __name__ == '__main__':
     # NOTE: Just change architecture here
     architecture = MNISTExample()
+
+    dataset_name = 'mnist'
+    batch_size = 128
+    switch_list = [0.1, 0.4, 0.5, 0.8, 1.0]
+    num_epochs = 12
+    initial_learning_rate = 0.01
 
     # These hyperparameters control the compression
     # of the convolutional and fully connected weights
@@ -38,7 +45,7 @@ if __name__ == '__main__':
     print(tfds.list_builders())
 
     # Fetch the dataset directly
-    mnist = tfds.builder('mnist')
+    mnist = tfds.builder(dataset_name)
 
     # Download the data, prepare it, and write it to disk
     mnist.download_and_prepare(download_dir=conf.tfds_dir)
@@ -48,7 +55,6 @@ if __name__ == '__main__':
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
-    batch_size = 128
     ds_train = ds_train.batch(batch_size).prefetch(10)
 
     # No batching, just use entire test data
@@ -59,15 +65,14 @@ if __name__ == '__main__':
         y = tf.placeholder(tf.float32, shape=[None, 10])
         learning_rate = tf.placeholder(tf.float32, shape=[])
         # The current switch being used for inference
-        switch = tf.placeholder(tf.float32, shape=[])
+        switch_idx = tf.placeholder(tf.int32, shape=[])
 
     use_tucker = True
     if use_tucker:
         print("Using TuckerNet")
         model = TuckerNet(architecture=architecture)
-        model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=[0.1, 0.4, 0.5, 0.8, 1.0],
-                    name="MyTuckerNetwork")
-        logits = model(input=x, switch=switch)
+        model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=switch_list, name="MyTuckerNetwork")
+        logits = model(input=x, switch_idx=switch_idx)
     else:
         print("Using StandardNet")
         model = StandardNetwork(architecture=architecture)
@@ -96,8 +101,6 @@ if __name__ == '__main__':
 
     print("Number of parameters = {}".format(model.num_parameters()))
 
-    num_epochs = 12
-    initial_learning_rate = 0.01
     for epoch in tqdm(range(num_epochs)):
 
         # Training
@@ -118,7 +121,8 @@ if __name__ == '__main__':
                 x: images,
                 y: labels,
                 learning_rate: initial_learning_rate,
-                switch: 0.1
+                # Train batch on a random switch
+                switch_idx: random.randrange(0, 4)
             }
 
             fetches = [global_step, train_op, avg_loss]
@@ -129,67 +133,25 @@ if __name__ == '__main__':
             #    print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
 
     # Testing (after training)
-    for batch in tfds.as_numpy(ds_test):
-        images, labels = batch['image'], batch['label']
-
-        # Normalise in range [0, 1)
-        images = images / 255.0
-
-        print(images.shape)
-
-        # One hot encode
-        labels = np.eye(10)[labels]
-
-        feed_dict = {
-            x: images,
-            y: labels,
-            switch: 0.1
-        }
-
-        acc = sess.run(accuracy, feed_dict)
-        print("Accuracy = {}".format(acc))
-
-    # Test converting to Tucker variant (not quite tucker)
-    convert_model = True
-    if not use_tucker and convert_model:
-        from Networks.convert import standard_to_tucker
-
-        # Find a reasonable approximation to the weights given these ranks (minimise reconstruction error)
-        converted_model, sess, merged = standard_to_tucker(model, sess, conv_ranks, fc_ranks)
-
-        convert_writer = tf.summary.FileWriter('/home/roy/Desktop/Tensorboard/convert', sess.graph)
-        print("Run: \"tensorboard --logdir=/home/roy/Desktop/Tensorboard/convert\"")
-
-        print("Number of parameters (converted) = {}".format(converted_model.num_parameters()))
-
-        # Single forward pass (of the converted model)
-        logits = converted_model(input=x)
-
-        loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
-        avg_loss = tf.reduce_mean(loss_op)
-
-        correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-        # Now test the accuracy on the converted model
+    # Test all switches
+    for i, switch in enumerate(switch_list):
         for batch in tfds.as_numpy(ds_test):
             images, labels = batch['image'], batch['label']
 
             # Normalise in range [0, 1)
             images = images / 255.0
 
+            print(images.shape)
+
             # One hot encode
             labels = np.eye(10)[labels]
 
             feed_dict = {
                 x: images,
-                y: labels
+                y: labels,
+                switch_idx: i
             }
 
-            acc, summary = sess.run([accuracy, merged], feed_dict)
-            print("Accuracy (converted) = {}".format(acc))
-            convert_writer.add_summary(summary)
-
-
-
+            acc = sess.run(accuracy, feed_dict)
+            print("Accuracy (switch {}) = {}".format(switch, acc))
 

@@ -272,7 +272,7 @@ class Graph:
     def multiway_tensor_slice(tensor, axis, widths):
         """
         Slice tensor along multiple axis to specified widths
-        Affectively a switch like in Slimmable networks
+        Effectively a switch like in Slimmable networks
 
         :param tensor: The tf.Tensor
         :param axis: List of indexes that are sliced

@@ -138,7 +138,7 @@ class TuckerNet(INetwork):
         self._is_built = False
         self._switch_list = [1]
 
-    def build(self, conv_ranks, fc_ranks, name, switch_list=[1]):
+    def build(self, conv_ranks, fc_ranks, name, switch_list=[1.0]):
         """ Create/initialise the tf.Variable weights from ranks for ** ALL ** the layers
             This is not called if we are setting the weights manually
 

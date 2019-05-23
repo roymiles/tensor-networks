@@ -1,16 +1,34 @@
+""" Provides useful utility functions for converting models to tflite format """
+
 import tensorflow as tf
 import numpy as np
 
 
-def export_tflite(sess, input_nodes, output_nodes):
+def export_tflite(sess, input_nodes, output_nodes, optimizations, name):
     """ Convert a sess graph to .tflite file
         input_nodes and output_nodes are arrays of Tensors for the input
-        and output variables """
+        and output variables
+
+        :param optimizations: Array of optimizations e.g. [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+        :param name: Name of output tflite file """
 
     sess.run(tf.global_variables_initializer())
     converter = tf.lite.TFLiteConverter.from_session(sess, input_nodes, output_nodes)
+    converter.optimizations = optimizations
     tflite_model = converter.convert()
-    open("converted_model.tflite", "wb").write(tflite_model)
+    open("{}.tflite".format(name), "wb").write(tflite_model)
+
+
+def export_tflite(saved_model_dir, optimizations, name):
+    """ Convert saved model to tflite
+
+        :param optimizations: Array of optimizations e.g. [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+        :param name: Name of output tflite file
+    """
+    converter = tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)
+    converter.optimizations = optimizations
+    tflite_model = converter.convert()
+    open("{}.tflite".format(name), "wb").write(tflite_model)
 
 
 def invoke_tflite(model_path, input_data):
