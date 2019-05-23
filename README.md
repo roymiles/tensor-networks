@@ -29,6 +29,8 @@ Node ('A', {'tfvar': <tf.Variable 'my_tensor_network/A:0' shape=(22, 9, 10) dtyp
 Node ('B', {tfvar': <tf.Variable 'my_tensor_network/B:0' shape=(5, 10) dtype=float32_ref>, 'edge_names': ['b1', 'r1']})
 ```
 
+![Graph result](Images/example_graph.png)
+
 ## Architectures ##
 
 Architectures are then defined in a similar way and are agnostic to the Tensor network for which they reside. 
