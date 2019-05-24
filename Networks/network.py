@@ -61,7 +61,7 @@ class Weights:
         """" Calculates the number of parameters in the weights """
 
         num_params = 0
-        for w in self._weights:
+        for w in self._weights.values():
 
             # The same approach for convolutional or fully connected weights
             if w["__type__"] == LayerTypes.CONV or w["__type__"] == LayerTypes.FC:
@@ -88,7 +88,11 @@ class Weights:
 
     def get_layer_weights(self, layer_idx):
         """ Return the weights for a given layer """
-        return self.weight_values[layer_idx]
+        return self._weights[layer_idx]
+
+    def debug(self):
+        for layer_idx, weight in self._weights.items():
+            print("Layer {} -> {}".format(layer_idx, weight))
 
 
 class INetwork:

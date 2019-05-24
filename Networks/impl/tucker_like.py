@@ -52,7 +52,6 @@ import config as conf
 from base import *
 from Networks.network import Weights, INetwork
 from Networks.graph import Graph
-import math
 
 
 class TuckerNet(INetwork):
@@ -247,7 +246,10 @@ class TuckerNet(INetwork):
                 # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
 
                 # Combine the core tensors
-                c = self._weights.conv_graph[layer_idx].combine(switch=switch)
+                w = self._weights.get_layer_weights(layer_idx)
+                assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
+
+                c = w["kernel"].combine(switch=switch)
 
                 # TODO: This manual requirement for reshaping is bad. We know the names of edges,
                 #       should be able to do this automatically like .reshape(["W", "H", "C", "N"])
@@ -256,14 +258,17 @@ class TuckerNet(INetwork):
                 c = tf.reshape(c, [s[2], s[3], s[1], s[0]])
 
                 # Call the function and return the result
-                return cur_layer(input, c, self._weights.bias[layer_idx])
+                return cur_layer(input=input, kernel=c, bias=w["bias"])
 
             elif isinstance(cur_layer, FullyConnectedLayer):
 
                 # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
 
                 # Combine the core tensors
-                c = self._weights.fc_graph[layer_idx].combine(switch=switch)
+                w = self._weights.get_layer_weights(layer_idx)
+                assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
+
+                c = w["kernel"].combine(switch=switch)
 
                 # Reshape to proper ordering
                 s = tf.shape(c)
@@ -276,7 +281,7 @@ class TuckerNet(INetwork):
                     print("--------------")
                     print("")
 
-                return cur_layer(input, c, self._weights.bias[layer_idx])
+                return cur_layer(input=input, kernel=c, bias=w["bias"])
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
 
@@ -290,10 +295,11 @@ class TuckerNet(INetwork):
                 # TODO: If not in list, do geometric mean of parameters between neighbouring switches
                 # assert switch_idx != -1, "Unable to find appropriate switch from the switch list"
 
-                return cur_layer(input, self._weights.bn_mean[layer_idx][switch_idx],
-                                 self._weights.bn_variance[layer_idx][switch_idx],
-                                 self._weights.bn_offset[layer_idx][switch_idx],
-                                 self._weights.bn_offset[layer_idx][switch_idx])
+                w = self._weights.get_layer_weights(layer_idx)
+                assert w["__type__"] == LayerTypes.BN, "The layer weights don't match up with the layer type"
+
+                return cur_layer(input=input, mean=w["mean"][switch_idx], variance=w["variance"][switch_idx],
+                                 offset=w["offset"][switch_idx], scale=w["scale"][switch_idx])
             else:
                 # These layers are not overridden
                 return INetwork.run_layer(cur_layer, input=input)
@@ -305,8 +311,6 @@ class TuckerNet(INetwork):
                 input: The input to the network e.g. a batch of images
                 switch_idx: Index for switch_list, controls the compression of the network
         """
-
-        # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
 
         # Loop through all the layers
         net = input

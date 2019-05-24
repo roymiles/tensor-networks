@@ -77,8 +77,6 @@ class StandardNetwork(INetwork):
         """ Pass input through a single layer
             Operation is dependant on the layer type
 
-            This class is boring and doesn't add any features
-
         Parameters
         ----------
         COMPULSORY PARAMETERS
@@ -91,14 +89,15 @@ class StandardNetwork(INetwork):
 
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             cur_layer = self.get_architecture().get_layer(layer_idx)
-            # NOTE: Will be None if this layer has no weights
-            w = self._weights.get_layer_weights(layer_idx)
             if isinstance(cur_layer, ConvLayer):
+                w = self._weights.get_layer_weights(layer_idx)
                 features = cur_layer(input, kernel=w["kernel"], bias=w["bias"])
                 return features
             elif isinstance(cur_layer, FullyConnectedLayer):
+                w = self._weights.get_layer_weights(layer_idx)
                 return cur_layer(input, kernel=w["kernel"], bias=w["bias"])
             elif isinstance(cur_layer, BatchNormalisationLayer):
+                w = self._weights.get_layer_weights(layer_idx)
                 return cur_layer(input, w["mean"], w["variance"], w["scale"], w["offset"])
             elif isinstance(cur_layer, ReLU):
                 act = INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
@@ -111,6 +110,8 @@ class StandardNetwork(INetwork):
         """ Complete forward pass for the entire network
 
             :return net: Result from forward pass"""
+
+        self._weights.debug()
 
         # Loop through all the layers
         net = kwargs['input']
