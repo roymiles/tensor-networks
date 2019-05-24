@@ -62,7 +62,8 @@ class StandardNetwork(INetwork):
                     mean = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features, initializer=initializer)
                     variance = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features, initializer=initializer)
 
-                    if cur_layer.is_affine():
+                    # When NOT affine
+                    if not cur_layer.is_affine():
                         scale = None
                         offset = None
                     else:

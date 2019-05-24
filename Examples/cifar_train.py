@@ -5,6 +5,7 @@ import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
 from Architectures.impl.CIFARExample import CIFARExample
+from Architectures.impl.Test import Test
 from Networks.impl.tucker_like import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
@@ -29,7 +30,7 @@ if __name__ == '__main__':
     dataset_name = 'cifar10'
     batch_size = 128
     num_epochs = 12
-    initial_learning_rate = 0.001
+    initial_learning_rate = 1
 
     architecture = CIFARExample(num_classes=num_classes)
 
@@ -77,22 +78,22 @@ if __name__ == '__main__':
         model = TuckerNet(architecture=architecture)
         model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=[0.1, 0.4, 0.5, 0.8, 1.0],
                     name="MyTuckerNetwork")
-        logits = model(input=x, switch_idx=switch_idx)
+        logits_op = model(input=x, switch_idx=switch_idx)
     else:
         print("Using StandardNet")
         model = StandardNetwork(architecture=architecture)
         model.build("MyStandardNetwork")
-        logits = model(input=x)
+        logits_op = model(input=x)
 
-    loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits)
+    loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
 
     # Add the regularisation terms
-    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    _lambda = 0.01  # Scaling factor
-    loss_op += loss_op + _lambda * sum(reg_losses)
+    # reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    # _lambda = 0.01  # Scaling factor
+    # loss_op += loss_op + _lambda * sum(reg_losses)
 
-    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits, 1))
+    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     tf.summary.scalar('accuracy', accuracy)
 
@@ -100,12 +101,24 @@ if __name__ == '__main__':
     # train_op = tf.train.MomentumOptimizer(learning_rate=learning_rate,
     #                                      momentum=0.9,
     #                                      use_nesterov=True).minimize(loss_op, global_step=global_step)
-    train_op = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(loss_op, global_step=global_step)
+    optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
+    train_op = optimizer.minimize(loss_op, global_step=global_step)
     init_op = tf.global_variables_initializer()
+
+    # Help for debugging nan gradients
+    grads_and_vars = optimizer.compute_gradients(loss_op)
+
+    #print(grads_and_vars[-4][1].name)
+    #exit()
+
+    for g, v in grads_and_vars:
+        print(v.name)
+        #tf.summary.histogram(v.name, v)
+        #tf.summary.histogram(v.name + '_grad', g)
 
     # Create session and initialize weights
     config = tf.ConfigProto(
-        # device_count={'GPU': 0}
+        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     )
     sess = tf.Session(config=config)
     sess.run(init_op)
@@ -119,17 +132,18 @@ if __name__ == '__main__':
     print("Number of parameters = {}".format(model.num_parameters()))
 
     # for debugging
-    w = model.get_weights()
-    w0 = tf.reduce_mean(w.get_layer_weights(layer_idx=0)["kernel"])
-    w3 = tf.reduce_mean(w.get_layer_weights(layer_idx=3)["kernel"])
-    w8 = tf.reduce_mean(w.get_layer_weights(layer_idx=8)["kernel"])
-    w11 = tf.reduce_mean(w.get_layer_weights(layer_idx=11)["kernel"])
+    #w = model.get_weights()
+    #w0 = w.get_layer_weights(layer_idx=0)["kernel"]
+    #w3 = tf.reduce_mean(w.get_layer_weights(layer_idx=3)["kernel"])
+    #w8 = tf.reduce_mean(w.get_layer_weights(layer_idx=8)["kernel"])
+    #w11 = tf.reduce_mean(w.get_layer_weights(layer_idx=11)["kernel"])
 
     for epoch in tqdm(range(num_epochs)):
 
         # Training
         for batch in tfds.as_numpy(ds_train):
             images, labels = batch['image'], batch['label']
+            #print(images.shape)
 
             # Normalise in range [0, 1)
             images = images / 255.0
@@ -142,18 +156,15 @@ if __name__ == '__main__':
             feed_dict = {
                 x: images,
                 y: labels,
-                learning_rate: initial_learning_rate,
-                switch_idx: 4
+                learning_rate: initial_learning_rate
+                # switch_idx: 3
             }
 
-            fetches = [global_step, train_op, loss_op, merged, w0, w3, w8, w11]
+            fetches = [global_step, train_op, loss_op, merged, logits_op, grads_and_vars[-5][0], grads_and_vars[-5][1]]
+            step, _, loss, summary, logits, g, v = sess.run(fetches, feed_dict)
 
-            step, _, loss, summary, ww0, ww3, ww8, ww11 = sess.run(fetches, feed_dict)
-
-            print("ww0: {}".format(ww0))
-            print("ww3: {}".format(ww3))
-            print("ww8: {}".format(ww8))
-            print("ww11: {}".format(ww11))
+            print("g: {}".format(g))
+            #print("v: {}".format(v))
 
             #if step % 10 == 0:
             train_writer.add_summary(summary, step)

@@ -102,8 +102,12 @@ class FullyConnectedLayer(ILayer):
         return self._use_bias
 
     def __call__(self, input, kernel, bias=None):
-        net = tf.layers.flatten(input)
-        net = tf.linalg.matmul(net, kernel)
+        # net = tf.linalg.matmul(input, kernel)
+        print(input.get_shape().as_list())
+        print(kernel.get_shape().as_list())
+        net = tf.tensordot(input, kernel, axes=[1, 0])
+        print(net.get_shape().as_list())
+        exit()
 
         if bias:
             net = tf.nn.bias_add(net, bias)
@@ -159,7 +163,8 @@ class DropoutLayer(ILayer):
 
 class BatchNormalisationLayer(ILayer):
     def __init__(self, num_features, affine=True, variance_epsilon=0.001):
-        """ If affine is False, the scale and offset parameters won't be used """
+        """ If affine is False, the scale and offset parameters won't be used
+            When affine=False the output of BatchNorm is equivalent to considering gamma=1 and beta=0 as constants. """
         super().__init__()
         self._num_features = num_features
         self._affine = affine

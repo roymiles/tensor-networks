@@ -32,7 +32,7 @@ class CIFARExample(IArchitecture):
 
             # 16:20
             Flatten(),
-            FullyConnectedLayer(shape=[4096, 512]),  # 4096
+            FullyConnectedLayer(shape=[4096, 512]),
             ReLU(),
             DropoutLayer(0.5),
             FullyConnectedLayer(shape=[512, num_classes])
