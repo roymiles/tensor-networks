@@ -96,8 +96,9 @@ if __name__ == '__main__':
 
     # Tensorboard
     merged = tf.summary.merge_all()
-    train_writer = tf.summary.FileWriter('/home/roy/Desktop/Tensorboard', sess.graph)
-    print("Run: \"tensorboard --logdir=/home/roy/Desktop/Tensorboard\"")
+    log_dir = conf.log_dir + dataset_name
+    train_writer = tf.summary.FileWriter(log_dir, sess.graph)
+    print("Run: \"tensorboard --logdir={}\"".format(log_dir))
 
     print("Number of parameters = {}".format(model.num_parameters()))
 

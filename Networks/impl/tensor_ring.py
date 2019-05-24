@@ -5,6 +5,9 @@
     This is the intent:
 
 
+    **** SIGNIFICANTLY OUTDATED *** SEE STANDARD/TENSOR_LIKE
+
+
      :/----------------------s        :+----------------------s        -+----------------------s
     :-                      o        :-                      o        --                      o
     :-                      o        :-                      o        --                      o
@@ -39,46 +42,7 @@ o                                    :-                      o                  
 from Layers.layer import *
 import config as conf
 from base import *
-from Networks.network import INetwork, IWeights
-
-
-class Weights(IWeights):
-    # NOTE: These are dictionaries where the index is the layer_idx
-    # Core tensors for convolutional layers
-    conv_wh = {}
-    conv_c = {}
-    conv_n = {}
-    conv_core = None
-
-    # Core tensors for fully connected layers
-    fc_in = {}
-    fc_out = {}
-    fc_core = None
-
-    # Biases (same dimensions for both fc and conv layers)
-    bias = {}
-
-    # Batch normalisation variables
-    bn_mean = {}
-    bn_variance = {}
-    bn_scale = {}
-    bn_offset = {}
-
-    def __init__(self):
-        pass
-
-    def num_parameters(self):
-        weight_list = []
-        for dict in [self.conv_wh, self.conv_c, self.conv_n, self.fc_in, self.fc_out, self.bias, self.bn_mean,
-                     self.bn_variance, self.bn_scale, self.bn_offset]:
-            for layer_idx, variable in dict.items():
-                weight_list.append(variable)
-
-        # And the ones that are not dictionaries (same across all layers)
-        weight_list.append(self.conv_core)
-        weight_list.append(self.fc_core)
-
-        return IWeights.num_parameters(weight_list)
+from Networks.network import Weights, INetwork
 
 
 class TensorRingNet(INetwork):

@@ -1,65 +1,10 @@
 """ Just call the layers normally, no core tensors, tensor contraction etc """
-from Networks.network import INetwork, IWeights
+from Networks.network import Weights, INetwork
 from Layers.layer import LayerTypes
 from Layers.impl.core import *
 import Layers.impl.keynet as KeyNetLayers
 import tensorflow as tf
 from base import *
-
-
-class Weights(IWeights):
-
-    # NOTE: These are dictionaries where the index is the layer_idx
-    conv = {}
-    fc = {}
-    bias = {}
-
-    # Batch normalisation variables
-    bn_mean = {}
-    bn_variance = {}
-    bn_scale = {}
-    bn_offset = {}
-
-    def __init__(self):
-        pass
-
-    def num_parameters(self):
-        weight_list = []
-        for dict in [self.conv, self.fc, self.bias, self.bn_mean, self.bn_variance, self.bn_scale, self.bn_offset]:
-            for layer_idx, variable in dict.items():
-                weight_list.append(variable)
-
-        return IWeights.num_parameters(weight_list)
-
-    """ The weights are inferred from their argument name """
-    def set_conv_layer_weights(self, layer_idx, conv, bias):
-        self.conv[layer_idx] = conv
-        self.bias[layer_idx] = bias
-
-    def set_fc_layer_weights(self, layer_idx, fc, bias):
-        self.fc[layer_idx] = fc
-        self.bias[layer_idx] = bias
-
-    def set_bn_layer_weights(self, layer_idx, mean, variance, scale, offset):
-        self.bn_mean[layer_idx] = mean
-        self.bn_variance[layer_idx] = variance
-        self.bn_scale[layer_idx] = scale
-        self.bn_offset[layer_idx] = offset
-
-    def get_layer_weights(self, layer_idx):
-        """ Get the weights for this given layer.
-            NOTE: This is not the cleanest way of doing this
-            Currently just checks if keys exist """
-        if layer_idx in self.conv:
-            return {"__type__": LayerTypes.CONV, "kernel": self.conv[layer_idx], "bias": self.bias[layer_idx]}
-        elif layer_idx in self.fc:
-            return {"__type__": LayerTypes.FC, "kernel": self.fc[layer_idx], "bias": self.bias[layer_idx]}
-        elif layer_idx in self.bn_mean:
-            return {"__type__": LayerTypes.BN, "mean": self.bn_mean[layer_idx], "variance": self.bn_variance[layer_idx],
-                    "scale": self.bn_scale[layer_idx], "offset": self.bn_offset[layer_idx]}
-        else:
-            # No weights for this layer
-            return None
 
 
 class StandardNetwork(INetwork):
@@ -97,7 +42,7 @@ class StandardNetwork(INetwork):
                     # tf.summary.histogram("conv_kernel_{}".format(layer_idx), kernel)
                     # tf.summary.histogram("conv_bias_{}".format(layer_idx), bias)
 
-                    self._weights.set_conv_layer_weights(layer_idx=layer_idx, conv=kernel, bias=bias)
+                    self._weights.set_conv_layer_weights(layer_idx=layer_idx, kernel=kernel, bias=bias)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
@@ -107,7 +52,7 @@ class StandardNetwork(INetwork):
                     bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O (Except here)
                                            initializer=initializer)
 
-                    self._weights.set_fc_layer_weights(layer_idx=layer_idx, fc=kernel, bias=bias)
+                    self._weights.set_fc_layer_weights(layer_idx=layer_idx, kernel=kernel, bias=bias)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
                     # num_features is effectively the depth of the input feature map

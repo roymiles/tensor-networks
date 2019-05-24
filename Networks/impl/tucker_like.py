@@ -50,74 +50,9 @@ from Layers.layer import LayerTypes
 from Layers.impl.core import *
 import config as conf
 from base import *
-from Networks.network import INetwork, IWeights
+from Networks.network import Weights, INetwork
 from Networks.graph import Graph
 import math
-
-
-class Weights(IWeights):
-    # NOTE: These are dictionaries where the index is the layer_idx
-
-    # Container for the core tensors for the convolutional and fully connected layers
-    # Each element is of type Graph
-    conv_graph = {}
-    fc_graph = {}
-
-    # Biases (same dimensions for both fc and conv layers)
-    bias = {}
-
-    # Batch normalisation variables
-    bn_mean = {}
-    bn_variance = {}
-    bn_scale = {}
-    bn_offset = {}
-
-    def __init__(self):
-        pass
-
-    def num_parameters(self):
-        num_params = 0
-
-        # Each element is a tf.Tensor
-        for dict in [self.bias, self.bn_mean, self.bn_variance, self.bn_scale, self.bn_offset]:
-            for layer_idx, variable in dict.items():
-                num_params += tfvar_size(variable)
-
-        # Each element is a Graph
-        for dict in [self.conv_graph, self.fc_graph]:
-            for layer_idx, graph in dict.items():
-                num_params += graph.num_parameters()
-
-        return num_params
-
-    """ The weights are inferred from their argument name """
-    def set_conv_layer_weights(self, layer_idx, conv_graph, bias):
-        self.conv_graph[layer_idx] = conv_graph
-        self.bias[layer_idx] = bias
-
-    def set_fc_layer_weights(self, layer_idx, fc_graph, bias):
-        self.fc_graph[layer_idx] = fc_graph
-        self.bias[layer_idx] = bias
-
-    def set_bn_layer_weights(self, layer_idx, mean, variance, scale, offset):
-        self.bn_mean[layer_idx] = mean
-        self.bn_variance[layer_idx] = variance
-        self.bn_scale[layer_idx] = scale
-        self.bn_offset[layer_idx] = offset
-
-    def get_layer_weights(self, layer_idx):
-        """ Get the weights for this given layer.
-            If the weights e.g. conv_graph have the index layer_idx, then
-            there are associated weights for this layer """
-        if layer_idx in self.conv_graph:
-            return {"__type__": LayerTypes.CONV, "graph": self.conv_graph[layer_idx], "bias": self.bias[layer_idx]}
-        elif layer_idx in self.fc_graph:
-            return {"__type__": LayerTypes.FC, "graph": self.fc_graph[layer_idx], "bias": self.bias[layer_idx]}
-        elif layer_idx in self.bn_mean:  # Any of them will do
-            return {"__type__": LayerTypes.BN, "mean": self.bn_mean[layer_idx], "variance": self.bn_variance[layer_idx],
-                    "scale": self.bn_scale[layer_idx], "offset": self.bn_offset[layer_idx]}
-        else:
-            raise Exception("Unable to find a weight for this layer")
 
 
 class TuckerNet(INetwork):
@@ -181,19 +116,24 @@ class TuckerNet(INetwork):
                     tensor_network.add_node("C", shape=[shape[2]], names=["C"])
                     tensor_network.add_node("N", shape=[shape[3]], names=["N"])
 
-                    # Auxilliary indices
+                    # Auxiliary indices
                     tensor_network.add_edge("WH", "G", name="r0", length=ranks[0])
                     tensor_network.add_edge("C", "G", name="r1", length=ranks[1])
                     tensor_network.add_edge("N", "G", name="r2", length=ranks[2])
 
                     # Compile/generate the tf.Variables and add to the set of weights
                     tensor_network.compile()
-                    self._weights.conv_graph[layer_idx] = tensor_network
+                    kernel = tensor_network
 
                     if cur_layer.using_bias():
-                        self._weights.bias[layer_idx] = tf.get_variable('bias_{}'.format(layer_idx),
-                                                                        shape=shape[3],  # W x H x C x *N*
-                                                                        initializer=initializer)
+                        bias = tf.get_variable('bias_{}'.format(layer_idx),
+                                               shape=shape[3],  # W x H x C x *N*
+                                               initializer=initializer)
+
+                        self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
+                    else:
+                        # No bias term
+                        self._weights.set_conv_layer_weights(layer_idx, kernel, None)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
@@ -206,18 +146,22 @@ class TuckerNet(INetwork):
                     tensor_network.add_node("I", shape=[shape[0]], names=["I"])
                     tensor_network.add_node("O", shape=[shape[1]], names=["O"])
 
-                    # Auxilliary indices
+                    # Auxiliary indices
                     tensor_network.add_edge("I", "G", name="r0", length=ranks[0])
                     tensor_network.add_edge("O", "G", name="r1", length=ranks[1])
 
                     # Compile the graph and add to the set of weights
                     tensor_network.compile()
-                    self._weights.fc_graph[layer_idx] = tensor_network
+                    kernel = tensor_network
 
                     if cur_layer.using_bias():
-                        self._weights.bias[layer_idx] = tf.get_variable('bias_{}'.format(layer_idx),
-                                                                        shape=shape[1],  # I x O
-                                                                        initializer=initializer)
+                        bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O
+                                               initializer=initializer)
+
+                        self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
+                    else:
+                        # No bias term
+                        self._weights.set_fc_layer_weights(layer_idx, kernel, None)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
                     # NOTE: We don't bother using tensor networks for the batch norm layers here
@@ -267,10 +211,8 @@ class TuckerNet(INetwork):
 
                     # Merge the array of parameters for different switches (of the same layer) into a single tensor
                     # e.g. to access first switch bn_mean[layer_idx][0]
-                    self._weights.bn_mean[layer_idx] = tf.stack(bn_mean)
-                    self._weights.bn_variance[layer_idx] = tf.stack(bn_variance)
-                    self._weights.bn_scale[layer_idx] = tf.stack(bn_scale)
-                    self._weights.bn_offset[layer_idx] = tf.stack(bn_offset)
+                    self._weights.set_bn_layer_weights(mean=tf.stack(bn_mean), variance=tf.stack(bn_variance),
+                                                       scale=tf.stack(bn_scale), offset=tf.stack(bn_offset))
 
         # All the tf Variables have been created
         self._is_built = True

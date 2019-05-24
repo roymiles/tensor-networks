@@ -2,6 +2,8 @@ import tensorflow as tf
 import random
 import string
 
+print(tf.__version__)
+
 """ Generic functions """
 
 # NOTE: Wide compression suggests to use Gaussian initialization

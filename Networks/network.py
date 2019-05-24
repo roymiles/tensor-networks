@@ -2,31 +2,93 @@
 from abc import abstractmethod
 from Architectures.architectures import IArchitecture
 from base import tfvar_size
+from Layers.layer import LayerTypes
+from Networks.graph import Graph
 
 
-class IWeights:
+class Weights:
+    """
+        All networks use this weight data structure to store and query the weights values
+        The weight values are either stored as tensor networks or tf.Variables
+    """
+
+    # Stored as key:value pair, where key is a layer_idx
+    _weights = {}
+
     def __init__(self):
-        raise Exception("This is an interface class with no state, you cannot call __init__")
+        pass
 
-    @staticmethod
-    def num_parameters(weight_list):
-        """" Calculates the number of parameters from a list of tf.Tensors
-             Each elements consists of an arbitrary dimensional tensor """
+    def set_conv_layer_weights(self, layer_idx, kernel, bias):
+        """
+        Add a set of weights for a convolutional layer
+
+        :param layer_idx:
+        :param kernel: Is either a tf.Variable or a graph (when using tensor networks)
+        :param bias: Always a tf.Variables
+        :return:
+        """
+        self._weights[layer_idx] = {
+            "__type__": LayerTypes.CONV,
+            "kernel": kernel,
+            "bias": bias
+        }
+
+    def set_fc_layer_weights(self, layer_idx, kernel, bias):
+        """
+        Add a set of weights for a fully connected layer
+
+        :param layer_idx:
+        :param kernel: Is either a tf.Variable or a graph (when using tensor networks)
+        :param bias: Always a tf.Variables
+        :return:
+        """
+        self._weights[layer_idx] = {
+            "__type__": LayerTypes.FC,
+            "kernel": kernel,
+            "bias": bias
+        }
+
+    def set_bn_layer_weights(self, layer_idx, mean, variance, scale, offset):
+        self._weights[layer_idx] = {
+            "__type__": LayerTypes.BN,
+            "mean": mean,
+            "variance": variance,
+            "scale": scale,
+            "offset": offset
+        }
+
+    def num_parameters(self):
+        """" Calculates the number of parameters in the weights """
 
         num_params = 0
-        for weight in weight_list:
-            if not weight:
-                # e.g. offset/scale for affine BN
-                continue
+        for w in self._weights:
 
-            num_params += tfvar_size(weight)
+            # The same approach for convolutional or fully connected weights
+            if w["__type__"] == LayerTypes.CONV or w["__type__"] == LayerTypes.FC:
+
+                if isinstance(w["kernel"], Graph):
+                    # Tensor network
+                    num_params += w["kernel"].num_parameters()
+                else:
+                    # tf.Variable
+                    num_params += tfvar_size(w["kernel"])
+
+            elif w["__type__"] == LayerTypes.BN:
+
+                # Do not currently support tensor networks for batch norm layers
+                num_params += tfvar_size(w["mean"])
+                num_params += tfvar_size(w["variance"])
+                num_params += tfvar_size(w["scale"])
+                num_params += tfvar_size(w["offset"])
+
+            else:
+                raise Exception("Unknown weight type")
 
         return num_params
 
-    @abstractmethod
     def get_layer_weights(self, layer_idx):
         """ Return the weights for a given layer """
-        pass
+        return self.weight_values[layer_idx]
 
 
 class INetwork:
@@ -39,7 +101,7 @@ class INetwork:
 
     def set_weights(self, weights):
 
-        assert isinstance(weights, IWeights), "weights must be of type IWeights"
+        assert isinstance(weights, Weights), "weights must be of type IWeights"
         self._weights = weights
 
     def get_weights(self):
