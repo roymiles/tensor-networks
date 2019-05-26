@@ -48,9 +48,10 @@ class StandardNetwork(INetwork):
 
                     # Exactly the same as convolutional layer (pretty much)
                     shape = cur_layer.get_shape()
-                    kernel = tf.get_variable('fc_{}'.format(layer_idx), shape=shape, initializer=initializer)
+                    kernel = tf.get_variable('fc_{}'.format(layer_idx), shape=shape,
+                                             initializer=tf.glorot_normal_initializer())
                     bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O (Except here)
-                                           initializer=initializer)
+                                           initializer=tf.zeros_initializer())
 
                     self._weights.set_fc_layer_weights(layer_idx=layer_idx, kernel=kernel, bias=bias)
 
@@ -59,17 +60,21 @@ class StandardNetwork(INetwork):
                     num_features = cur_layer.get_num_features()
 
                     # Create the mean and variance weights
-                    mean = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features, initializer=initializer)
-                    variance = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features, initializer=initializer)
+                    mean = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features,
+                                           initializer=tf.zeros_initializer())
+                    variance = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features,
+                                               initializer=tf.ones_initializer())
 
                     # When NOT affine
                     if not cur_layer.is_affine():
-                        scale = None
-                        offset = None
+                        scale = None  # gamma
+                        offset = None  # beta
                     else:
                         # Scale (gamma) and offset (beta) parameters
-                        scale = tf.get_variable('scale_{}'.format(layer_idx), shape=num_features, initializer=initializer)
-                        offset = tf.get_variable('offset_{}'.format(layer_idx), shape=num_features, initializer=initializer)
+                        scale = tf.get_variable('scale_{}'.format(layer_idx), shape=num_features,
+                                                initializer=tf.ones_initializer())
+                        offset = tf.get_variable('offset_{}'.format(layer_idx), shape=num_features,
+                                                 initializer=tf.zeros_initializer())
 
                     self._weights.set_bn_layer_weights(layer_idx=layer_idx, mean=mean, variance=variance, scale=scale,
                                                        offset=offset)

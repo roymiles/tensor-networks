@@ -8,29 +8,25 @@ class CIFARExample(IArchitecture):
     def __init__(self, num_classes=100):
         # Change num_classes 10/100 depending on cifar10 or cifar100
         network = [
-            # Batch normalisation layers were added by me
+            # NOTE: Don't add batch normalisation layers, this messes up on 12 epochs for cifar10
 
-            # 0:7
+            # 0:5
             ConvLayer(shape=[3, 3, 3, 32]),
-            BatchNormalisationLayer(32),
             ReLU(),
             ConvLayer(shape=[3, 3, 32, 32]),
-            BatchNormalisationLayer(32),
             ReLU(),
             MaxPoolingLayer(pool_size=(2, 2)),
             DropoutLayer(0.25),
 
-            # 8:15
+            # 6:11
             ConvLayer(shape=[3, 3, 32, 64]),
-            BatchNormalisationLayer(64),
             ReLU(),
             ConvLayer(shape=[3, 3, 64, 64]),
-            BatchNormalisationLayer(64),
             ReLU(),
             MaxPoolingLayer(pool_size=(2, 2)),
             DropoutLayer(0.25),
 
-            # 16:20
+            # 12:16
             Flatten(),
             FullyConnectedLayer(shape=[4096, 512]),
             ReLU(),

@@ -127,7 +127,7 @@ class TuckerNet(INetwork):
                     if cur_layer.using_bias():
                         bias = tf.get_variable('bias_{}'.format(layer_idx),
                                                shape=shape[3],  # W x H x C x *N*
-                                               initializer=initializer)
+                                               initializer=tf.zeros_initializer())
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -155,7 +155,7 @@ class TuckerNet(INetwork):
 
                     if cur_layer.using_bias():
                         bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O
-                                               initializer=initializer)
+                                               initializer=tf.zeros_initializer())
 
                         self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -179,13 +179,13 @@ class TuckerNet(INetwork):
                         bn_mean.append(tf.get_variable(
                             'mean_l{}_s{}'.format(layer_idx, switch),
                             shape=num_features,
-                            initializer=initializer)
+                            initializer=tf.zeros_initializer())
                         )
 
                         bn_variance.append(tf.get_variable(
                             'variance_l{}_s{}'.format(layer_idx, switch),
                             shape=num_features,
-                            initializer=initializer)
+                            initializer=tf.ones_initializer())
                         )
 
                         if cur_layer.is_affine():
@@ -199,13 +199,13 @@ class TuckerNet(INetwork):
                             bn_scale.append(tf.get_variable(
                                 'scale_l{}_s{}'.format(layer_idx, switch),
                                 shape=num_features,
-                                initializer=initializer)
+                                initializer=tf.ones_initializer())
                             )
 
                             bn_offset.append(tf.get_variable(
                                 'offset_l{}_s{}'.format(layer_idx, switch),
                                 shape=num_features,
-                                initializer=initializer)
+                                initializer=tf.zeros_initializer())
                             )
 
                     # Merge the array of parameters for different switches (of the same layer) into a single tensor

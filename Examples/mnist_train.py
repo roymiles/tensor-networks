@@ -118,20 +118,24 @@ if __name__ == '__main__':
             # One hot encode
             labels = np.eye(10)[labels]
 
+            # Choose a random switch at every step
+            i = random.randrange(len(switch_list))
+            switch = switch_list[i]
+
             feed_dict = {
                 x: images,
                 y: labels,
                 learning_rate: initial_learning_rate,
                 # Train batch on a random switch
-                switch_idx: random.randrange(0, 4)
+                switch_idx: i
             }
 
             fetches = [global_step, train_op, avg_loss]
 
             step, _,  loss = sess.run(fetches, feed_dict)
 
-            # if step % 100 == 0:
-            #    print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
+            if step % 100 == 0:
+                print("Epoch: {}, Step {}, Loss: {}, Switch: {}".format(epoch, step, loss, switch))
 
     # Testing (after training)
     # Test all switches

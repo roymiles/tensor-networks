@@ -89,7 +89,8 @@ class Graph:
 
                 if not self._graph.nodes[node]['dummy_node']:
                     # Dummy nodes do not have an associated tf.Variable
-                    self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
+                    self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims,
+                                                                       initializer=tf.glorot_normal_initializer())
 
                 self._graph.nodes[node]["edge_names"] = edge_names
 

@@ -103,11 +103,7 @@ class FullyConnectedLayer(ILayer):
 
     def __call__(self, input, kernel, bias=None):
         # net = tf.linalg.matmul(input, kernel)
-        print(input.get_shape().as_list())
-        print(kernel.get_shape().as_list())
         net = tf.tensordot(input, kernel, axes=[1, 0])
-        print(net.get_shape().as_list())
-        exit()
 
         if bias:
             net = tf.nn.bias_add(net, bias)

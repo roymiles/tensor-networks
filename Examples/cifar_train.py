@@ -29,8 +29,9 @@ if __name__ == '__main__':
     num_classes = 10
     dataset_name = 'cifar10'
     batch_size = 128
-    num_epochs = 12
-    initial_learning_rate = 1
+    num_epochs = 20
+    initial_learning_rate = 0.01
+    switch_list = [0.1, 0.4, 0.5, 0.8, 1.0]
 
     architecture = CIFARExample(num_classes=num_classes)
 
@@ -38,13 +39,13 @@ if __name__ == '__main__':
     # of the convolutional and fully connected weights
     conv_ranks = {
         0: [6, 8, 16],
-        3: [6, 16, 16],
-        8: [6, 16, 32],
-        11: [6, 16, 16]
+        2: [6, 16, 16],
+        6: [6, 16, 32],
+        8: [6, 16, 16]
     }
     fc_ranks = {
-        17: [2056, 1024],
-        20: [256, 128]
+        13: [2056, 1024],
+        16: [256, 128]
     }
 
     # See available datasets
@@ -64,19 +65,18 @@ if __name__ == '__main__':
     ds_train = ds_train.batch(batch_size).prefetch(1000)
 
     # No batching just use entire test data
-    ds_test = ds_test.batch(10000)
+    ds_test = ds_test.batch(2000)
 
     with tf.variable_scope("input"):
         x = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
         y = tf.placeholder(tf.float32, shape=[None, num_classes])
-        learning_rate = tf.placeholder(tf.float32, shape=[])
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
 
-    use_tucker = False
+    use_tucker = True
     if use_tucker:
         model = TuckerNet(architecture=architecture)
-        model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=[0.1, 0.4, 0.5, 0.8, 1.0],
+        model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=switch_list,
                     name="MyTuckerNetwork")
         logits_op = model(input=x, switch_idx=switch_idx)
     else:
@@ -98,23 +98,26 @@ if __name__ == '__main__':
     tf.summary.scalar('accuracy', accuracy)
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
-    # train_op = tf.train.MomentumOptimizer(learning_rate=learning_rate,
-    #                                      momentum=0.9,
-    #                                      use_nesterov=True).minimize(loss_op, global_step=global_step)
-    optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
+
+    learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step,
+                                               100000, 1e-6, staircase=True)
+
+    optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate,
+                                           momentum=0.9,
+                                           use_nesterov=True)
+    # optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
     train_op = optimizer.minimize(loss_op, global_step=global_step)
     init_op = tf.global_variables_initializer()
 
     # Help for debugging nan gradients
     grads_and_vars = optimizer.compute_gradients(loss_op)
-
-    #print(grads_and_vars[-4][1].name)
-    #exit()
+    # print(grads_and_vars[-4][1].name)
+    # exit()
 
     for g, v in grads_and_vars:
         print(v.name)
-        #tf.summary.histogram(v.name, v)
-        #tf.summary.histogram(v.name + '_grad', g)
+        # tf.summary.histogram(v.name, v)
+        # tf.summary.histogram(v.name + '_grad', g)
 
     # Create session and initialize weights
     config = tf.ConfigProto(
@@ -132,18 +135,13 @@ if __name__ == '__main__':
     print("Number of parameters = {}".format(model.num_parameters()))
 
     # for debugging
-    #w = model.get_weights()
-    #w0 = w.get_layer_weights(layer_idx=0)["kernel"]
-    #w3 = tf.reduce_mean(w.get_layer_weights(layer_idx=3)["kernel"])
-    #w8 = tf.reduce_mean(w.get_layer_weights(layer_idx=8)["kernel"])
-    #w11 = tf.reduce_mean(w.get_layer_weights(layer_idx=11)["kernel"])
+    # w = model.get_weights()
 
     for epoch in tqdm(range(num_epochs)):
 
         # Training
         for batch in tfds.as_numpy(ds_train):
             images, labels = batch['image'], batch['label']
-            #print(images.shape)
 
             # Normalise in range [0, 1)
             images = images / 255.0
@@ -153,40 +151,41 @@ if __name__ == '__main__':
             # One hot encode
             labels = np.eye(num_classes)[labels]
 
+            # Choose a random switch at every step
+            i = random.randrange(len(switch_list))
+            switch = switch_list[i]
+
             feed_dict = {
                 x: images,
                 y: labels,
-                learning_rate: initial_learning_rate
-                # switch_idx: 3
+                switch_idx: i
             }
 
-            fetches = [global_step, train_op, loss_op, merged, logits_op, grads_and_vars[-5][0], grads_and_vars[-5][1]]
-            step, _, loss, summary, logits, g, v = sess.run(fetches, feed_dict)
+            fetches = [global_step, train_op, loss_op, merged]
+            step, _, loss, summary = sess.run(fetches, feed_dict)
 
-            print("g: {}".format(g))
-            #print("v: {}".format(v))
-
-            #if step % 10 == 0:
-            train_writer.add_summary(summary, step)
+            # if step % 10 == 0:
+            # train_writer.add_summary(summary, step)
 
             if step % 100 == 0:
-                print("Epoch: {}, Step {}, Loss: {}".format(epoch, step, loss))
+                print("Epoch: {}, Step {}, Loss: {}, Switch: {}".format(epoch, step, loss, switch))
 
     # Testing (after training)
-    for batch in tfds.as_numpy(ds_test):
-        images, labels = batch['image'], batch['label']
+    for i, switch in enumerate(switch_list):
+        for batch in tfds.as_numpy(ds_test):
+            images, labels = batch['image'], batch['label']
 
-        # Normalise in range [0, 1)
-        images = images / 255.0
+            # Normalise in range [0, 1)
+            images = images / 255.0
 
-        # One hot encode
-        labels = np.eye(num_classes)[labels]
+            # One hot encode
+            labels = np.eye(num_classes)[labels]
 
-        feed_dict = {
-            x: images,
-            y: labels,
-            switch_idx: 4
-        }
+            feed_dict = {
+                x: images,
+                y: labels,
+                switch_idx: i
+            }
 
-        acc = sess.run(accuracy, feed_dict)
-        print("Accuracy = {}".format(acc))
+            acc = sess.run(accuracy, feed_dict)
+            print("Accuracy = {}, Switch = {}".format(acc, switch))
