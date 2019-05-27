@@ -108,26 +108,25 @@ class TuckerNet(INetwork):
                     shape = cur_layer.get_shape()
                     ranks = conv_ranks[layer_idx]
 
-                    tensor_network = Graph("conv_{}".format(layer_idx))
+                    kernel = Graph("conv_{}".format(layer_idx))
 
                     # Add the nodes w/ exposed indices
-                    tensor_network.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"])
-                    tensor_network.add_node("C", shape=[shape[2]], names=["C"])
-                    tensor_network.add_node("N", shape=[shape[3]], names=["N"])
+                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"], shared=True) # Remove at some point
+                    kernel.add_node("C", shape=[shape[2]], names=["C"])
+                    kernel.add_node("N", shape=[shape[3]], names=["N"])
 
                     # Auxiliary indices
-                    tensor_network.add_edge("WH", "G", name="r0", length=ranks[0])
-                    tensor_network.add_edge("C", "G", name="r1", length=ranks[1])
-                    tensor_network.add_edge("N", "G", name="r2", length=ranks[2])
+                    kernel.add_edge("WH", "G", name="r0", length=ranks[0])
+                    kernel.add_edge("C", "G", name="r1", length=ranks[1])
+                    kernel.add_edge("N", "G", name="r2", length=ranks[2])
 
                     # Compile/generate the tf.Variables and add to the set of weights
-                    tensor_network.compile()
-                    kernel = tensor_network
+                    kernel.compile()
 
                     if cur_layer.using_bias():
-                        bias = tf.get_variable('bias_{}'.format(layer_idx),
-                                               shape=shape[3],  # W x H x C x *N*
-                                               initializer=tf.zeros_initializer())
+                        bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
+                        bias.add_node("B", shape=[shape[3]], names=["B"])
+                        bias.compile(initializer=tf.zeros_initializer())
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -139,23 +138,22 @@ class TuckerNet(INetwork):
                     shape = cur_layer.get_shape()
                     ranks = fc_ranks[layer_idx]
 
-                    tensor_network = Graph("fc_{}".format(layer_idx))
+                    kernel = Graph("fc_{}".format(layer_idx))
 
                     # Nodes..
-                    tensor_network.add_node("I", shape=[shape[0]], names=["I"])
-                    tensor_network.add_node("O", shape=[shape[1]], names=["O"])
+                    kernel.add_node("I", shape=[shape[0]], names=["I"])
+                    kernel.add_node("O", shape=[shape[1]], names=["O"])
 
                     # Auxiliary indices
-                    tensor_network.add_edge("I", "G", name="r0", length=ranks[0])
-                    tensor_network.add_edge("O", "G", name="r1", length=ranks[1])
+                    kernel.add_edge("I", "G", name="r0", length=ranks[0])
+                    kernel.add_edge("O", "G", name="r1", length=ranks[1])
 
                     # Compile the graph and add to the set of weights
-                    tensor_network.compile()
-                    kernel = tensor_network
+                    kernel.compile()
 
                     if cur_layer.using_bias():
-                        bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O
-                                               initializer=tf.zeros_initializer())
+                        bias = Graph("bias_{}".format(layer_idx))  # I x O
+                        bias.add_node("B", shape=[shape[1]], names=["B"]).compile(initializer=tf.zeros_initializer())
 
                         self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -174,6 +172,8 @@ class TuckerNet(INetwork):
                     bn_offset = []
 
                     for switch in switch_list:
+                        # NOTE: Converting these to Graph is a pain because we have a stack of tf.Variables for each
+                        # switch and they support placeholder indexing
 
                         # Create the mean and variance weights
                         bn_mean.append(tf.get_variable(
@@ -248,11 +248,11 @@ class TuckerNet(INetwork):
                 # Combine the core tensors
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
-
                 c = w["kernel"].combine(switch=switch, reshape=["W", "H", "C", "N"])
+                b = w["bias"].combine()
 
                 # Call the function and return the result
-                return cur_layer(input=input, kernel=c, bias=w["bias"])
+                return cur_layer(input=input, kernel=c, bias=b)
 
             elif isinstance(cur_layer, FullyConnectedLayer):
 
@@ -261,21 +261,10 @@ class TuckerNet(INetwork):
                 # Combine the core tensors
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
-
                 c = w["kernel"].combine(switch=switch, reshape=["I", "O"])
+                b = w["bias"].combine()
 
-                # Reshape to proper ordering
-                s = tf.shape(c)
-                c = tf.reshape(c, [s[1], s[0]])
-
-                if conf.is_debugging:
-                    print("----- {} -----".format(layer_idx))
-                    print("Input {}".format(input.get_shape()))
-                    print("Kernel for fc = {}".format(c.get_shape()))
-                    print("--------------")
-                    print("")
-
-                return cur_layer(input=input, kernel=c, bias=w["bias"])
+                return cur_layer(input=input, kernel=c, bias=b)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
 

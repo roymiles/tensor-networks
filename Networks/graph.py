@@ -23,13 +23,14 @@ class Graph:
         self._graph = nx.Graph()
         self._name = name
 
-    def add_node(self, u_of_edge, shape, names):
+    def add_node(self, u_of_edge, shape, names, shared=False):
         """ Creates a node with dangling edges defined by shape
             Internally, these creates dummy nodes on these dangling edges
 
             :param u_of_edge: Name of the node e.g. "A"
-                   shape: Dimensions of the exposed indices
-                   name: Name of the open indices e.g. "W" for width """
+            :param shape: Dimensions of the exposed indices
+            :param names: Name of the open indices e.g. "W" for width
+            :param shared: (boolean) If the weight is shared across layers """
 
         if self._is_compiled:
             raise Exception("Unable to add more edge/nodes once the graph is compiled")
@@ -37,63 +38,80 @@ class Graph:
         assert len(shape) == len(names), "Must have a name for each open index"
 
         if not self._graph.has_node(u_of_edge):
-            self._graph.add_node(u_of_edge, dummy_node=False)
+            # TODO: How can we integrate shared property (share weights across layers)
+            self._graph.add_node(u_of_edge, dummy_node=False, shared=shared)
 
         # Create a dummy node for each of the exposed indices
         dummy_node_names = []
         for i in range(len(shape)):
             dummy_node_names.append(random_string())
-            self._graph.add_node(dummy_node_names[i], dummy_node=True)
+            self._graph.add_node(dummy_node_names[i], dummy_node=True, shared=None)
 
         # Now connect to the dummy nodes
         for i in range(len(shape)):
             self._graph.add_edge(u_of_edge, dummy_node_names[i], weight=shape[i], name=names[i])
 
-    def add_edge(self, u_of_edge, v_of_edge, length, name):
+        # So can chain operations
+        return self
+
+    def add_edge(self, u_of_edge, v_of_edge, length, name, shared=False):
         """
         Adds an edge between two tensors. If these tensors do not exist, it will create them
 
         :param u_of_edge:
-               v_of_edge: Names of the two nodes e.g. "A", "B"
-               length: Size/length of the edge/dimension
-               name: Name of the auxilliary index, typically r1, r2 etc
+        :param v_of_edge: Names of the two nodes e.g. "A", "B"
+        :param length: Size/length of the edge/dimension
+        :param name: Name of the auxilliary index, typically r1, r2 etc
+        :param shared: (boolean) If the nodes are new, make them shared or not
         """
 
         if self._is_compiled:
             raise Exception("Unable to add more edge/nodes once the graph is compiled")
 
         # Check if the nodes exist. If they do not, add them.
+        # NOTE: Assumes nodes that do not exist are not dummy nodes
         if not self._graph.has_node(u_of_edge):
             # Dummy is always v_of_edge
-            self._graph.add_node(u_of_edge, dummy_node=False)
+            self._graph.add_node(u_of_edge, dummy_node=False, shared=shared)
 
         if not self._graph.has_node(v_of_edge):
-            self._graph.add_node(v_of_edge, dummy_node=False)
+            self._graph.add_node(v_of_edge, dummy_node=False, shared=shared)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
+
+        return self
 
     def compile(self, initializer=tf.glorot_normal_initializer()):
         """ Create the tf.Variables with the dimensions outlined in the graph """
 
         # Loop through all the _nodes and make appropriate Tensors
-        with tf.variable_scope(self._name):
-            for node in self._graph.nodes():
-                # e.g. [('A', 'B'), ('A', 'C')]
-                connected_edges = self._graph.edges(node)
-                dims = []  # Will build the shape of the tensor
-                edge_names = []
-                for e in connected_edges:
-                    edge_data = self._graph.get_edge_data(e[0], e[1])
-                    dims.append(edge_data["weight"])
-                    edge_names.append(edge_data["name"])
+        for node in self._graph.nodes():
+            # e.g. [('A', 'B'), ('A', 'C')]
+            connected_edges = self._graph.edges(node)
+            dims = []  # Will build the shape of the tensor
+            edge_names = []
+            for e in connected_edges:
+                edge_data = self._graph.get_edge_data(e[0], e[1])
+                dims.append(edge_data["weight"])
+                edge_names.append(edge_data["name"])
 
-                if not self._graph.nodes[node]['dummy_node']:
-                    # Dummy nodes do not have an associated tf.Variable
-                    self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
+            if not self._graph.nodes[node]['dummy_node']:
+                # Dummy nodes do not have an associated tf.Variable
 
-                self._graph.nodes[node]["edge_names"] = edge_names
+                scope_name = ""
+                if not self._graph.nodes[node]['shared']:
+                    scope_name += "{}/".format(self._name)
+
+                with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
+                    self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
+                                                                       initializer=initializer)
+
+            self._graph.nodes[node]["edge_names"] = edge_names
 
         self._is_compiled = True
+
+    #def debug(self, title="debug"):
+    #    Graph.debug(self._graph)
 
     @staticmethod
     def debug(g, title="debug"):
@@ -133,7 +151,14 @@ class Graph:
         # TODO: Make more efficient merging strategy
 
         assert self._is_compiled == 1, "Must be compiled before can combine the core factors"
-        # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
+        g = self._graph.copy()
+
+        # If single node (aka bias, batch norm params, or standard networks) just return that tfvar
+        if Graph.number_of_nodes(g) == 1:
+            # Get first non-dummy node
+            for key in list(g.nodes.keys()):
+                if not g.nodes[key]["dummy_node"]:
+                    return g.nodes[key]["tfvar"]
 
         # Calculate the reshape by looping through all edges and matching
         # to the reshape index names (supplied in function argument)
@@ -146,7 +171,6 @@ class Graph:
 
         # We start with the first tensor and loop through all factors and merge
         # NOTE: Could reorder prior to make this more efficient
-        g = self._graph.copy()
         updated_graph = False
         while Graph.number_of_nodes(g) > 1:
             # Keep contracting nodes until we get one node left (excluding dummy nodes)
@@ -215,7 +239,7 @@ class Graph:
         if reshape and s:
             tfvar = tf.reshape(tfvar, s)
 
-        return g.nodes[n3]["tfvar"]
+        return tfvar
 
     @staticmethod
     def nodes_connected(g, u, v):

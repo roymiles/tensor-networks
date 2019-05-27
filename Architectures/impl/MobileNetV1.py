@@ -29,7 +29,7 @@ class MobileNetV1(IArchitecture):
             ConvLayer(shape=[3, 3, 1024, 1024]),  # 7 x 7 x 512
 
             # Global average pooling
-            AveragePoolingLayer(shape=[1, 7, 7, 1]),
+            AveragePoolingLayer(pool_size=[7, 7]),
 
             # Finally a fully connected layer
             Flatten(),

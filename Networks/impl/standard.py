@@ -59,14 +59,12 @@ class StandardNetwork(INetwork):
 
                     # Create single node, compile the graph and then add to the set of weights
                     kernel = Graph("fc_{}".format(layer_idx))
-                    kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"])
-                    kernel.compile()
+                    kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"]).compile()
 
                     if cur_layer.using_bias():
 
                         bias = Graph("bias_{}".format(layer_idx))  # I x O
-                        bias.add_node("B", shape=[shape[1]], names=["B"])
-                        bias.compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[1]], names=["B"]).compile(initializer=tf.zeros_initializer())
 
                         self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -78,10 +76,11 @@ class StandardNetwork(INetwork):
                     num_features = cur_layer.get_num_features()
 
                     # Create the mean and variance weights
-                    mean = tf.get_variable('mean_{}'.format(layer_idx), shape=num_features,
-                                           initializer=tf.zeros_initializer())
-                    variance = tf.get_variable('variance_{}'.format(layer_idx), shape=num_features,
-                                               initializer=tf.ones_initializer())
+                    mean = Graph("mean_{}".format(layer_idx))
+                    mean.add_node("M", shape=[num_features], names=["M"]).compile(initializer=tf.zeros_initializer())
+
+                    variance = Graph("variance_{}".format(layer_idx))
+                    variance.add_node("V", shape=[num_features], names=["V"]).compile(initializer=tf.ones_initializer())
 
                     # When NOT affine
                     if not cur_layer.is_affine():
@@ -89,10 +88,13 @@ class StandardNetwork(INetwork):
                         offset = None  # beta
                     else:
                         # Scale (gamma) and offset (beta) parameters
-                        scale = tf.get_variable('scale_{}'.format(layer_idx), shape=num_features,
-                                                initializer=tf.ones_initializer())
-                        offset = tf.get_variable('offset_{}'.format(layer_idx), shape=num_features,
-                                                 initializer=tf.zeros_initializer())
+                        scale = Graph("scale_{}".format(layer_idx))
+                        scale.add_node("S", shape=[num_features], names=["S"])
+                        scale.compile(initializer=tf.ones_initializer())
+
+                        offset = Graph("offset_{}".format(layer_idx))
+                        offset.add_node("O", shape=[num_features], names=["O"])
+                        offset.compile(initializer=tf.zeros_initializer())
 
                     self._weights.set_bn_layer_weights(layer_idx=layer_idx, mean=mean, variance=variance, scale=scale,
                                                        offset=offset)
@@ -130,10 +132,6 @@ class StandardNetwork(INetwork):
 
                 c = w["kernel"].combine()
                 b = w["bias"].combine()
-
-                # Reshape to proper ordering
-                s = tf.shape(c)
-                c = tf.reshape(c, [s[1], s[0]])
 
                 return cur_layer(input, kernel=c, bias=b)
 

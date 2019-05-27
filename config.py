@@ -1,9 +1,6 @@
 """ Generic configuration file with no dependencies
     For example, learning rate, batch size etc """
 
-# Show some pretty debugging messages
-is_debugging = False
-
 # Set random seeds
 seed = 1234
 
@@ -18,7 +15,7 @@ batch_size = 128
 initial_learning_rate = 0.01
 
 # Where all the tfds datasets are downloaded to
-tfds_dir = "/media/roy/New Volume1/tensorflow-datasets/"
+tfds_dir = "/media/roy/New Volume/tensorflow-datasets/"
 
 # Where tensorboard logs are stored
 log_dir = "/home/roy/Desktop/Tensorboard/"

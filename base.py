@@ -6,10 +6,6 @@ print(tf.__version__)
 
 """ Generic functions """
 
-# NOTE: Wide compression suggests to use Gaussian initialization
-initializer = tf.contrib.layers.variance_scaling_initializer()
-
-
 l2_reg = tf.contrib.layers.l2_regularizer(scale=1.0)
 
 

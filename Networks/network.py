@@ -23,8 +23,8 @@ class Weights:
         Add a set of weights for a convolutional layer
 
         :param layer_idx:
-        :param kernel: !!NOTE!! Is either a tf.Variable or a graph (when using tensor networks)
-        :param bias: Always a tf.Variables
+        :param kernel: Graph/tf.Variable type, dims WHCN
+        :param bias: Graph/tf.Variable type, dims N
         :return:
         """
         self._weights[layer_idx] = {
@@ -38,8 +38,8 @@ class Weights:
         Add a set of weights for a fully connected layer
 
         :param layer_idx:
-        :param kernel: !!NOTE!! Is either a tf.Variable or a graph (when using tensor networks)
-        :param bias: Always a tf.Variables
+        :param kernel: Graph/tf.Variable type, dims IO
+        :param bias: Graph/tf.Variable type, dims N
         :return:
         """
         self._weights[layer_idx] = {
@@ -49,6 +49,19 @@ class Weights:
         }
 
     def set_bn_layer_weights(self, layer_idx, mean, variance, scale, offset):
+        """
+
+        All the parameters, beside layer_idx, are either Graph instances or tf.Variables of dims N
+        Where N is the number of features
+
+        :param layer_idx:
+        :param mean:
+        :param mean:
+        :param variance:
+        :param scale:
+        :param offset:
+        :return:
+        """
         self._weights[layer_idx] = {
             "__type__": LayerTypes.BN,
             "mean": mean,

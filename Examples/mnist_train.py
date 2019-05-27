@@ -161,11 +161,12 @@ if __name__ == '__main__':
             print("Accuracy (switch {}) = {}".format(switch, acc))
 
     # Visualise the weights
-    w1 = model.get_weights().get_layer_weights(1)
-    w2 = model.get_weights().get_layer_weights(4)
+    _w1 = model.get_weights().get_layer_weights(1)['kernel'].combine(reshape=["I", "O"])
+    _w2 = model.get_weights().get_layer_weights(4)['kernel'].combine(reshape=["I", "O"])
 
-    # Will be graphs for tucker networks, or tf.Variables for standard
-    w1.debug()
-    w2.debug()
+    w1, w2 = sess.run([_w1, _w2], feed_dict={})
 
+    cv2.imshow("Conv1", w1)
+    cv2.imshow("Conv2", w2)
+    cv2.waitKey()
 
