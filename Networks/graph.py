@@ -104,14 +104,12 @@ class Graph:
 
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
                     self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
-                                                                       initializer=initializer)
+                                                                       initializer=initializer,
+                                                                       regularizer=variance_regularizor(0))
 
             self._graph.nodes[node]["edge_names"] = edge_names
 
         self._is_compiled = True
-
-    #def debug(self, title="debug"):
-    #    Graph.debug(self._graph)
 
     @staticmethod
     def debug(g, title="debug"):

@@ -22,6 +22,11 @@ from base import *
 tf.logging.set_verbosity(tf.logging.WARN)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+# set random seeds
+random.seed(1234)
+tf.random.set_random_seed(1234)
+np.random.seed(1234)
+
 print(tf.__version__)
 
 if __name__ == '__main__':
@@ -31,7 +36,7 @@ if __name__ == '__main__':
     batch_size = 128
     num_epochs = 20
     initial_learning_rate = 0.01
-    switch_list = [0.1, 0.4, 0.5, 0.8, 1.0]
+    switch_list = [0.4, 0.5, 0.8, 1.0]
 
     architecture = CIFARExample(num_classes=num_classes)
 
@@ -41,11 +46,11 @@ if __name__ == '__main__':
         0: [6, 8, 16],
         2: [6, 16, 16],
         6: [6, 16, 32],
-        8: [6, 16, 16]
+        8: [6, 32, 32]
     }
     fc_ranks = {
-        13: [2056, 1024],
-        16: [256, 128]
+        13: [128, 128],
+        16: [128, 64]
     }
 
     # See available datasets
@@ -73,6 +78,9 @@ if __name__ == '__main__':
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
 
+    # Search through different ranks
+    # while True:
+
     use_tucker = True
     if use_tucker:
         model = TuckerNet(architecture=architecture)
@@ -89,9 +97,9 @@ if __name__ == '__main__':
     loss_op = tf.reduce_mean(loss_op)
 
     # Add the regularisation terms
-    # reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    # _lambda = 0.01  # Scaling factor
-    # loss_op += loss_op + _lambda * sum(reg_losses)
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    _lambda = 0.01  # Scaling factor
+    loss_op += loss_op + _lambda * sum(reg_losses)
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -132,7 +140,11 @@ if __name__ == '__main__':
     train_writer = tf.summary.FileWriter(log_dir, sess.graph)
     print("Run: \"tensorboard --logdir={}\"".format(log_dir))
 
-    print("Number of parameters = {}".format(model.num_parameters()))
+    num_params = 0
+    for v in tf.trainable_variables():
+        num_params += tfvar_size(v)
+
+    print("Number of parameters = {}".format(num_params))
 
     # for debugging
     # w = model.get_weights()
@@ -189,3 +201,18 @@ if __name__ == '__main__':
 
             acc = sess.run(accuracy, feed_dict)
             print("Accuracy = {}, Switch = {}".format(acc, switch))
+
+    # Get the weights
+    _w1 = model.get_weights().get_layer_weights(13)['kernel'].combine(reshape=["I", "O"])
+    _w2 = model.get_weights().get_layer_weights(16)['kernel'].combine(reshape=["I", "O"])
+
+    w1, w2 = sess.run([_w1, _w2], feed_dict={})
+
+    print("var1_I = {}".format(np.sum(np.var(w1, axis=0))))
+    print("var1_O = {}".format(np.sum(np.var(w1, axis=1))))
+    print("var2_I = {}".format(np.sum(np.var(w2, axis=0))))
+    print("var2_O = {}".format(np.sum(np.var(w2, axis=1))))
+
+    cv2.imshow("Fc1", w1)
+    cv2.imshow("Fc2", w2)
+    cv2.waitKey()

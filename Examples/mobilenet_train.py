@@ -80,7 +80,7 @@ if __name__ == '__main__':
     ds_test = ds_test.batch(2000)
 
     with tf.variable_scope("input"):
-        x = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
+        x = tf.placeholder(tf.float32, shape=[None, None, None, 3])
         y = tf.placeholder(tf.float32, shape=[None, num_classes])
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
@@ -135,12 +135,15 @@ if __name__ == '__main__':
 
     # model.num_parameters()
     print("Number of parameters = {}".format(num_params))
-    exit()
 
     # for debugging
     # w = model.get_weights()
 
     for epoch in tqdm(range(num_epochs)):
+
+        # Error here, inconsistent batch dim thing
+        print(ds_train)
+        exit()
 
         # Training
         for batch in tfds.as_numpy(ds_train):
@@ -155,6 +158,9 @@ if __name__ == '__main__':
             # Choose a random switch at every step
             i = random.randrange(len(switch_list))
             switch = switch_list[i]
+
+            print(images)
+            exit()
 
             feed_dict = {
                 x: images,

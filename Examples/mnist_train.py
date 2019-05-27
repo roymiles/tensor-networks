@@ -37,8 +37,8 @@ if __name__ == '__main__':
     # of the convolutional and fully connected weights
     conv_ranks = {}
     fc_ranks = {
-        1: [32, 64],
-        4: [64, 32]
+        1: [8, 16],
+        4: [16, 8]
     }
 
     # See available datasets

@@ -111,7 +111,7 @@ class TuckerNet(INetwork):
                     kernel = Graph("conv_{}".format(layer_idx))
 
                     # Add the nodes w/ exposed indices
-                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"], shared=True) # Remove at some point
+                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"])
                     kernel.add_node("C", shape=[shape[2]], names=["C"])
                     kernel.add_node("N", shape=[shape[3]], names=["N"])
 
@@ -267,16 +267,6 @@ class TuckerNet(INetwork):
                 return cur_layer(input=input, kernel=c, bias=b)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
-
-                # Use the appropriate batch normalisation parameters for this given switch
-                # Need to loop through all s in switch_list and check if ~= switch
-                # switch_idx = -1
-                # for i, s in enumerate(self._switch_list):
-                #    if math.isclose(s, switch):
-                #        switch_idx = i
-                #        break
-                # TODO: If not in list, do geometric mean of parameters between neighbouring switches
-                # assert switch_idx != -1, "Unable to find appropriate switch from the switch list"
 
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.BN, "The layer weights don't match up with the layer type"

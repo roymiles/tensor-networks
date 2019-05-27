@@ -38,7 +38,7 @@ import torchvision.transforms as transforms
 
 
 def CorrelationPenaltyLoss(input):
-    exit("Not today")
+    exit("Add to the laterbase")
     mean1 = tf.math.reduce_mean(input, dim=0)
     zeroed = input - mean1.expand_as(input)
     cor_mat = torch.bmm(torch.t(zeroed).unsqueeze(0), zeroed.unsqueeze(0)).squeeze(0)
@@ -96,7 +96,7 @@ parser.add_argument('--batch-size', type=int, default=1024, metavar='BS',
                     help='input batch size for training (default: 1024)')
 parser.add_argument('--test-batch-size', type=int, default=1024, metavar='BST',
                     help='input batch size for testing (default: 1024)')
-parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',
+parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',   # 5000000
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=1.0, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
@@ -316,7 +316,7 @@ def get_new_learning_rate():
     return args.lr * (1.0 - float(global_step) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
 
 
-def train(sess, saver, train_loader, model, train_op, loss_op, debug_op, placeholders, epoch, load_triplets=False):
+def train(sess, saver, train_loader, train_op, loss_op, debug_op, placeholders, epoch, load_triplets=False):
     """ A single epoch of the training data """
     global global_step
 
@@ -378,37 +378,34 @@ def train(sess, saver, train_loader, model, train_op, loss_op, debug_op, placeho
     except:
         os.makedirs('{}{}'.format(args.model_dir, suffix))
 
-    # TODO: Fix ValueError: Parent directory of /media/roy/New Volume/Checkpoints/HardNet/checkpoint_data/models/.ckpt doesn't exist, can't save.
-    saver.save(sess, conf.ckpt_dir + "HardNet/checkpoint_{}.ckpt".format(args.model_dir, suffix, epoch))
+    saver.save(sess, conf.ckpt_dir + "HardNet/checkpoint_{}.ckpt".format(epoch))
 
 
-def test(test_loader, model, epoch, logger_test_name):
-    # switch to evaluate mode
-    model.eval()
-
+def test(sess, test_loader, _out_a, _out_p, placeholders, epoch):
     labels, distances = [], []
 
     pbar = tqdm(enumerate(test_loader))
     for batch_idx, (data_a, data_p, label) in pbar:
 
-        if args.cuda:
-            data_a, data_p = data_a.cuda(), data_p.cuda()
+        new_shape = (-1, 32, 32, 1)
+        data_a = data_a.numpy().reshape(new_shape)
+        data_p = data_p.numpy().reshape(new_shape)
 
-        data_a = tf.Variable(data_a, trainable=False)
-        data_p = tf.Variable(data_p, trainable=False)
-        label = tf.Variable(label, trainable=False)
+        feed_dict = {
+            placeholders.data_a: data_a,
+            placeholders.data_p: data_p
+        }
 
-        out_a = model(data_a)
-        out_p = model(data_p)
+        fetches = [_out_a, _out_p]
+        out_a, out_p = sess.run(fetches, feed_dict)
+        dists = np.sqrt(np.power(np.sum(out_a - out_p), 2))  # euclidean distance
 
-        # TODO: Could just use tf.l2loss
-        dists = tf.math.sqrt(tf.math.reduce_sum((out_a - out_p) ** 2, 1))  # euclidean distance
-        distances.append(dists.data.cpu().numpy().reshape(-1, 1))
+        distances.append(dists.reshape(-1, 1))
         ll = label.data.cpu().numpy().reshape(-1, 1)
         labels.append(ll)
 
         if batch_idx % args.log_interval == 0:
-            pbar.set_description(logger_test_name + ' Test Epoch: {} [{}/{} ({:.0f}%)]'.format(
+            pbar.set_description(' Test Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 epoch, batch_idx * len(data_a), len(test_loader.dataset),
                        100. * batch_idx / len(test_loader)))
 
@@ -514,44 +511,18 @@ def main(train_loader, test_loaders, model):
         for epoch in range(start, end):
 
             # iterate over test loaders and test results
-            train(sess, saver, train_loader, model, train_op, loss_op, debug_op, placeholders, epoch,
+            train(sess, saver, train_loader, train_op, loss_op, debug_op, placeholders, epoch,
                   triplet_flag)
 
             for test_loader in test_loaders:
-                test(test_loader['dataloader'], model, epoch, test_loader['name'])
+                test(sess, test_loader['dataloader'], out_a, out_p, placeholders, epoch)
 
-            if TEST_ON_W1BS:
-                patch_images = w1bs.get_list_of_patch_images(
-                    DATASET_DIR=args.w1bsroot.replace('/code', '/data/W1BS'))
-                desc_name = 'curr_desc'  # + str(random.randint(0,100))
-
-                DESCS_DIR = LOG_DIR + '/temp_descs/'  # args.w1bsroot.replace('/code', "/data/out_descriptors")
-                OUT_DIR = DESCS_DIR.replace('/temp_descs/', "/out_graphs/")
-
-                for img_fname in patch_images:
-                    w1bs_extract_descs_and_save(img_fname, model, desc_name, cuda=args.cuda,
-                                                mean_img=args.mean_image,
-                                                std_img=args.std_image, out_dir=DESCS_DIR)
-
-                force_rewrite_list = [desc_name]
-                w1bs.match_descriptors_and_save_results(DESC_DIR=DESCS_DIR, do_rewrite=True,
-                                                        dist_dict={},
-                                                        force_rewrite_list=force_rewrite_list)
-                if (args.enable_logging):
-                    w1bs.draw_and_save_plots_with_loggers(DESC_DIR=DESCS_DIR, OUT_DIR=OUT_DIR,
-                                                          methods=["SNN_ratio"],
-                                                          descs_to_draw=[desc_name],
-                                                          logger=file_logger,
-                                                          tensor_logger=logger)
-                else:
-                    w1bs.draw_and_save_plots(DESC_DIR=DESCS_DIR, OUT_DIR=OUT_DIR,
-                                             methods=["SNN_ratio"],
-                                             descs_to_draw=[desc_name])
             # randomize train loader batches
             train_loader, test_loaders2 = create_loaders(load_random_triplets=triplet_flag)
 
 
 if __name__ == '__main__':
+    print("hojndasf")
     LOG_DIR = args.log_dir
     if not os.path.isdir(LOG_DIR):
         os.makedirs(LOG_DIR)

@@ -121,7 +121,11 @@ class StandardNetwork(INetwork):
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
 
                 c = w["kernel"].combine()
-                b = w["bias"].combine()
+
+                if cur_layer.using_bias():
+                    b = w["bias"].combine()
+                else:
+                    b = None
 
                 return cur_layer(input, kernel=c, bias=b)
 
@@ -136,8 +140,26 @@ class StandardNetwork(INetwork):
                 return cur_layer(input, kernel=c, bias=b)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
+
                 w = self._weights.get_layer_weights(layer_idx)
-                return cur_layer(input, w["mean"], w["variance"], w["scale"], w["offset"])
+
+                mean = w["mean"]
+                if isinstance(mean, Graph):
+                    mean = mean.combine()
+
+                variance = w["variance"]
+                if isinstance(variance, Graph):
+                    variance = variance.combine()
+
+                scale = w["scale"]
+                if isinstance(scale, Graph):
+                    scale = scale.combine()
+
+                offset = w["offset"]
+                if isinstance(offset, Graph):
+                    offset = offset.combine()
+
+                return cur_layer(input, mean, variance, scale, offset)
             elif isinstance(cur_layer, ReLU):
                 act = INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
                 return act
