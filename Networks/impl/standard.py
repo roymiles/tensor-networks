@@ -5,6 +5,7 @@ from Layers.impl.core import *
 import Layers.impl.keynet as KeyNetLayers
 import tensorflow as tf
 from base import *
+from Networks.graph import Graph
 
 
 class StandardNetwork(INetwork):
@@ -34,26 +35,42 @@ class StandardNetwork(INetwork):
 
                     shape = cur_layer.get_shape()
 
-                    kernel = tf.get_variable('conv_{}'.format(layer_idx), shape=shape,
-                                             initializer=tf.glorot_normal_initializer(), regularizer=l2_reg)
-                    bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[3],  # W x H x C x N
-                                           initializer=tf.zeros_initializer())
+                    tensor_network = Graph("conv_{}".format(layer_idx))
 
-                    # tf.summary.histogram("conv_kernel_{}".format(layer_idx), kernel)
-                    # tf.summary.histogram("conv_bias_{}".format(layer_idx), bias)
+                    # A standard network just has a single high dimensional node
+                    tensor_network.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
+                                            names=["W", "H", "C", "N"])
 
-                    self._weights.set_conv_layer_weights(layer_idx=layer_idx, kernel=kernel, bias=bias)
+                    # Compile/generate the tf.Variables and add to the set of weights
+                    tensor_network.compile()
+                    kernel = tensor_network
+
+                    if cur_layer.using_bias():
+                        bias = tf.get_variable('bias_{}'.format(layer_idx),
+                                               shape=shape[3],  # W x H x C x *N*
+                                               initializer=tf.zeros_initializer())
+
+                        self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
+                    else:
+                        # No bias term
+                        self._weights.set_conv_layer_weights(layer_idx, kernel, None)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
-                    # Exactly the same as convolutional layer (pretty much)
-                    shape = cur_layer.get_shape()
-                    kernel = tf.get_variable('fc_{}'.format(layer_idx), shape=shape,
-                                             initializer=tf.glorot_normal_initializer())
-                    bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O (Except here)
-                                           initializer=tf.zeros_initializer())
+                    tensor_network = Graph("fc_{}".format(layer_idx))
 
-                    self._weights.set_fc_layer_weights(layer_idx=layer_idx, kernel=kernel, bias=bias)
+                    # Create single node, compile the graph and then add to the set of weights
+                    tensor_network.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"]).compile()
+                    kernel = tensor_network
+
+                    if cur_layer.using_bias():
+                        bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O
+                                               initializer=tf.zeros_initializer())
+
+                        self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
+                    else:
+                        # No bias term
+                        self._weights.set_fc_layer_weights(layer_idx, kernel, None)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
                     # num_features is effectively the depth of the input feature map

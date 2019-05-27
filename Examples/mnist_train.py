@@ -160,3 +160,12 @@ if __name__ == '__main__':
             acc = sess.run(accuracy, feed_dict)
             print("Accuracy (switch {}) = {}".format(switch, acc))
 
+    # Visualise the weights
+    w1 = model.get_weights().get_layer_weights(1)
+    w2 = model.get_weights().get_layer_weights(4)
+
+    # Will be graphs for tucker networks, or tf.Variables for standard
+    w1.debug()
+    w2.debug()
+
+

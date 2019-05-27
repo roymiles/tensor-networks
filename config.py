@@ -23,6 +23,9 @@ tfds_dir = "/media/roy/New Volume1/tensorflow-datasets/"
 # Where tensorboard logs are stored
 log_dir = "/home/roy/Desktop/Tensorboard/"
 
+# Where checkpoints are saved
+ckpt_dir = "/media/roy/New Volume/Checkpoints/"
+
 # Dataset to load
 # ['abstract_reasoning', 'bair_robot_pushing_small', 'caltech101', 'cats_vs_dogs', 'celeb_a', 'celeb_a_hq', 'chexpert',
 # 'cifar10', 'cifar100', 'cifar10_corrupted', 'cnn_dailymail', 'coco2014', 'colorectal_histology',
@@ -35,4 +38,3 @@ log_dir = "/home/roy/Desktop/Tensorboard/"
 # 'ucf101', 'voc2007', 'wikipedia', 'wmt15_translate', 'wmt16_translate', 'wmt17_translate', 'wmt18_translate',
 # 'wmt19_translate', 'wmt_translate', 'xnli']
 tfds_dataset_name = "cifar10"
-num_classes = 10

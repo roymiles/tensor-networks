@@ -23,7 +23,7 @@ class Weights:
         Add a set of weights for a convolutional layer
 
         :param layer_idx:
-        :param kernel: Is either a tf.Variable or a graph (when using tensor networks)
+        :param kernel: !!NOTE!! Is either a tf.Variable or a graph (when using tensor networks)
         :param bias: Always a tf.Variables
         :return:
         """
@@ -38,7 +38,7 @@ class Weights:
         Add a set of weights for a fully connected layer
 
         :param layer_idx:
-        :param kernel: Is either a tf.Variable or a graph (when using tensor networks)
+        :param kernel: !!NOTE!! Is either a tf.Variable or a graph (when using tensor networks)
         :param bias: Always a tf.Variables
         :return:
         """

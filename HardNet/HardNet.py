@@ -30,6 +30,7 @@ from Utils import cv2_scale, np_reshape, str2bool
 import tensorflow as tf
 from Architectures.impl.HardNet import HardNet
 from Networks.impl.standard import StandardNetwork
+import config as conf
 
 import torch
 import torchvision.datasets as dset
@@ -95,7 +96,7 @@ parser.add_argument('--batch-size', type=int, default=1024, metavar='BS',
                     help='input batch size for training (default: 1024)')
 parser.add_argument('--test-batch-size', type=int, default=1024, metavar='BST',
                     help='input batch size for testing (default: 1024)')
-parser.add_argument('--n-triplets', type=int, default=500000, metavar='N',   # 5000000
+parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=1.0, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
@@ -152,6 +153,9 @@ random.seed(args.seed)
 tf.random.set_random_seed(args.seed)
 torch.random.manual_seed(args.seed)
 np.random.seed(args.seed)
+
+# Instead of placeholder, we manually increment
+global_step = 0
 
 
 class TripletPhotoTour(dset.PhotoTour):
@@ -308,18 +312,22 @@ def create_loaders(load_random_triplets=False):
     return train_loader, test_loaders
 
 
-def calc_learning_rate(global_step):
+def get_new_learning_rate():
     return args.lr * (1.0 - float(global_step) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
 
 
-def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_step, epoch, load_triplets=False):
-    """ A single epoch of the training data
-        NOTE: pl is the placeholder dict """
+def train(sess, saver, train_loader, model, train_op, loss_op, debug_op, placeholders, epoch, load_triplets=False):
+    """ A single epoch of the training data """
+    global global_step
+
     pbar = tqdm(enumerate(train_loader))
     for batch_idx, data in pbar:
 
-        # Don't super like hardcoding shape here
+        # Don't super like hard-coding shape here
         new_shape = (-1, 32, 32, 1)
+
+        # Learning rate annealing
+        learning_rate = get_new_learning_rate()
 
         if load_triplets:
             data_a, data_p, data_n = data
@@ -329,9 +337,10 @@ def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_ste
             data_n = data_n.numpy().reshape(new_shape)
 
             feed_dict = {
-                pl['data_a']: data_a,
-                pl['data_p']: data_p,
-                pl['data_n']: data_n
+                placeholders.data_a: data_a,
+                placeholders.data_p: data_p,
+                placeholders.data_n: data_n,
+                placeholders.learning_rate: learning_rate
             }
 
         else:
@@ -341,20 +350,22 @@ def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_ste
             data_p = data_p.numpy().reshape(new_shape)
 
             feed_dict = {
-                pl['data_a']: data_a,
-                pl['data_p']: data_p
+                placeholders.data_a: data_a,
+                placeholders.data_p: data_p,
+                placeholders.learning_rate: learning_rate
             }
 
         # Decay learning rate
-        pl['learning_rate'] = 0.001  # calc_learning_rate(global_step)
+        # pl['learning_rate'] = 0.001  # calc_learning_rate(global_step)
 
-        print("data_a {}".format(data_a.shape))
+        # print("data_a {}".format(data_a.shape))
 
         fetches = [train_op, loss_op, debug_op]
         _, loss, debug_var = sess.run(fetches, feed_dict)
+        global_step += 1
 
-        print(debug_var.keys())
-        print(debug_var["anchor"])
+        # print(debug_var.keys())
+        # print(debug_var["anchor"])
 
         if batch_idx % args.log_interval == 0:
             pbar.set_description(
@@ -367,8 +378,8 @@ def train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_ste
     except:
         os.makedirs('{}{}'.format(args.model_dir, suffix))
 
-    torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict()},
-               '{}{}/checkpoint_{}.pth'.format(args.model_dir, suffix, epoch))
+    # TODO: Fix ValueError: Parent directory of /media/roy/New Volume/Checkpoints/HardNet/checkpoint_data/models/.ckpt doesn't exist, can't save.
+    saver.save(sess, conf.ckpt_dir + "HardNet/checkpoint_{}.ckpt".format(args.model_dir, suffix, epoch))
 
 
 def test(test_loader, model, epoch, logger_test_name):
@@ -389,6 +400,7 @@ def test(test_loader, model, epoch, logger_test_name):
 
         out_a = model(data_a)
         out_p = model(data_p)
+
         # TODO: Could just use tf.l2loss
         dists = tf.math.sqrt(tf.math.reduce_sum((out_a - out_p) ** 2, 1))  # euclidean distance
         distances.append(dists.data.cpu().numpy().reshape(-1, 1))
@@ -415,6 +427,14 @@ def HardNet_forward(model, input):
     return HardNet.end(x_features)
 
 
+class PlaceHolders:
+    """ Container for all the placeholders """
+    data_a = None
+    data_p = None
+    data_n = None
+    learning_rate = None
+
+
 def main(train_loader, test_loaders, model):
     # print the experiment configuration
     print('\nparsed options:\n{}\n'.format(vars(args)))
@@ -423,17 +443,17 @@ def main(train_loader, test_loaders, model):
         # aka gray scale patches
         # 3 inputs for the triplet loss
         # data_n may or may not be used (will be pruned from graph if not)
-        pl = dict()
-        pl['data_a'] = tf.placeholder(tf.float32, shape=[args.test_batch_size, 32, 32, 1])
-        pl['data_p'] = tf.placeholder(tf.float32, shape=[args.test_batch_size, 32, 32, 1])
-        pl['data_n'] = tf.placeholder(tf.float32, shape=[args.test_batch_size, 32, 32, 1])
+        placeholders = PlaceHolders()
+        placeholders.data_a = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
+        placeholders.data_p = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
+        placeholders.data_n = tf.placeholder(tf.float32, shape=[None, 32, 32, 1])
 
     # Output node
-    out_a = HardNet_forward(model, input=pl['data_a'])
-    out_p = HardNet_forward(model, input=pl['data_p'])
-    out_n = HardNet_forward(model, input=pl['data_n'])
+    out_a = HardNet_forward(model, input=placeholders.data_a)
+    out_p = HardNet_forward(model, input=placeholders.data_p)
+    out_n = HardNet_forward(model, input=placeholders.data_n)
 
-    print("out_a {}".format(out_a.get_shape().as_list()))
+    # print("out_a {}".format(out_a.get_shape().as_list()))
 
     # Loss node
     print("Batch reduce = {}".format(args.batch_reduce))
@@ -447,11 +467,11 @@ def main(train_loader, test_loaders, model):
                                        loss_type=args.loss)
     else:
         loss_op, debug_op = loss_HardNet(out_a, out_p,
-                               margin=args.margin,
-                               anchor_swap=args.anchorswap,
-                               anchor_ave=args.anchorave,
-                               batch_reduce=args.batch_reduce,
-                               loss_type=args.loss)
+                                         margin=args.margin,
+                                         anchor_swap=args.anchorswap,
+                                         anchor_ave=args.anchorave,
+                                         batch_reduce=args.batch_reduce,
+                                         loss_type=args.loss)
 
     # Add extra loss terms
     if args.decor:
@@ -460,12 +480,12 @@ def main(train_loader, test_loaders, model):
     if args.gor:
         loss_op += args.alpha * global_orthogonal_regularization(out_a, out_n)
 
-    # Standard SGD. ignoring args.optimizer for now
-    global_step = tf.Variable(0, name='global_step', trainable=False)
+    # learning_rate = tf.train.exponential_decay(args.lr, global_step, 100000, 1e-6, staircase=True)
+    placeholders.learning_rate = tf.placeholder(tf.float32, shape=[])
 
-    pl['learning_rate'] = tf.placeholder(tf.float32, shape=[])
-    train_op = tf.train.MomentumOptimizer(learning_rate=pl['learning_rate'],
-                                          momentum=0.9, use_nesterov=True).minimize(loss_op, global_step=global_step)
+    # TODO: Check this is exactly the same as original HardNet optimizer
+    train_op = tf.train.MomentumOptimizer(learning_rate=placeholders.learning_rate,
+                                          momentum=0.9, use_nesterov=True).minimize(loss_op)
 
     # Save and restore variables
     saver = tf.train.Saver()
@@ -490,10 +510,13 @@ def main(train_loader, test_loaders, model):
 
         start = args.start_epoch
         end = start + args.epochs
+
         for epoch in range(start, end):
 
             # iterate over test loaders and test results
-            train(sess, train_loader, model, train_op, loss_op, debug_op, pl, global_step, epoch, triplet_flag)
+            train(sess, saver, train_loader, model, train_op, loss_op, debug_op, placeholders, epoch,
+                  triplet_flag)
+
             for test_loader in test_loaders:
                 test(test_loader['dataloader'], model, epoch, test_loader['name'])
 
