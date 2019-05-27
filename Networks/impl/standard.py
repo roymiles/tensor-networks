@@ -35,20 +35,18 @@ class StandardNetwork(INetwork):
 
                     shape = cur_layer.get_shape()
 
-                    tensor_network = Graph("conv_{}".format(layer_idx))
-
                     # A standard network just has a single high dimensional node
-                    tensor_network.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
-                                            names=["W", "H", "C", "N"])
-
+                    kernel = Graph("conv_{}".format(layer_idx))
+                    kernel.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
+                                    names=["W", "H", "C", "N"])
                     # Compile/generate the tf.Variables and add to the set of weights
-                    tensor_network.compile()
-                    kernel = tensor_network
+                    kernel.compile()
 
                     if cur_layer.using_bias():
-                        bias = tf.get_variable('bias_{}'.format(layer_idx),
-                                               shape=shape[3],  # W x H x C x *N*
-                                               initializer=tf.zeros_initializer())
+
+                        bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
+                        bias.add_node("B", shape=[shape[3]], names=["B"])
+                        bias.compile(initializer=tf.zeros_initializer())
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -57,15 +55,18 @@ class StandardNetwork(INetwork):
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
-                    tensor_network = Graph("fc_{}".format(layer_idx))
+                    shape = cur_layer.get_shape()
 
                     # Create single node, compile the graph and then add to the set of weights
-                    tensor_network.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"]).compile()
-                    kernel = tensor_network
+                    kernel = Graph("fc_{}".format(layer_idx))
+                    kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"])
+                    kernel.compile()
 
                     if cur_layer.using_bias():
-                        bias = tf.get_variable('bias_{}'.format(layer_idx), shape=shape[1],  # I x O
-                                               initializer=tf.zeros_initializer())
+
+                        bias = Graph("bias_{}".format(layer_idx))  # I x O
+                        bias.add_node("B", shape=[shape[1]], names=["B"])
+                        bias.compile(initializer=tf.zeros_initializer())
 
                         self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -113,12 +114,29 @@ class StandardNetwork(INetwork):
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             cur_layer = self.get_architecture().get_layer(layer_idx)
             if isinstance(cur_layer, ConvLayer):
+
                 w = self._weights.get_layer_weights(layer_idx)
-                features = cur_layer(input, kernel=w["kernel"], bias=w["bias"])
-                return features
+                assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
+
+                c = w["kernel"].combine()
+                b = w["bias"].combine()
+
+                return cur_layer(input, kernel=c, bias=b)
+
             elif isinstance(cur_layer, FullyConnectedLayer):
+
                 w = self._weights.get_layer_weights(layer_idx)
-                return cur_layer(input, kernel=w["kernel"], bias=w["bias"])
+                assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
+
+                c = w["kernel"].combine()
+                b = w["bias"].combine()
+
+                # Reshape to proper ordering
+                s = tf.shape(c)
+                c = tf.reshape(c, [s[1], s[0]])
+
+                return cur_layer(input, kernel=c, bias=b)
+
             elif isinstance(cur_layer, BatchNormalisationLayer):
                 w = self._weights.get_layer_weights(layer_idx)
                 return cur_layer(input, w["mean"], w["variance"], w["scale"], w["offset"])

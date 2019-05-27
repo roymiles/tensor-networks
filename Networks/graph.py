@@ -72,7 +72,7 @@ class Graph:
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
-    def compile(self):
+    def compile(self, initializer=tf.glorot_normal_initializer()):
         """ Create the tf.Variables with the dimensions outlined in the graph """
 
         # Loop through all the _nodes and make appropriate Tensors
@@ -89,8 +89,7 @@ class Graph:
 
                 if not self._graph.nodes[node]['dummy_node']:
                     # Dummy nodes do not have an associated tf.Variable
-                    self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims,
-                                                                       initializer=tf.glorot_normal_initializer())
+                    self._graph.nodes[node]["tfvar"] = tf.get_variable(node, shape=dims, initializer=initializer)
 
                 self._graph.nodes[node]["edge_names"] = edge_names
 
@@ -120,13 +119,14 @@ class Graph:
 
         return i
 
-    def combine(self, switch=1.0):
+    def combine(self, switch=1.0, reshape=None):
         """ Combine all the nodes into a single tensor - which is likely then used for convolution or something
             returns: tf.Variable with dimensions the same as all exposed edges
 
             :param
                 switch: Value in range (0, 1] to control compression.
                         Effectively only uses a percentage of each factor, so s x W
+                reshape: List of desired index order
 
             :returns W: Single weight tensor with all the exposed dimensions """
 
@@ -134,6 +134,15 @@ class Graph:
 
         assert self._is_compiled == 1, "Must be compiled before can combine the core factors"
         # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
+
+        # Calculate the reshape by looping through all edges and matching
+        # to the reshape index names (supplied in function argument)
+        s = []
+        if reshape:
+            for index_name in reshape:
+                for _, _, a in self._graph.edges(data=True):
+                    if a['name'] == index_name:
+                        s.append(a['weight'])
 
         # We start with the first tensor and loop through all factors and merge
         # NOTE: Could reorder prior to make this more efficient
@@ -199,6 +208,12 @@ class Graph:
 
         # Uncomment if want to see the nodes and edges in the graph
         # Graph.debug(g, "debug2")
+
+        # Reshape to desired
+        tfvar = g.nodes[n3]["tfvar"]
+
+        if reshape and s:
+            tfvar = tf.reshape(tfvar, s)
 
         return g.nodes[n3]["tfvar"]
 

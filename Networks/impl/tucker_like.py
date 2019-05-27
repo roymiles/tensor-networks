@@ -249,13 +249,7 @@ class TuckerNet(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
 
-                c = w["kernel"].combine(switch=switch)
-
-                # TODO: This manual requirement for reshaping is bad. We know the names of edges,
-                #       should be able to do this automatically like .reshape(["W", "H", "C", "N"])
-                # Reshape to proper ordering
-                s = tf.shape(c)
-                c = tf.reshape(c, [s[2], s[3], s[1], s[0]])
+                c = w["kernel"].combine(switch=switch, reshape=["W", "H", "C", "N"])
 
                 # Call the function and return the result
                 return cur_layer(input=input, kernel=c, bias=w["bias"])
@@ -268,7 +262,7 @@ class TuckerNet(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
 
-                c = w["kernel"].combine(switch=switch)
+                c = w["kernel"].combine(switch=switch, reshape=["I", "O"])
 
                 # Reshape to proper ordering
                 s = tf.shape(c)
