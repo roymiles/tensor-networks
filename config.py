@@ -1,19 +1,6 @@
 """ Generic configuration file with no dependencies
     For example, learning rate, batch size etc """
 
-# Set random seeds
-seed = 1234
-
-# !!! Not really a fan of a global config file !!!
-
-# Number of epochs to run
-epochs = 12
-
-batch_size = 128
-
-# This may be annealed over training steps
-initial_learning_rate = 0.01
-
 # Where all the tfds datasets are downloaded to
 tfds_dir = "/media/roy/New Volume/tensorflow-datasets/"
 
@@ -23,7 +10,7 @@ log_dir = "/home/roy/Desktop/Tensorboard/"
 # Where checkpoints are saved
 ckpt_dir = "/media/roy/New Volume/Checkpoints/"
 
-# Dataset to load
+# List of all the datasets, for reference
 # ['abstract_reasoning', 'bair_robot_pushing_small', 'caltech101', 'cats_vs_dogs', 'celeb_a', 'celeb_a_hq', 'chexpert',
 # 'cifar10', 'cifar100', 'cifar10_corrupted', 'cnn_dailymail', 'coco2014', 'colorectal_histology',
 # 'colorectal_histology_large', 'cycle_gan', 'diabetic_retinopathy_detection', 'dsprites', 'dtd',
@@ -34,4 +21,3 @@ ckpt_dir = "/media/roy/New Volume/Checkpoints/"
 # 'starcraft_video', 'sun397', 'svhn_cropped', 'ted_hrlr_translate', 'ted_multi_translate', 'tf_flowers', 'titanic',
 # 'ucf101', 'voc2007', 'wikipedia', 'wmt15_translate', 'wmt16_translate', 'wmt17_translate', 'wmt18_translate',
 # 'wmt19_translate', 'wmt_translate', 'xnli']
-tfds_dataset_name = "cifar10"

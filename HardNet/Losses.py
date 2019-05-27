@@ -6,20 +6,9 @@ import numpy as np
 def distance_matrix_vector(anchor, positive):
     """Given batch of anchor descriptors and positive descriptors calculate distance matrix"""
 
-
-    #print("--distance_matrix_vector--")
-
-    #print("anchor {}".format(anchor.get_shape()))
-    #print("positive {}".format(anchor.get_shape()))
-
     # Sum of squares, then adding dimension back
     d1_sq = tf.expand_dims(tf.math.reduce_sum(anchor * anchor, axis=1), axis=1)
     d2_sq = tf.expand_dims(tf.math.reduce_sum(positive * positive, axis=1), axis=1)
-
-    #print("d1_sq {}".format(d1_sq.get_shape()))
-    #print("d2_sq {}".format(d2_sq.get_shape()))
-
-    #print("--distance_matrix_vector--")
 
     eps = 1e-6
 
@@ -28,22 +17,8 @@ def distance_matrix_vector(anchor, positive):
     d2_rep = tf.tile(d2_sq, (1, tf.shape(anchor)[0]))
     m_a_p = tf.matmul(anchor, positive, transpose_b=True)
 
-    #print("d1_rep {}".format(d1_rep.get_shape()))
-    #print("d2_rep {}".format(d2_rep.get_shape()))
-    #print("m_a_p {}".format(m_a_p.get_shape()))
-
-    debug_vars = {
-        "anchor": anchor,
-        "positive": positive,
-        "d1_sq": d1_sq,
-        "d2_sq": d2_sq,
-        "d1_rep": d1_rep,
-        "d2_rep": d2_rep,
-        "m_a_p": m_a_p
-    }
-
     # Reshape is effectively transpose so 1x128 * 128x1
-    return tf.math.sqrt((d1_rep + d2_rep - 2.0 * m_a_p) + eps), debug_vars
+    return tf.math.sqrt((d1_rep + d2_rep - 2.0 * m_a_p) + eps)
 
 
 def distance_vectors_pairwise(anchor, positive, negative=None):
@@ -103,7 +78,7 @@ def loss_L2Net(anchor, positive, anchor_swap=False, margin=1.0, loss_type="tripl
     assert len(anchor_shape) == 2, "Inputd must be a 2D matrix."
 
     eps = 1e-8
-    dist_matrix, debug_vars = distance_matrix_vector(anchor, positive)
+    dist_matrix = distance_matrix_vector(anchor, positive)
 
     # steps to filter out same patches that occur in distance matrix as negatives
     pos1 = tf.linalg.diag_part(dist_matrix)
@@ -137,19 +112,12 @@ def loss_HardNet(anchor, positive, anchor_swap=False, anchor_ave=False,
 
     eps = 1e-8
 
-    #print("anchor: {}".format(anchor_shape))
-    #print("positive: {}".format(positive_shape))
-
-    dist_matrix, debug_vars_v1 = distance_matrix_vector(anchor, positive)
+    dist_matrix = distance_matrix_vector(anchor, positive)
     dist_matrix += eps
-
-    #print("dist_matrix: {}".format(dist_matrix.get_shape().as_list()))
 
     eye = tf.dtypes.cast(tf.eye(tf.shape(dist_matrix)[1]), dtype=tf.float32)
 
     # steps to filter out same patches that occur in distance matrix as negatives
-    #print("eye: {}".format(eye.get_shape().as_list()))
-
     pos1 = tf.linalg.diag_part(dist_matrix)
     dist_without_min_on_diag = dist_matrix + eye * 10.0
     mask = -1.0 * (tf.to_float(tf.math.greater_equal(dist_without_min_on_diag, 0.008)) - 1.0)
@@ -158,10 +126,6 @@ def loss_HardNet(anchor, positive, anchor_swap=False, anchor_ave=False,
     dist_without_min_on_diag = dist_without_min_on_diag + mask
 
     print("Batch reduce = {}, loss type = {}".format(batch_reduce, loss_type))
-
-    #print("pos1 {}".format(pos1.get_shape().as_list()))
-    #print("dist_without_min_on_diag {}".format(dist_without_min_on_diag.get_shape().as_list()))
-    #print("mask {}".format(mask.get_shape().as_list()))
 
     if batch_reduce == 'min':
         # --- This is the one commonly used ---
@@ -174,10 +138,6 @@ def loss_HardNet(anchor, positive, anchor_swap=False, anchor_ave=False,
         # The following line does nothing...
         min_neg = min_neg
         pos = pos1
-
-        #print("min_neg {}".format(min_neg.get_shape().as_list()))
-        #print("min_neg2 {}".format(min_neg2.get_shape().as_list()))
-        #print("pos {}".format(pos.get_shape().as_list()))
 
     elif batch_reduce == 'average':
         pos = pos1.repeat(anchor.size(0)).view(-1, 1).squeeze(0)
@@ -211,18 +171,8 @@ def loss_HardNet(anchor, positive, anchor_swap=False, anchor_ave=False,
         print('Unknown loss type. Try triplet_margin, softmax or contrastive')
         sys.exit(1)
 
-    debug_vars = {
-        "dist_without_min_on_diag": dist_without_min_on_diag,
-        "mask": mask,
-        "eye": eye,
-        "pos1": pos1,
-        "dist_matrix":dist_matrix
-    }
-
-    z = {**debug_vars_v1, **debug_vars}
-
     loss = tf.math.reduce_mean(loss)
-    return loss, z
+    return loss
 
 
 def global_orthogonal_regularization(anchor, negative):

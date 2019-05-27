@@ -96,7 +96,7 @@ parser.add_argument('--batch-size', type=int, default=1024, metavar='BS',
                     help='input batch size for training (default: 1024)')
 parser.add_argument('--test-batch-size', type=int, default=1024, metavar='BST',
                     help='input batch size for testing (default: 1024)')
-parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',   # 5000000
+parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=1.0, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
@@ -106,8 +106,8 @@ parser.add_argument('--freq', type=float, default=10.0,
                     help='frequency for cyclic learning rate')
 parser.add_argument('--alpha', type=float, default=1.0, metavar='ALPHA',
                     help='gor parameter')
-parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
-                    help='learning rate (default: 10.0. Yes, ten is not typo)')    # was 10
+parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+                    help='learning rate (default: 10.0. Yes, ten is not typo)')
 parser.add_argument('--fliprot', type=str2bool, default=True,
                     help='turns on flip and 90deg rotation augmentation')
 parser.add_argument('--augmentation', type=str2bool, default=False,
@@ -316,7 +316,7 @@ def get_new_learning_rate():
     return args.lr * (1.0 - float(global_step) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
 
 
-def train(sess, saver, train_loader, train_op, loss_op, debug_op, placeholders, epoch, load_triplets=False):
+def train(sess, saver, train_loader, train_op, loss_op, placeholders, epoch, load_triplets=False):
     """ A single epoch of the training data """
     global global_step
 
@@ -355,17 +355,9 @@ def train(sess, saver, train_loader, train_op, loss_op, debug_op, placeholders, 
                 placeholders.learning_rate: learning_rate
             }
 
-        # Decay learning rate
-        # pl['learning_rate'] = 0.001  # calc_learning_rate(global_step)
-
-        # print("data_a {}".format(data_a.shape))
-
-        fetches = [train_op, loss_op, debug_op]
-        _, loss, debug_var = sess.run(fetches, feed_dict)
+        fetches = [train_op, loss_op]
+        _, loss = sess.run(fetches, feed_dict)
         global_step += 1
-
-        # print(debug_var.keys())
-        # print(debug_var["anchor"])
 
         if batch_idx % args.log_interval == 0:
             pbar.set_description(
@@ -398,10 +390,11 @@ def test(sess, test_loader, _out_a, _out_p, placeholders, epoch):
 
         fetches = [_out_a, _out_p]
         out_a, out_p = sess.run(fetches, feed_dict)
-        dists = np.sqrt(np.power(np.sum(out_a - out_p), 2))  # euclidean distance
 
+        dists = np.sqrt(np.power(np.sum(out_a - out_p, axis=1), 2))  # euclidean distance
         distances.append(dists.reshape(-1, 1))
         ll = label.data.cpu().numpy().reshape(-1, 1)
+
         labels.append(ll)
 
         if batch_idx % args.log_interval == 0:
@@ -412,6 +405,8 @@ def test(sess, test_loader, _out_a, _out_p, placeholders, epoch):
     num_tests = test_loader.dataset.matches.size(0)
     labels = np.vstack(labels).reshape(num_tests)
     distances = np.vstack(distances).reshape(num_tests)
+
+    # distances = np.array([1.0 / (d + 1e-8) for d in distances])
 
     fpr95 = ErrorRateAt95Recall(labels, 1.0 / (distances + 1e-8))
     print('\33[91mTest set: Accuracy(FPR95): {:.8f}\n\33[0m'.format(fpr95))
@@ -463,12 +458,12 @@ def main(train_loader, test_loaders, model):
                                        anchor_swap=args.anchorswap,
                                        loss_type=args.loss)
     else:
-        loss_op, debug_op = loss_HardNet(out_a, out_p,
-                                         margin=args.margin,
-                                         anchor_swap=args.anchorswap,
-                                         anchor_ave=args.anchorave,
-                                         batch_reduce=args.batch_reduce,
-                                         loss_type=args.loss)
+        loss_op = loss_HardNet(out_a, out_p,
+                               margin=args.margin,
+                               anchor_swap=args.anchorswap,
+                               anchor_ave=args.anchorave,
+                               batch_reduce=args.batch_reduce,
+                               loss_type=args.loss)
 
     # Add extra loss terms
     if args.decor:
@@ -480,7 +475,7 @@ def main(train_loader, test_loaders, model):
     # learning_rate = tf.train.exponential_decay(args.lr, global_step, 100000, 1e-6, staircase=True)
     placeholders.learning_rate = tf.placeholder(tf.float32, shape=[])
 
-    # TODO: Check this is exactly the same as original HardNet optimizer
+    # TODO: Check this is exactly the same as original HardNet optimizer (weight decay?)
     train_op = tf.train.MomentumOptimizer(learning_rate=placeholders.learning_rate,
                                           momentum=0.9, use_nesterov=True).minimize(loss_op)
 
@@ -511,8 +506,7 @@ def main(train_loader, test_loaders, model):
         for epoch in range(start, end):
 
             # iterate over test loaders and test results
-            train(sess, saver, train_loader, train_op, loss_op, debug_op, placeholders, epoch,
-                  triplet_flag)
+            train(sess, saver, train_loader, train_op, loss_op, placeholders, epoch, triplet_flag)
 
             for test_loader in test_loaders:
                 test(sess, test_loader['dataloader'], out_a, out_p, placeholders, epoch)
@@ -522,7 +516,6 @@ def main(train_loader, test_loaders, model):
 
 
 if __name__ == '__main__':
-    print("hojndasf")
     LOG_DIR = args.log_dir
     if not os.path.isdir(LOG_DIR):
         os.makedirs(LOG_DIR)
