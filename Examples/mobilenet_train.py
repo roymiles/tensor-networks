@@ -4,7 +4,7 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.MobileNetV1 import MobileNetV1
+from Architectures.impl.MobileNetV1 import MobileNetV1, fc_ranks, conv_ranks
 from Networks.impl.tucker_like import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
@@ -28,53 +28,34 @@ if __name__ == '__main__':
     num_classes = 1000
     dataset_name = 'imagenet2012'
     batch_size = 128
-    num_epochs = 20
-    initial_learning_rate = 0.01
-    switch_list = [0.1, 0.4, 0.5, 0.8, 1.0]
+    num_epochs = 60
+    initial_learning_rate = 0.1
+    switch_list = [0.4, 0.6, 0.8, 1.0]
 
-    architecture = MobileNetV1()
-
-    # These hyperparameters control the compression
-    # of the convolutional and fully connected weights
-    # {i: [6, ] for i in range(14)}
-    conv_ranks = {
-        0: [6, 8, 16],
-        1: [6, 16, 32],
-        2: [6, 32, 64],
-        3: [6, 64, 64],
-        4: [6, 64, 128],
-        5: [6, 128, 128],
-        6: [6, 128, 256],
-
-        7: [6, 256, 256],
-        8: [6, 256, 256],
-        9: [6, 256, 256],
-        10: [6, 256, 256],
-        11: [6, 256, 256],
-
-        12: [6, 256, 512],
-        13: [6, 512, 512]
-    }
-    fc_ranks = {
-        16: [512, 256]
-    }
-
-    # See available datasets
+z    # See available datasets
     print(tfds.list_builders())
 
     # Fetch the dataset directly
-    cifar = tfds.builder(dataset_name)
+    imagenet = tfds.builder(dataset_name)
 
     # Download the data, prepare it, and write it to disk
-    cifar.download_and_prepare(download_dir=conf.tfds_dir)
+    imagenet.download_and_prepare(download_dir=conf.tfds_dir)
 
     # Load data from disk as tf.data.Datasets
-    datasets = cifar.as_dataset()
+    datasets = imagenet.as_dataset()
 
     ds_train, ds_test = datasets['train'], datasets['validation']
 
+    # Needed to fix inconsistent spatial sizes of images in a batch
+    def preprocess_data(data):
+        print(data['image'])
+        exit()
+        data['image'] = tf.image.resize_images(data['image'], size=[224, 224])
+        return data
+
     # Build your input pipeline
-    ds_train = ds_train.batch(batch_size).prefetch(1000)
+    ds_train = ds_train.batch(batch_size).prefetch(1000).map(preprocess_data)
+    print(ds_train)
 
     # No batching just use entire test data
     ds_test = ds_test.batch(2000)
@@ -141,12 +122,9 @@ if __name__ == '__main__':
 
     for epoch in tqdm(range(num_epochs)):
 
-        # Error here, inconsistent batch dim thing
-        print(ds_train)
-        exit()
-
         # Training
         for batch in tfds.as_numpy(ds_train):
+            print("uhuh")
             images, labels = batch['image'], batch['label']
 
             # Normalise in range [0, 1)

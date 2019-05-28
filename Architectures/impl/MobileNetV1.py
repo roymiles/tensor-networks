@@ -1,12 +1,35 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import ConvLayer, AveragePoolingLayer, Flatten, FullyConnectedLayer
 
+# These hyperparameters control the compression
+# of the convolutional and fully connected weights
+conv_ranks = {
+    0: [6, 8, 16],
+    1: [6, 16, 32],
+    2: [6, 32, 64],
+    3: [6, 64, 64],
+    4: [6, 64, 128],
+    5: [6, 128, 128],
+    6: [6, 128, 256],
+
+    7: [6, 256, 256],
+    8: [6, 256, 256],
+    9: [6, 256, 256],
+    10: [6, 256, 256],
+    11: [6, 256, 256],
+
+    12: [6, 256, 512],
+    13: [6, 512, 512]
+}
+fc_ranks = {
+    16: [512, 256]
+}
+
 
 class MobileNetV1(IArchitecture):
     """ This is the original MobileNet architecture for ImageNet
         Of course, the convolutional layers are replaced with depthwise separable layers """
-    def __init__(self):
-        num_classes = 10
+    def __init__(self, num_classes):
         network = [
             # NOTE: Comments are for input size
             ConvLayer(shape=[3, 3, 3, 32], strides=[1, 2, 2, 1]),  # 224 x 224 x 3

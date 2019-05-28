@@ -23,12 +23,27 @@ class Weights:
         Add a set of weights for a convolutional layer
 
         :param layer_idx:
-        :param kernel: Graph/tf.Variable type, dims WHCN
+        :param kernel: Graph/tf.Variable type, dims WxHxCxN
         :param bias: Graph/tf.Variable type, dims N
         :return:
         """
         self._weights[layer_idx] = {
             "__type__": LayerTypes.CONV,
+            "kernel": kernel,
+            "bias": bias
+        }
+
+    def set_dw_conv_layer_weights(self, layer_idx, kernel, bias):
+        """
+        Add a set of weights for a convolutional layer
+
+        :param layer_idx:
+        :param kernel: Graph/tf.Variable type, dims WxHxCxM
+        :param bias: Graph/tf.Variable type, dims CxM
+        :return:
+        """
+        self._weights[layer_idx] = {
+            "__type__": LayerTypes.DW_CONV,
             "kernel": kernel,
             "bias": bias
         }

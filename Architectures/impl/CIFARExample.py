@@ -3,6 +3,20 @@ from Layers.impl.core import ConvLayer, ReLU, MaxPoolingLayer, DropoutLayer, Fla
     BatchNormalisationLayer
 
 
+# These hyperparameters control the compression
+# of the convolutional and fully connected weights
+conv_ranks = {
+    0: [6, 8, 16],
+    2: [6, 16, 16],
+    6: [6, 16, 32],
+    8: [6, 32, 32]
+}
+fc_ranks = {
+    13: [128, 128],
+    16: [128, 64]
+}
+
+
 class CIFARExample(IArchitecture):
     # See: https://github.com/dribnet/kerosene/blob/master/examples/cifar100.py
     def __init__(self, num_classes=100):

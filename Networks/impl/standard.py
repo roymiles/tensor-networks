@@ -18,8 +18,7 @@ class StandardNetwork(INetwork):
         """
             Build the tf.Variable weights used by the network
 
-            :param
-                name: Variable scope e.g. StandardNetwork1
+            :param name: Variable scope e.g. StandardNetwork1
         """
         with tf.variable_scope(name):
 
@@ -31,7 +30,7 @@ class StandardNetwork(INetwork):
 
                 # Only need to initialize tensors for layers that have weights
                 cur_layer = self.get_architecture().get_layer(layer_idx)
-                if isinstance(cur_layer, ConvLayer):  # or isinstance(cur_layer, Layers.axel.ConvLayer):
+                if isinstance(cur_layer, ConvLayer):
 
                     shape = cur_layer.get_shape()
 
@@ -52,6 +51,25 @@ class StandardNetwork(INetwork):
                     else:
                         # No bias term
                         self._weights.set_conv_layer_weights(layer_idx, kernel, None)
+
+                elif isinstance(cur_layer, DepthwiseConvLayer):
+
+                    # Very similar to standard convolution
+                    shape = cur_layer.get_shape()
+                    kernel = Graph("dwconv_{}".format(layer_idx))
+                    kernel.add_node("WHCM", shape=[shape[0], shape[1], shape[2], shape[3]],
+                                    names=["W", "H", "C", "M"]).compile()
+
+                    if cur_layer.using_bias():
+
+                        bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
+                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"])
+                        bias.compile(initializer=tf.zeros_initializer())
+
+                        self._weights.set_dw_conv_layer_weights(layer_idx, kernel, bias)
+                    else:
+                        # No bias term
+                        self._weights.set_dw_conv_layer_weights(layer_idx, kernel, None)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
@@ -103,18 +121,18 @@ class StandardNetwork(INetwork):
         """ Pass input through a single layer
             Operation is dependant on the layer type
 
-        Parameters
-        ----------
-        COMPULSORY PARAMETERS
-        input : input is a 4 dimensional feature map [B, W, H, C]
-        layer_idx : Layer number
-        name : For variable scoping
+        :param input : input is a 4 dimensional feature map [B, W, H, C]
+        :param layer_idx : Layer number
+        :param name : For variable scoping
 
         Additional parameters are named in kwargs
         """
 
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             cur_layer = self.get_architecture().get_layer(layer_idx)
+
+            print(cur_layer)
+
             if isinstance(cur_layer, ConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
@@ -126,6 +144,16 @@ class StandardNetwork(INetwork):
                     b = w["bias"].combine()
                 else:
                     b = None
+
+                return cur_layer(input, kernel=c, bias=b)
+
+            elif isinstance(cur_layer, DepthwiseConvLayer):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert w["__type__"] == LayerTypes.DW_CONV, "The layer weights don't match up with the layer type"
+
+                c = w["kernel"].combine()
+                b = w["bias"].combine()
 
                 return cur_layer(input, kernel=c, bias=b)
 

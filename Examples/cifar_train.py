@@ -5,7 +5,8 @@ import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
 from Architectures.impl.CIFARExample import CIFARExample
-from Architectures.impl.Test import Test
+from Architectures.impl.MobileNetV1 import MobileNetV1
+from Architectures.impl.MobileNetV2 import MobileNetV2
 from Networks.impl.tucker_like import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
@@ -31,27 +32,15 @@ print(tf.__version__)
 
 if __name__ == '__main__':
 
-    num_classes = 10
-    dataset_name = 'cifar10'
+    num_classes = 100
+    dataset_name = 'cifar100'
     batch_size = 128
-    num_epochs = 20
-    initial_learning_rate = 0.01
-    switch_list = [0.4, 0.5, 0.8, 1.0]
+    num_epochs = 60
+    initial_learning_rate = 0.1
+    switch_list = [0.4, 0.6, 0.8, 1.0]
 
-    architecture = CIFARExample(num_classes=num_classes)
-
-    # These hyperparameters control the compression
-    # of the convolutional and fully connected weights
-    conv_ranks = {
-        0: [6, 8, 16],
-        2: [6, 16, 16],
-        6: [6, 16, 32],
-        8: [6, 32, 32]
-    }
-    fc_ranks = {
-        13: [128, 128],
-        16: [128, 64]
-    }
+    architecture = MobileNetV2(num_classes=num_classes)
+    #architecture = CIFARExample(num_classes=num_classes)
 
     # See available datasets
     print(tfds.list_builders())
@@ -78,10 +67,7 @@ if __name__ == '__main__':
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
 
-    # Search through different ranks
-    # while True:
-
-    use_tucker = True
+    use_tucker = False
     if use_tucker:
         model = TuckerNet(architecture=architecture)
         model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=switch_list,
@@ -93,13 +79,19 @@ if __name__ == '__main__':
         model.build("MyStandardNetwork")
         logits_op = model(input=x)
 
+        # temp for mobilenetv2
+        logits_op = tf.reduce_mean(logits_op, axis=[1, 2])
+
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
 
     # Add the regularisation terms
-    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    _lambda = 0.01  # Scaling factor
-    loss_op += loss_op + _lambda * sum(reg_losses)
+    #reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    #_lambda = 0.01  # Scaling factor
+    #loss_op += loss_op + _lambda * sum(reg_losses)
+
+    print(y)
+    print(logits_op)
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -202,17 +194,25 @@ if __name__ == '__main__':
             acc = sess.run(accuracy, feed_dict)
             print("Accuracy = {}, Switch = {}".format(acc, switch))
 
+    exit()
     # Get the weights
     _w1 = model.get_weights().get_layer_weights(13)['kernel'].combine(reshape=["I", "O"])
     _w2 = model.get_weights().get_layer_weights(16)['kernel'].combine(reshape=["I", "O"])
 
-    w1, w2 = sess.run([_w1, _w2], feed_dict={})
+    _w3 = model.get_weights().get_layer_weights(8)['kernel'].combine(reshape=["W", "H", "C", "N"])
 
-    print("var1_I = {}".format(np.sum(np.var(w1, axis=0))))
-    print("var1_O = {}".format(np.sum(np.var(w1, axis=1))))
-    print("var2_I = {}".format(np.sum(np.var(w2, axis=0))))
-    print("var2_O = {}".format(np.sum(np.var(w2, axis=1))))
+    w1, w2, w3 = sess.run([_w1, _w2, _w3], feed_dict={})
 
-    cv2.imshow("Fc1", w1)
-    cv2.imshow("Fc2", w2)
-    cv2.waitKey()
+    print(w3)
+    print(w3.shape)
+    visualise_volume_slices(w3[:, 0, :, :])
+    print("fin")
+
+    #print("var1_I = {}".format(np.sum(np.var(w1, axis=0))))
+    #print("var1_O = {}".format(np.sum(np.var(w1, axis=1))))
+    #print("var2_I = {}".format(np.sum(np.var(w2, axis=0))))
+    #print("var2_O = {}".format(np.sum(np.var(w2, axis=1))))
+
+    #cv2.imshow("Fc1", w1)
+    #cv2.imshow("Fc2", w2)
+    #cv2.waitKey()

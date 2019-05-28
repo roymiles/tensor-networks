@@ -11,7 +11,8 @@ l2_reg = tf.contrib.layers.l2_regularizer(scale=1.0)
 
 def variance_regularizor(scale):
     """ Variance across all dimensions/axis """
-    # See: https://github.com/tensorflow/tensorflow/blob/a26d43a5f8e06f5236d4117bbda702fac26ae93a/tensorflow/contrib/layers/python/layers/regularizers.py#L37
+    # For details on what must be inside a tensorflow regularizor, see:
+    # https://github.com/tensorflow/tensorflow/blob/a26d43a5f8e06f5236d4117bbda702fac26ae93a/tensorflow/contrib/layers/python/layers/regularizers.py#L37
 
     if scale == 0:
         return lambda _: None
@@ -53,7 +54,34 @@ def random_string(string_length=10):
     return ''.join(random.choice(letters) for _ in range(string_length))
 
 
-def visualise_conv_kernel(kernel):
-    """ Accepts W,H,N,C convolutional kernel and shows 3d slice plot """
-    import matplotlib.pyplot as plt
-    #TODO: do it
+def visualise_volume_slices(volume):
+    """ Accepts a 3D numpy array """
+    import cv2
+
+    """
+    Upkey: 2490368
+    DownKey: 2621440
+    LeftKey: 2424832
+    RightKey: 2555904
+    Space: 32
+    Delete: 3014656
+    """
+
+    i = 0
+    n = len(volume)-1
+    finish = False
+    while not finish:
+        cv2.imshow('Image Slice - {} / {}'.format(i, n), volume[i])
+
+        key = cv2.waitKey(0)
+        if key == ord('l') and i > 0:
+            i -= 1
+            cv2.destroyAllWindows()
+        elif key == ord('r') and i < n:
+            i += 1
+            cv2.destroyAllWindows()
+        elif key == ord('q'):
+            cv2.destroyAllWindows()
+            finish = True
+
+

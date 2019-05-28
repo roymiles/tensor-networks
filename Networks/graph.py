@@ -81,7 +81,8 @@ class Graph:
 
         return self
 
-    def compile(self, initializer=tf.glorot_normal_initializer()):
+    def compile(self, initializer=tf.glorot_normal_initializer(), regularizer=None):
+        # variance_regularizor(0)
         """ Create the tf.Variables with the dimensions outlined in the graph """
 
         # Loop through all the _nodes and make appropriate Tensors
@@ -104,8 +105,7 @@ class Graph:
 
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
                     self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
-                                                                       initializer=initializer,
-                                                                       regularizer=variance_regularizor(0))
+                                                                       initializer=initializer, regularizer=regularizer)
 
             self._graph.nodes[node]["edge_names"] = edge_names
 

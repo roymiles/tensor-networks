@@ -4,6 +4,7 @@ from abc import abstractmethod
 
 class LayerTypes(IntEnum):
     CONV = 1
+    DW_CONV = 2
     FC = 2
     BN = 3
 

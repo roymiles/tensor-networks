@@ -133,6 +133,32 @@ class TuckerNet(INetwork):
                         # No bias term
                         self._weights.set_conv_layer_weights(layer_idx, kernel, None)
 
+                elif isinstance(cur_layer, DepthwiseConvLayer):
+
+                    shape = cur_layer.get_shape()
+                    ranks = conv_ranks[layer_idx]
+                    kernel = Graph("dwconv_{}".format(layer_idx))
+
+                    # Similar to standard convolution but with channel multiplier (M)
+                    # instead of output channels dimension
+                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"])
+                    kernel.add_node("C", shape=[shape[2]], names=["C"])
+                    kernel.add_node("M", shape=[shape[3]], names=["M"])
+                    kernel.add_edge("WH", "G", name="r0", length=ranks[0])
+                    kernel.add_edge("C", "G", name="r1", length=ranks[1])
+                    kernel.add_edge("M", "G", name="r2", length=ranks[2])
+                    kernel.compile()
+
+                    if cur_layer.using_bias():
+                        bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
+                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"])  # Output channels is C x M
+                        bias.compile(initializer=tf.zeros_initializer())
+
+                        self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
+                    else:
+                        # No bias term
+                        self._weights.set_conv_layer_weights(layer_idx, kernel, None)
+
                 elif isinstance(cur_layer, FullyConnectedLayer):
 
                     shape = cur_layer.get_shape()
