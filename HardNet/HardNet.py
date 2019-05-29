@@ -106,7 +106,7 @@ parser.add_argument('--freq', type=float, default=10.0,
                     help='frequency for cyclic learning rate')
 parser.add_argument('--alpha', type=float, default=1.0, metavar='ALPHA',
                     help='gor parameter')
-parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 10.0. Yes, ten is not typo)')
 parser.add_argument('--fliprot', type=str2bool, default=True,
                     help='turns on flip and 90deg rotation augmentation')
@@ -313,7 +313,9 @@ def create_loaders(load_random_triplets=False):
 
 
 def get_new_learning_rate():
-    return args.lr * (1.0 - float(global_step) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
+    new_lr = args.lr * (1.0 - float(global_step) * float(args.batch_size) / (args.n_triplets * float(args.epochs)))
+    print("lr = {}".format(new_lr))
+    return new_lr
 
 
 def train(sess, saver, train_loader, train_op, loss_op, placeholders, epoch, load_triplets=False):
@@ -472,12 +474,16 @@ def main(train_loader, test_loaders, model):
     if args.gor:
         loss_op += args.alpha * global_orthogonal_regularization(out_a, out_n)
 
+    # Add the regularisation terms
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    _lambda = 0.001
+    loss_op += loss_op + _lambda * sum(reg_losses)
+
     # learning_rate = tf.train.exponential_decay(args.lr, global_step, 100000, 1e-6, staircase=True)
     placeholders.learning_rate = tf.placeholder(tf.float32, shape=[])
 
     # TODO: Check this is exactly the same as original HardNet optimizer (weight decay?)
-    train_op = tf.train.MomentumOptimizer(learning_rate=placeholders.learning_rate,
-                                          momentum=0.9, use_nesterov=True).minimize(loss_op)
+    train_op = tf.train.MomentumOptimizer(learning_rate=placeholders.learning_rate, momentum=0.9).minimize(loss_op)
 
     # Save and restore variables
     saver = tf.train.Saver()

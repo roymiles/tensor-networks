@@ -6,27 +6,39 @@ import tensorflow as tf
 class HardNet(IArchitecture):
     # See: https://github.com/DagnyT/hardnet
     def __init__(self):
+        wd = 1e-4  # Weight decay
+        gain = 0.6
         network = [
-            ConvLayer(shape=[3, 3, 1, 32], use_bias=False),
+            ConvLayer(shape=[3, 3, 1, 32], use_bias=False, kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(32, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 32, 32], use_bias=False),
+            ConvLayer(shape=[3, 3, 32, 32], use_bias=False, kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(32, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 32, 64], use_bias=False, strides=[1, 2, 2, 1]),
+            ConvLayer(shape=[3, 3, 32, 64], use_bias=False, strides=[1, 2, 2, 1],
+                      kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(64, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 64, 64], use_bias=False),
+            ConvLayer(shape=[3, 3, 64, 64], use_bias=False, kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(64, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 64, 128], use_bias=False, strides=[1, 2, 2, 1]),
+            ConvLayer(shape=[3, 3, 64, 128], use_bias=False, strides=[1, 2, 2, 1],
+                      kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(128, affine=False),
             ReLU(),
-            ConvLayer(shape=[3, 3, 128, 128], use_bias=False),
+            ConvLayer(shape=[3, 3, 128, 128], use_bias=False, kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(128, affine=False),
             ReLU(),
-            DropoutLayer(0.3),
-            ConvLayer(shape=[8, 8, 128, 128], use_bias=False, padding="VALID"),
+            DropoutLayer(0.1),  # They use 0.3 when lr = 10
+            ConvLayer(shape=[8, 8, 128, 128], use_bias=False, padding="VALID",
+                      kernel_initializer=tf.keras.initializers.Orthogonal(gain),
+                      kernel_regularizer=tf.contrib.layers.l1_regularizer(wd)),
             BatchNormalisationLayer(128, affine=False)
         ]
 

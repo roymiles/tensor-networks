@@ -2,9 +2,10 @@
 
 import tensorflow as tf
 import numpy as np
+import config as conf
 
 
-def export_tflite(sess, input_nodes, output_nodes, optimizations, name):
+def export_tflite_from_session(sess, input_nodes, output_nodes, name, optimizations=None):
     """ Convert a sess graph to .tflite file
         input_nodes and output_nodes are arrays of Tensors for the input
         and output variables
@@ -14,21 +15,33 @@ def export_tflite(sess, input_nodes, output_nodes, optimizations, name):
 
     sess.run(tf.global_variables_initializer())
     converter = tf.lite.TFLiteConverter.from_session(sess, input_nodes, output_nodes)
-    converter.optimizations = optimizations
+
+    if optimizations:
+        converter.optimizations = optimizations
+
     tflite_model = converter.convert()
-    open("{}.tflite".format(name), "wb").write(tflite_model)
+
+    export_path = "{}/{}.pbtxt".format(conf.tflite_dir, name)
+    open(export_path, "wb").write(tflite_model)
+    print("Successfully exported to: {}".format(export_path))
 
 
-def export_tflite(saved_model_dir, optimizations, name):
+def export_tflite_from_saved_model(saved_model_dir, name, optimizations=None):
     """ Convert saved model to tflite
 
+        :param saved_model_dir: Path to the saved model
         :param optimizations: Array of optimizations e.g. [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
         :param name: Name of output tflite file
     """
     converter = tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)
-    converter.optimizations = optimizations
+
+    if optimizations:
+        converter.optimizations = optimizations
+
     tflite_model = converter.convert()
-    open("{}.tflite".format(name), "wb").write(tflite_model)
+    export_path = "{}/{}.pbtxt".format(conf.tflite_dir, name)
+    open(export_path, "wb").write(tflite_model)
+    print("Successfully exported to: {}".format(export_path))
 
 
 def invoke_tflite(model_path, input_data):

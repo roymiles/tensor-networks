@@ -36,16 +36,20 @@ class StandardNetwork(INetwork):
 
                     # A standard network just has a single high dimensional node
                     kernel = Graph("conv_{}".format(layer_idx))
+
                     kernel.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
-                                    names=["W", "H", "C", "N"])
+                                    names=["W", "H", "C", "N"], initializer=cur_layer.kernel_initializer,
+                                    regularizer=cur_layer.kernel_regularizer)
+
                     # Compile/generate the tf.Variables and add to the set of weights
                     kernel.compile()
 
                     if cur_layer.using_bias():
 
                         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
-                        bias.add_node("B", shape=[shape[3]], names=["B"])
-                        bias.compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[3]], names=["B"], initializer=cur_layer.bias_initializer,
+                                      regularizer=cur_layer.bias_regularizer)
+                        bias.compile()
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -58,13 +62,15 @@ class StandardNetwork(INetwork):
                     shape = cur_layer.get_shape()
                     kernel = Graph("dwconv_{}".format(layer_idx))
                     kernel.add_node("WHCM", shape=[shape[0], shape[1], shape[2], shape[3]],
-                                    names=["W", "H", "C", "M"]).compile()
+                                    names=["W", "H", "C", "M"], initializer=cur_layer.kernel_initializer,
+                                    regularizer=cur_layer.kernel_regularizer).compile()
 
                     if cur_layer.using_bias():
 
                         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
-                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"])
-                        bias.compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"],
+                                      initializer=cur_layer.bias_initializer, regularizer=cur_layer.bias_regularizer)
+                        bias.compile()
 
                         self._weights.set_dw_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -95,10 +101,12 @@ class StandardNetwork(INetwork):
 
                     # Create the mean and variance weights
                     mean = Graph("mean_{}".format(layer_idx))
-                    mean.add_node("M", shape=[num_features], names=["M"]).compile(initializer=tf.zeros_initializer())
+                    mean.add_node("M", shape=[num_features], names=["M"],
+                                  initializer=cur_layer.moving_mean_initializer).compile()
 
                     variance = Graph("variance_{}".format(layer_idx))
-                    variance.add_node("V", shape=[num_features], names=["V"]).compile(initializer=tf.ones_initializer())
+                    variance.add_node("V", shape=[num_features], names=["V"],
+                                      initializer=cur_layer.moving_variance_initializer).compile()
 
                     # When NOT affine
                     if not cur_layer.is_affine():
@@ -107,12 +115,12 @@ class StandardNetwork(INetwork):
                     else:
                         # Scale (gamma) and offset (beta) parameters
                         scale = Graph("scale_{}".format(layer_idx))
-                        scale.add_node("S", shape=[num_features], names=["S"])
-                        scale.compile(initializer=tf.ones_initializer())
+                        scale.add_node("S", shape=[num_features], names=["S"], initializer=cur_layer.gamma_initializer)
+                        scale.compile()
 
                         offset = Graph("offset_{}".format(layer_idx))
-                        offset.add_node("O", shape=[num_features], names=["O"])
-                        offset.compile(initializer=tf.zeros_initializer())
+                        offset.add_node("O", shape=[num_features], names=["O"], initializer=cur_layer.beta_initializer)
+                        offset.compile()
 
                     self._weights.set_bn_layer_weights(layer_idx=layer_idx, mean=mean, variance=variance, scale=scale,
                                                        offset=offset)

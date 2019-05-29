@@ -3,12 +3,20 @@ from Layers.layer import ILayer
 
 
 class ConvLayer(ILayer):
-    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
+    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME",
+                 kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
+                 kernel_regularizer=None, bias_regularizer=None):
         super().__init__()
         self._shape = shape
         self._strides = strides
         self._padding = padding
         self._use_bias = use_bias
+
+        # Can't be bothered to make getters for these, just make them public
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
 
     def get_shape(self):
         return self._shape
@@ -49,12 +57,19 @@ class ConvLayerConstant(ILayer):
 class DepthwiseConvLayer(ILayer):
     """ Depthwise convolution
         NOTE: Pointwise convolution uses standard conv layer """
-    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME"):
+    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME",
+                 kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
+                 kernel_regularizer=None, bias_regularizer=None):
         super().__init__()
         self._shape = shape
         self._strides = strides
         self._padding = padding
         self._use_bias = use_bias
+
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
 
     def get_shape(self):
         return self._shape
@@ -157,13 +172,21 @@ class DropoutLayer(ILayer):
 
 
 class BatchNormalisationLayer(ILayer):
-    def __init__(self, num_features, affine=True, variance_epsilon=0.001):
+    def __init__(self, num_features, affine=True, variance_epsilon=0.001, beta_initializer=tf.zeros_initializer(),
+                 gamma_initializer=tf.ones_initializer(), moving_mean_initializer=tf.zeros_initializer(),
+                 moving_variance_initializer=tf.ones_initializer()):
+
         """ If affine is False, the scale and offset parameters won't be used
             When affine=False the output of BatchNorm is equivalent to considering gamma=1 and beta=0 as constants. """
         super().__init__()
         self._num_features = num_features
         self._affine = affine
         self._variance_epsilon = variance_epsilon
+
+        self.beta_initializer = beta_initializer
+        self.gamma_initializer = gamma_initializer
+        self.moving_mean_initializer = moving_mean_initializer
+        self.moving_variance_initializer = moving_variance_initializer
 
     def is_affine(self):
         return self._affine

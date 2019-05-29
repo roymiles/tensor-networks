@@ -17,6 +17,7 @@ import os
 from tqdm import tqdm
 import config as conf
 from base import *
+from tflite import export_tflite_from_session
 
 
 # The info messages are getting tedious now
@@ -32,15 +33,15 @@ print(tf.__version__)
 
 if __name__ == '__main__':
 
-    num_classes = 100
-    dataset_name = 'cifar100'
+    num_classes = 10
+    dataset_name = 'cifar10'
     batch_size = 128
-    num_epochs = 60
+    num_epochs = 1
     initial_learning_rate = 0.1
     switch_list = [0.4, 0.6, 0.8, 1.0]
 
-    architecture = MobileNetV2(num_classes=num_classes)
-    #architecture = CIFARExample(num_classes=num_classes)
+    #architecture = MobileNetV2(num_classes=num_classes)
+    architecture = CIFARExample(num_classes=num_classes)
 
     # See available datasets
     print(tfds.list_builders())
@@ -48,11 +49,18 @@ if __name__ == '__main__':
     # Fetch the dataset directly
     cifar = tfds.builder(dataset_name)
 
+    dl_config = tfds.download.DownloadConfig(extract_dir=conf.tfds_dir, manual_dir=conf.tfds_dir)
+
     # Download the data, prepare it, and write it to disk
-    cifar.download_and_prepare(download_dir=conf.tfds_dir)
+
+    cifar.download_and_prepare(download_dir=conf.tfds_dir, download_config=dl_config)
 
     # Load data from disk as tf.data.Datasets
     datasets = cifar.as_dataset()
+
+    print(datasets)
+    exit()
+
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
@@ -80,7 +88,7 @@ if __name__ == '__main__':
         logits_op = model(input=x)
 
         # temp for mobilenetv2
-        logits_op = tf.reduce_mean(logits_op, axis=[1, 2])
+        #logits_op = tf.reduce_mean(logits_op, axis=[1, 2])
 
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
@@ -193,6 +201,9 @@ if __name__ == '__main__':
 
             acc = sess.run(accuracy, feed_dict)
             print("Accuracy = {}, Switch = {}".format(acc, switch))
+
+    # Export model tflite
+    export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name="cifar")
 
     exit()
     # Get the weights

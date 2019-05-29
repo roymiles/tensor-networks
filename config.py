@@ -10,6 +10,9 @@ log_dir = "/home/roy/Desktop/Tensorboard/"
 # Where checkpoints are saved
 ckpt_dir = "/media/roy/New Volume/Checkpoints/"
 
+# Where tflite files are exported
+tflite_dir = "/media/roy/New Volume/tflite"
+
 # List of all the datasets, for reference
 # ['abstract_reasoning', 'bair_robot_pushing_small', 'caltech101', 'cats_vs_dogs', 'celeb_a', 'celeb_a_hq', 'chexpert',
 # 'cifar10', 'cifar100', 'cifar10_corrupted', 'cnn_dailymail', 'coco2014', 'colorectal_histology',

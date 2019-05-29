@@ -23,13 +23,16 @@ class Graph:
         self._graph = nx.Graph()
         self._name = name
 
-    def add_node(self, u_of_edge, shape, names, shared=False):
+    def add_node(self, u_of_edge, shape, names, initializer=tf.glorot_normal_initializer(), regularizer=None,
+                 shared=False):
         """ Creates a node with dangling edges defined by shape
             Internally, these creates dummy nodes on these dangling edges
 
             :param u_of_edge: Name of the node e.g. "A"
             :param shape: Dimensions of the exposed indices
             :param names: Name of the open indices e.g. "W" for width
+            :param initializer: Initialization strategy
+            :param regularizer: If a regularization term, for example L2 norm, weight decay
             :param shared: (boolean) If the weight is shared across layers """
 
         if self._is_compiled:
@@ -39,13 +42,15 @@ class Graph:
 
         if not self._graph.has_node(u_of_edge):
             # TODO: How can we integrate shared property (share weights across layers)
-            self._graph.add_node(u_of_edge, dummy_node=False, shared=shared)
+            self._graph.add_node(u_of_edge, dummy_node=False, initializer=initializer, regularizer=regularizer,
+                                 shared=shared)
 
         # Create a dummy node for each of the exposed indices
         dummy_node_names = []
         for i in range(len(shape)):
             dummy_node_names.append(random_string())
-            self._graph.add_node(dummy_node_names[i], dummy_node=True, shared=None)
+            self._graph.add_node(dummy_node_names[i], dummy_node=True, initializer=initializer, regularizer=regularizer,
+                                 shared=shared)
 
         # Now connect to the dummy nodes
         for i in range(len(shape)):
@@ -54,7 +59,7 @@ class Graph:
         # So can chain operations
         return self
 
-    def add_edge(self, u_of_edge, v_of_edge, length, name, shared=False):
+    def add_edge(self, u_of_edge, v_of_edge, length, name):
         """
         Adds an edge between two tensors. If these tensors do not exist, it will create them
 
@@ -62,7 +67,6 @@ class Graph:
         :param v_of_edge: Names of the two nodes e.g. "A", "B"
         :param length: Size/length of the edge/dimension
         :param name: Name of the auxilliary index, typically r1, r2 etc
-        :param shared: (boolean) If the nodes are new, make them shared or not
         """
 
         if self._is_compiled:
@@ -70,19 +74,23 @@ class Graph:
 
         # Check if the nodes exist. If they do not, add them.
         # NOTE: Assumes nodes that do not exist are not dummy nodes
+        # NOTE: If you want an initialization, regularizer, shared etc.. make the node first (aka add_node)
         if not self._graph.has_node(u_of_edge):
             # Dummy is always v_of_edge
-            self._graph.add_node(u_of_edge, dummy_node=False, shared=shared)
+            self._graph.add_node(u_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
+                                 regularizer=None, shared=False)
 
         if not self._graph.has_node(v_of_edge):
-            self._graph.add_node(v_of_edge, dummy_node=False, shared=shared)
+            self._graph.add_node(v_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
+                                 regularizer=None, shared=False)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
         return self
 
-    def compile(self, initializer=tf.glorot_normal_initializer(), regularizer=None):
+    def compile(self):
         # variance_regularizor(0)
+        # tf.glorot_normal_initializer()
         """ Create the tf.Variables with the dimensions outlined in the graph """
 
         # Loop through all the _nodes and make appropriate Tensors
@@ -103,9 +111,11 @@ class Graph:
                 if not self._graph.nodes[node]['shared']:
                     scope_name += "{}/".format(self._name)
 
+                init = self._graph.nodes[node]['initializer']
+                reg = self._graph.nodes[node]['regularizer']
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
                     self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
-                                                                       initializer=initializer, regularizer=regularizer)
+                                                                       initializer=init, regularizer=reg)
 
             self._graph.nodes[node]["edge_names"] = edge_names
 
