@@ -236,8 +236,9 @@ class TuckerNet(INetwork):
 
                     # Merge the array of parameters for different switches (of the same layer) into a single tensor
                     # e.g. to access first switch bn_mean[layer_idx][0]
-                    self._weights.set_bn_layer_weights(mean=tf.stack(bn_mean), variance=tf.stack(bn_variance),
-                                                       scale=tf.stack(bn_scale), offset=tf.stack(bn_offset))
+                    self._weights.set_bn_layer_weights(layer_idx, mean=tf.stack(bn_mean),
+                                                       variance=tf.stack(bn_variance), scale=tf.stack(bn_scale),
+                                                       offset=tf.stack(bn_offset))
 
         # All the tf Variables have been created
         self._is_built = True
@@ -275,7 +276,11 @@ class TuckerNet(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
                 c = w["kernel"].combine(switch=switch, reshape=["W", "H", "C", "N"])
-                b = w["bias"].combine()
+
+                if cur_layer.using_bias():
+                    b = w["bias"].combine()
+                else:
+                    b = None
 
                 # Call the function and return the result
                 return cur_layer(input=input, kernel=c, bias=b)
@@ -288,7 +293,11 @@ class TuckerNet(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
                 c = w["kernel"].combine(switch=switch, reshape=["I", "O"])
-                b = w["bias"].combine()
+
+                if cur_layer.using_bias():
+                    b = w["bias"].combine()
+                else:
+                    b = None
 
                 return cur_layer(input=input, kernel=c, bias=b)
 

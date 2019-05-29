@@ -28,9 +28,11 @@ from Losses import loss_HardNet, loss_random_sampling, loss_L2Net, global_orthog
 from W1BS import w1bs_extract_descs_and_save
 from Utils import cv2_scale, np_reshape, str2bool
 import tensorflow as tf
-from Architectures.impl.HardNet import HardNet
+from Architectures.impl.HardNet import HardNet, conv_ranks, fc_ranks
 from Networks.impl.standard import StandardNetwork
+from Networks.impl.tucker_like import TuckerNet
 import config as conf
+from base import tfvar_size
 
 import torch
 import torchvision.datasets as dset
@@ -66,7 +68,7 @@ parser.add_argument('--experiment-name', default='liberty_train/',
                     help='experiment path')
 parser.add_argument('--training-set', default='liberty',
                     help='Other options: notredame, yosemite')
-parser.add_argument('--loss', default='triplet_margin',
+parser.add_argument('--loss', default='triplet_margin',   # triplet-margin is default
                     help='Other options: triplet_margin, softmax, contrastive')
 parser.add_argument('--batch-reduce', default='min',
                     help='Other options: min, average, random, random_global, L2Net')
@@ -495,6 +497,13 @@ def main(train_loader, test_loaders, model):
     config.gpu_options.per_process_gpu_memory_fraction = 0.6
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
+
+        num_params = 0
+        for v in tf.trainable_variables():
+            num_params += tfvar_size(v)
+
+        print("Number of parameters = {}".format(num_params))
+
         # Initialize weights
         sess.run(init_op)
 
@@ -534,8 +543,11 @@ if __name__ == '__main__':
     # Create the architecture
     architecture = HardNet()
     # Use standard network
-    model = StandardNetwork(architecture=architecture)
-    model.build("StandardNetwork_HardNet")
+    #model = StandardNetwork(architecture=architecture)
+    #model.build("StandardNetwork_HardNet")
+
+    model = TuckerNet(architecture=architecture)
+    model.build(conv_ranks, fc_ranks, "TuckerhardNet")
 
     train_loader, test_loaders = create_loaders(load_random_triplets=triplet_flag)
     main(train_loader, test_loaders, model)
