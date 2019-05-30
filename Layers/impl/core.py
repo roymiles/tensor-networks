@@ -61,12 +61,16 @@ class ConvLayerConstant(ILayer):
 class DepthwiseConvLayer(ILayer):
     """ Depthwise convolution
         NOTE: Pointwise convolution uses standard conv layer """
-    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME",
+    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         super().__init__()
+
+        px = strides[0]
+        py = strides[1]
+        self._strides = [1, px, py, 1]
+
         self._shape = shape
-        self._strides = strides
         self._padding = padding
         self._use_bias = use_bias
 
@@ -164,6 +168,15 @@ class MaxPoolingLayer(PoolingLayer):
     def __call__(self, input):
         return tf.nn.max_pool(input, ksize=super(MaxPoolingLayer, self).get_ksize(),
                               strides=super(MaxPoolingLayer, self).get_strides(), padding="SAME")
+
+
+class GlobalAveragePooling:
+    """ Pool over entire spatial dimensions"""
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, input, keep_dims=True):
+        return tf.reduce_mean(input, [1, 2], keep_dims=keep_dims, name='global_pool')
 
 
 class DropoutLayer(ILayer):

@@ -42,10 +42,34 @@ class MobileNetV2(IArchitecture):
 
         return layers[0]
 
-    def __init__(self, num_classes):
+    @staticmethod
+    def expanded_conv(stride, num_outputs):
+        return 1
+
+    def __init__(self, num_classes, depth_multiplier):
+        self._num_classes = num_classes
+        self._depth_multiplier = depth_multiplier
+
         network = [
-            # Pre
-            ConvLayer(shape=[3, 3,  3, 3], strides=[2, 2], use_bias=False),
+            ConvLayer(shape=[3, 3, 3, 32], strides=[2, 2]),
+            *MobileNetV2.expanded_conv(stride=2, num_outputs=24),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=24),
+            *MobileNetV2.expanded_conv(stride=2, num_outputs=32),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=32),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=32),
+            *MobileNetV2.expanded_conv(stride=2, num_outputs=64),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=64),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=64),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=64),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=96),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=96),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=96),
+            *MobileNetV2.expanded_conv(stride=2, num_outputs=160),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=160),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=160),
+            *MobileNetV2.expanded_conv(stride=1, num_outputs=320),
+            ConvLayer(shape=[1, 1, 3, 1280]),
+
             BatchNormalisationLayer(32),
             ReLU6(),
 

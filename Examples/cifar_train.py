@@ -4,8 +4,8 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.CIFARExample import CIFARExample, fc_ranks, conv_ranks
-from Architectures.impl.MobileNetV1 import MobileNetV1
+from Architectures.impl.CIFARExample import CIFARExample
+from Architectures.impl.MobileNetV1 import MobileNetV1, training_params
 from Architectures.impl.MobileNetV2 import MobileNetV2
 from Networks.impl.tucker_like import TuckerNet
 from Networks.impl.standard import StandardNetwork
@@ -35,13 +35,12 @@ if __name__ == '__main__':
 
     num_classes = 10
     dataset_name = 'cifar10'
-    batch_size = 128
+    batch_size = training_params["batch_size"]
     num_epochs = 12
-    initial_learning_rate = 0.1
     switch_list = [0.4, 0.6, 0.8, 1.0]
 
-    #architecture = MobileNetV2(num_classes=num_classes)
-    architecture = CIFARExample(num_classes=num_classes)
+    architecture = MobileNetV1(num_classes=num_classes)
+    # architecture = CIFARExample(num_classes=num_classes)
 
     # See available datasets
     print(tfds.list_builders())
@@ -72,11 +71,11 @@ if __name__ == '__main__':
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
 
-    use_tucker = True
+    use_tucker = False
     if use_tucker:
         model = TuckerNet(architecture=architecture)
-        model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=switch_list,
-                    name="MyTuckerNetwork")
+        model.build(conv_ranks=training_params["conv_ranks"], fc_ranks=training_params["fc_ranks"],
+                    switch_list=switch_list, name="MyTuckerNetwork")
         logits_op = model(input=x, switch_idx=switch_idx)
     else:
         print("Using StandardNet")
@@ -84,19 +83,12 @@ if __name__ == '__main__':
         model.build("MyStandardNetwork")
         logits_op = model(input=x)
 
-        # temp for mobilenetv2
-        #logits_op = tf.reduce_mean(logits_op, axis=[1, 2])
-
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
 
     # Add the regularisation terms
-    #reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    #_lambda = 0.01  # Scaling factor
-    #loss_op += loss_op + _lambda * sum(reg_losses)
-
-    print(y)
-    print(logits_op)
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    loss_op += loss_op + sum(reg_losses)
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -104,18 +96,12 @@ if __name__ == '__main__':
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step,
-                                               100000, 1e-6, staircase=True)
-
-    optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate,
-                                           momentum=0.9,
-                                           use_nesterov=True)
     # optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
-    train_op = optimizer.minimize(loss_op, global_step=global_step)
+    train_op = training_params["optimizer"].minimize(loss_op, global_step=global_step)
     init_op = tf.global_variables_initializer()
 
     # Help for debugging nan gradients
-    grads_and_vars = optimizer.compute_gradients(loss_op)
+    grads_and_vars = training_params["optimizer"].compute_gradients(loss_op)
     # print(grads_and_vars[-4][1].name)
     # exit()
 
@@ -143,9 +129,6 @@ if __name__ == '__main__':
         num_params += tfvar_size(v)
 
     print("Number of parameters = {}".format(num_params))
-    #exit()
-    # for debugging
-    # w = model.get_weights()
 
     for epoch in tqdm(range(num_epochs)):
 
