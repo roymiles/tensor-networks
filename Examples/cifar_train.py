@@ -4,7 +4,7 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.CIFARExample import CIFARExample
+from Architectures.impl.CIFARExample import CIFARExample, fc_ranks, conv_ranks
 from Architectures.impl.MobileNetV1 import MobileNetV1
 from Architectures.impl.MobileNetV2 import MobileNetV2
 from Networks.impl.tucker_like import TuckerNet
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     num_classes = 10
     dataset_name = 'cifar10'
     batch_size = 128
-    num_epochs = 1
+    num_epochs = 12
     initial_learning_rate = 0.1
     switch_list = [0.4, 0.6, 0.8, 1.0]
 
@@ -47,19 +47,16 @@ if __name__ == '__main__':
     print(tfds.list_builders())
 
     # Fetch the dataset directly
-    cifar = tfds.builder(dataset_name)
-
-    dl_config = tfds.download.DownloadConfig(extract_dir=conf.tfds_dir, manual_dir=conf.tfds_dir)
+    # cifar = tfds.builder(dataset_name)
 
     # Download the data, prepare it, and write it to disk
-
-    cifar.download_and_prepare(download_dir=conf.tfds_dir, download_config=dl_config)
+    # cifar.download_and_prepare(download_dir=conf.tfds_dir, download_config=dl_config)
 
     # Load data from disk as tf.data.Datasets
-    datasets = cifar.as_dataset()
+    # datasets = cifar.as_dataset()
 
-    print(datasets)
-    exit()
+    # Already downloaded
+    datasets = tfds.load(dataset_name, data_dir=conf.tfds_dir)
 
     ds_train, ds_test = datasets['train'], datasets['test']
 
@@ -75,7 +72,7 @@ if __name__ == '__main__':
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
 
-    use_tucker = False
+    use_tucker = True
     if use_tucker:
         model = TuckerNet(architecture=architecture)
         model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=switch_list,
@@ -142,10 +139,11 @@ if __name__ == '__main__':
 
     num_params = 0
     for v in tf.trainable_variables():
+        print(v)
         num_params += tfvar_size(v)
 
     print("Number of parameters = {}".format(num_params))
-
+    #exit()
     # for debugging
     # w = model.get_weights()
 
@@ -157,8 +155,6 @@ if __name__ == '__main__':
 
             # Normalise in range [0, 1)
             images = images / 255.0
-
-            # print("im: {}".format(images[0, 0, :, 0]))
 
             # One hot encode
             labels = np.eye(num_classes)[labels]
@@ -178,7 +174,6 @@ if __name__ == '__main__':
 
             # if step % 10 == 0:
             # train_writer.add_summary(summary, step)
-
             if step % 100 == 0:
                 print("Epoch: {}, Step {}, Loss: {}, Switch: {}".format(epoch, step, loss, switch))
 

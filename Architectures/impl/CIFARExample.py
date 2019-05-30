@@ -6,14 +6,14 @@ from Layers.impl.core import ConvLayer, ReLU, MaxPoolingLayer, DropoutLayer, Fla
 # These hyperparameters control the compression
 # of the convolutional and fully connected weights
 conv_ranks = {
-    0: [6, 8, 16],
-    2: [6, 16, 16],
-    6: [6, 16, 32],
+    0: [6, 32, 32],
+    2: [6, 32, 32],
+    6: [6, 32, 32],
     8: [6, 32, 32]
 }
 fc_ranks = {
-    13: [128, 128],
-    16: [128, 64]
+    13: [52, 52],
+    16: [52, 52]
 }
 
 

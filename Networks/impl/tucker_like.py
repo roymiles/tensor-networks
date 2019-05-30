@@ -111,9 +111,14 @@ class TuckerNet(INetwork):
                     kernel = Graph("conv_{}".format(layer_idx))
 
                     # Add the nodes w/ exposed indices
-                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"])
-                    kernel.add_node("C", shape=[shape[2]], names=["C"])
-                    kernel.add_node("N", shape=[shape[3]], names=["N"])
+                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    kernel.add_node("C", shape=[shape[2]], names=["C"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    kernel.add_node("N", shape=[shape[3]], names=["N"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    #kernel.add_node("G", shape=[ranks[0], ranks[1], ranks[2]], names=["r0", "r1", "r2"],
+                    #                collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
 
                     # Auxiliary indices
                     kernel.add_edge("WH", "G", name="r0", length=ranks[0])
@@ -125,8 +130,9 @@ class TuckerNet(INetwork):
 
                     if cur_layer.using_bias():
                         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
-                        bias.add_node("B", shape=[shape[3]], names=["B"])
-                        bias.compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[3]], names=["B"], initializer=tf.zeros_initializer(),
+                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])
+                        bias.compile()
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -141,9 +147,15 @@ class TuckerNet(INetwork):
 
                     # Similar to standard convolution but with channel multiplier (M)
                     # instead of output channels dimension
-                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"])
-                    kernel.add_node("C", shape=[shape[2]], names=["C"])
-                    kernel.add_node("M", shape=[shape[3]], names=["M"])
+                    kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    kernel.add_node("C", shape=[shape[2]], names=["C"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    kernel.add_node("M", shape=[shape[3]], names=["M"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    #kernel.add_node("G", shape=[ranks[0], ranks[1], ranks[2]], names=["r0", "r1", "r2"],
+                    #                collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+
                     kernel.add_edge("WH", "G", name="r0", length=ranks[0])
                     kernel.add_edge("C", "G", name="r1", length=ranks[1])
                     kernel.add_edge("M", "G", name="r2", length=ranks[2])
@@ -151,8 +163,10 @@ class TuckerNet(INetwork):
 
                     if cur_layer.using_bias():
                         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
-                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"])  # Output channels is C x M
-                        bias.compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"],
+                                      initializer=tf.zeros_initializer(),
+                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])  # Output channels is C x M
+                        bias.compile()
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -167,19 +181,24 @@ class TuckerNet(INetwork):
                     kernel = Graph("fc_{}".format(layer_idx))
 
                     # Nodes..
-                    kernel.add_node("I", shape=[shape[0]], names=["I"])
-                    kernel.add_node("O", shape=[shape[1]], names=["O"])
+                    kernel.add_node("I", shape=[shape[0]], names=["I"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    kernel.add_node("O", shape=[shape[1]], names=["O"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    #kernel.add_node("G", shape=[ranks[0], ranks[1]], names=["r0", "r1"],
+                    #                collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
 
                     # Auxiliary indices
-                    kernel.add_edge("I", "G", name="r0", length=ranks[0])
-                    kernel.add_edge("O", "G", name="r1", length=ranks[1])
+                    kernel.add_edge("I", "G1", name="r0", length=ranks[0])
+                    kernel.add_edge("O", "G1", name="r1", length=ranks[1])
 
                     # Compile the graph and add to the set of weights
                     kernel.compile()
 
                     if cur_layer.using_bias():
                         bias = Graph("bias_{}".format(layer_idx))  # I x O
-                        bias.add_node("B", shape=[shape[1]], names=["B"]).compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[1]], names=["B"], initializer=tf.zeros_initializer(),
+                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
 
                         self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
                     else:

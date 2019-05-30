@@ -24,7 +24,7 @@ class Graph:
         self._name = name
 
     def add_node(self, u_of_edge, shape, names, initializer=tf.glorot_normal_initializer(), regularizer=None,
-                 shared=False):
+                 shared=False, collections=None):
         """ Creates a node with dangling edges defined by shape
             Internally, these creates dummy nodes on these dangling edges
 
@@ -33,7 +33,8 @@ class Graph:
             :param names: Name of the open indices e.g. "W" for width
             :param initializer: Initialization strategy
             :param regularizer: If a regularization term, for example L2 norm, weight decay
-            :param shared: (boolean) If the weight is shared across layers """
+            :param shared: (boolean) If the weight is shared across layers
+            :param collections: Used if you want to group tensorflow variables """
 
         if self._is_compiled:
             raise Exception("Unable to add more edge/nodes once the graph is compiled")
@@ -43,14 +44,14 @@ class Graph:
         if not self._graph.has_node(u_of_edge):
             # TODO: How can we integrate shared property (share weights across layers)
             self._graph.add_node(u_of_edge, dummy_node=False, initializer=initializer, regularizer=regularizer,
-                                 shared=shared)
+                                 shared=shared, collections=collections)
 
         # Create a dummy node for each of the exposed indices
         dummy_node_names = []
         for i in range(len(shape)):
             dummy_node_names.append(random_string())
-            self._graph.add_node(dummy_node_names[i], dummy_node=True, initializer=initializer, regularizer=regularizer,
-                                 shared=shared)
+            self._graph.add_node(dummy_node_names[i], dummy_node=True, initializer=None, regularizer=None,
+                                 shared=None, collections=None)
 
         # Now connect to the dummy nodes
         for i in range(len(shape)):
@@ -78,11 +79,11 @@ class Graph:
         if not self._graph.has_node(u_of_edge):
             # Dummy is always v_of_edge
             self._graph.add_node(u_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
-                                 regularizer=None, shared=False)
+                                 regularizer=None, shared=True, collections=None)
 
         if not self._graph.has_node(v_of_edge):
             self._graph.add_node(v_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
-                                 regularizer=None, shared=False)
+                                 regularizer=None, shared=True, collections=None)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
@@ -113,9 +114,11 @@ class Graph:
 
                 init = self._graph.nodes[node]['initializer']
                 reg = self._graph.nodes[node]['regularizer']
+                collections = self._graph.nodes[node]['collections']
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
                     self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
-                                                                       initializer=init, regularizer=reg)
+                                                                       initializer=init, regularizer=reg,
+                                                                       collections=collections)
 
             self._graph.nodes[node]["edge_names"] = edge_names
 
@@ -385,7 +388,7 @@ class Graph:
             # Compress the factors using switch, effectively only use a percentage across this index
             # The size of the dimension after compression (just multiply by switch)
             d = tf.dtypes.cast(switch * u_shape[i], dtype=tf.int32)
-            # print("{} -> {}".format(u_shape[i], d))
+            print("{} -> {}".format(u_shape[i], d))
             # assert d > 0, "Compressing a bit too much on this index"
             widths.append(d)
 

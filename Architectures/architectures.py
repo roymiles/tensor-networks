@@ -17,3 +17,6 @@ class IArchitecture:
 
     def get_layer(self, layer_idx):
         return self._network[layer_idx]
+
+    def get_network(self):
+        return self._network

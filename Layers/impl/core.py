@@ -3,12 +3,16 @@ from Layers.layer import ILayer
 
 
 class ConvLayer(ILayer):
-    def __init__(self, shape, strides=[1, 1, 1, 1], use_bias=True, padding="SAME",
+    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         super().__init__()
+
+        px = strides[0]
+        py = strides[1]
+        self._strides = [1, px, py, 1]
+
         self._shape = shape
-        self._strides = strides
         self._padding = padding
         self._use_bias = use_bias
 
@@ -215,6 +219,14 @@ class ReLU6(ILayer):
 
     def __call__(self, input):
         return tf.nn.relu6(input)
+
+
+class hswish(ILayer):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, x):
+        return x * tf.nn.relu6(x + 3) / 6
 
 
 class SoftMax(ILayer):

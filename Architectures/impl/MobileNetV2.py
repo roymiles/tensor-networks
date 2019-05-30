@@ -45,7 +45,7 @@ class MobileNetV2(IArchitecture):
     def __init__(self, num_classes):
         network = [
             # Pre
-            ConvLayer(shape=[1, 1,  3, 32]),
+            ConvLayer(shape=[3, 3,  3, 3], strides=[2, 2], use_bias=False),
             BatchNormalisationLayer(32),
             ReLU6(),
 
@@ -68,3 +68,6 @@ class MobileNetV2(IArchitecture):
         ]
 
         super().__init__(network)
+
+    def print(self):
+        print(self.get_network())

@@ -39,7 +39,8 @@ class StandardNetwork(INetwork):
 
                     kernel.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
                                     names=["W", "H", "C", "N"], initializer=cur_layer.kernel_initializer,
-                                    regularizer=cur_layer.kernel_regularizer)
+                                    regularizer=cur_layer.kernel_regularizer,
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
 
                     # Compile/generate the tf.Variables and add to the set of weights
                     kernel.compile()
@@ -48,7 +49,8 @@ class StandardNetwork(INetwork):
 
                         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
                         bias.add_node("B", shape=[shape[3]], names=["B"], initializer=cur_layer.bias_initializer,
-                                      regularizer=cur_layer.bias_regularizer)
+                                      regularizer=cur_layer.bias_regularizer,
+                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])
                         bias.compile()
 
                         self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
@@ -63,13 +65,15 @@ class StandardNetwork(INetwork):
                     kernel = Graph("dwconv_{}".format(layer_idx))
                     kernel.add_node("WHCM", shape=[shape[0], shape[1], shape[2], shape[3]],
                                     names=["W", "H", "C", "M"], initializer=cur_layer.kernel_initializer,
-                                    regularizer=cur_layer.kernel_regularizer).compile()
+                                    regularizer=cur_layer.kernel_regularizer,
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"]).compile()
 
                     if cur_layer.using_bias():
 
                         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
                         bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"],
-                                      initializer=cur_layer.bias_initializer, regularizer=cur_layer.bias_regularizer)
+                                      initializer=cur_layer.bias_initializer, regularizer=cur_layer.bias_regularizer,
+                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])
                         bias.compile()
 
                         self._weights.set_dw_conv_layer_weights(layer_idx, kernel, bias)
@@ -83,12 +87,14 @@ class StandardNetwork(INetwork):
 
                     # Create single node, compile the graph and then add to the set of weights
                     kernel = Graph("fc_{}".format(layer_idx))
-                    kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"]).compile()
+                    kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"],
+                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"]).compile()
 
                     if cur_layer.using_bias():
 
                         bias = Graph("bias_{}".format(layer_idx))  # I x O
-                        bias.add_node("B", shape=[shape[1]], names=["B"]).compile(initializer=tf.zeros_initializer())
+                        bias.add_node("B", shape=[shape[1]], names=["B"], initializer=tf.zeros_initializer(),
+                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
 
                         self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
                     else:
@@ -214,6 +220,8 @@ class StandardNetwork(INetwork):
         net = kwargs['input']
         tf.summary.image("input", net)
         del kwargs['input']  # Don't want input in kwargs
+
+        # TODO: Employ residual connections here
         for n in range(self.get_num_layers()):
             net = self.run_layer(input=net, layer_idx=n, name="layer_{}".format(n), **kwargs)
 

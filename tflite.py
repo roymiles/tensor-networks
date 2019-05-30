@@ -15,6 +15,7 @@ def export_tflite_from_session(sess, input_nodes, output_nodes, name, optimizati
 
     sess.run(tf.global_variables_initializer())
     converter = tf.lite.TFLiteConverter.from_session(sess, input_nodes, output_nodes)
+    converter.allow_custom_ops = True
 
     if optimizations:
         converter.optimizations = optimizations
@@ -34,6 +35,7 @@ def export_tflite_from_saved_model(saved_model_dir, name, optimizations=None):
         :param name: Name of output tflite file
     """
     converter = tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)
+    converter.allow_custom_ops = True
 
     if optimizations:
         converter.optimizations = optimizations

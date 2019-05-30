@@ -4,7 +4,8 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.MobileNetV1 import MobileNetV1, fc_ranks, conv_ranks
+from Architectures.impl.MobileNetV1 import MobileNetV1
+from Architectures.impl.MobileNetV2 import MobileNetV2, fc_ranks, conv_ranks
 from Networks.impl.tucker_like import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
@@ -25,48 +26,63 @@ print(tf.__version__)
 
 if __name__ == '__main__':
 
+    # Currently all set for MobileNetV2
+
     num_classes = 1000
     dataset_name = 'imagenet2012'
-    batch_size = 128
+    batch_size = 96
     num_epochs = 60
-    initial_learning_rate = 0.1
+    initial_learning_rate = 0.045
     switch_list = [0.4, 0.6, 0.8, 1.0]
+    decay = 0.9
+    momentum = 0.9
+    # Weight decay
+    wd = 0.00004
 
-z    # See available datasets
+    # Image width and heights
+    width = 224
+    height = 224
+
+    architecture = MobileNetV2(num_classes=num_classes)
+    architecture.print()
+
+    # See available datasets
     print(tfds.list_builders())
 
     # Fetch the dataset directly
-    imagenet = tfds.builder(dataset_name)
+    # imagenet = tfds.builder(dataset_name)
 
     # Download the data, prepare it, and write it to disk
-    imagenet.download_and_prepare(download_dir=conf.tfds_dir)
+    # imagenet.download_and_prepare(download_dir=conf.tfds_dir, download_config=dl_config)
 
     # Load data from disk as tf.data.Datasets
-    datasets = imagenet.as_dataset()
+    # datasets = imagenet.as_dataset()
+
+    # Already downloaded
+    datasets = tfds.load(dataset_name, data_dir=conf.tfds_dir)
 
     ds_train, ds_test = datasets['train'], datasets['validation']
 
     # Needed to fix inconsistent spatial sizes of images in a batch
     def preprocess_data(data):
-        print(data['image'])
-        exit()
-        data['image'] = tf.image.resize_images(data['image'], size=[224, 224])
+        data['image'] = tf.image.resize_image_with_crop_or_pad(data['image'], width, height)
         return data
 
     # Build your input pipeline
-    ds_train = ds_train.batch(batch_size).prefetch(1000).map(preprocess_data)
+    ds_train = ds_train.map(preprocess_data).batch(batch_size).prefetch(1000)
     print(ds_train)
 
     # No batching just use entire test data
-    ds_test = ds_test.batch(2000)
+    ds_test = ds_test.map(preprocess_data).batch(batch_size).prefetch(1000)
 
     with tf.variable_scope("input"):
-        x = tf.placeholder(tf.float32, shape=[None, None, None, 3])
-        y = tf.placeholder(tf.float32, shape=[None, num_classes])
+        x = tf.placeholder(tf.float32, shape=[batch_size, width, height, 3])
+        y = tf.placeholder(tf.float32, shape=[batch_size, num_classes])
         # The current switch being used for inference (from switch_list)
         switch_idx = tf.placeholder(tf.int32, shape=[])
+        learning_rate = tf.placeholder(tf.float32, shape=[])
 
-    use_tucker = True
+    use_tucker = False
     if use_tucker:
         model = TuckerNet(architecture=architecture)
         model.build(conv_ranks=conv_ranks, fc_ranks=fc_ranks, switch_list=switch_list,
@@ -78,8 +94,22 @@ z    # See available datasets
         model.build("MyStandardNetwork")
         logits_op = model(input=x)
 
+    print(y)
+    print(logits_op)
+
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
+
+    # Weight decay using collections
+    weights_norm = tf.reduce_sum(
+        input_tensor=wd * tf.stack(
+            [tf.nn.l2_loss(i) for i in tf.get_collection('weights')]
+        ),
+        name='weights_norm'
+    )
+
+    # Add the regularisation term
+    loss_op += weights_norm
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -87,19 +117,13 @@ z    # See available datasets
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step,
-                                               100000, 1e-6, staircase=True)
-
-    optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate,
-                                           momentum=0.9,
-                                           use_nesterov=True)
-    # optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
+    optimizer = tf.train.RMSPropOptimizer(learning_rate=learning_rate, decay=decay, momentum=momentum)
     train_op = optimizer.minimize(loss_op, global_step=global_step)
     init_op = tf.global_variables_initializer()
 
     # Create session and initialize weights
     config = tf.ConfigProto(
-        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
     )
     sess = tf.Session(config=config)
     sess.run(init_op)
@@ -117,14 +141,12 @@ z    # See available datasets
     # model.num_parameters()
     print("Number of parameters = {}".format(num_params))
 
-    # for debugging
-    # w = model.get_weights()
+    lr = initial_learning_rate
 
     for epoch in tqdm(range(num_epochs)):
 
         # Training
         for batch in tfds.as_numpy(ds_train):
-            print("uhuh")
             images, labels = batch['image'], batch['label']
 
             # Normalise in range [0, 1)
@@ -137,20 +159,21 @@ z    # See available datasets
             i = random.randrange(len(switch_list))
             switch = switch_list[i]
 
-            print(images)
-            exit()
-
             feed_dict = {
                 x: images,
                 y: labels,
-                switch_idx: i
+                switch_idx: i,
+                learning_rate: lr
             }
 
             fetches = [global_step, train_op, loss_op, merged]
             step, _, loss, summary = sess.run(fetches, feed_dict)
 
             if step % 100 == 0:
-                print("Epoch: {}, Step {}, Loss: {}, Switch: {}".format(epoch, step, loss, switch))
+                print("Epoch: {}, Step {}, Loss: {}, Switch: {}, lr: {}".format(epoch, step, loss, switch, lr))
+
+        # Learning rate decay of 0.98 per epoch
+        lr = lr * 0.98
 
     # Testing (after training)
     for i, switch in enumerate(switch_list):
