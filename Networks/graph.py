@@ -79,11 +79,11 @@ class Graph:
         if not self._graph.has_node(u_of_edge):
             # Dummy is always v_of_edge
             self._graph.add_node(u_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
-                                 regularizer=None, shared=True, collections=None)
+                                 regularizer=None, shared=None, collections=None)
 
         if not self._graph.has_node(v_of_edge):
             self._graph.add_node(v_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
-                                 regularizer=None, shared=True, collections=None)
+                                 regularizer=None, shared=None, collections=None)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 

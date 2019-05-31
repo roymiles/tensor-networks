@@ -331,17 +331,30 @@ class TuckerNet(INetwork):
                 # These layers are not overridden
                 return INetwork.run_layer(cur_layer, input=input)
 
-    def __call__(self, input, switch_idx=0):
+    def __call__(self, input, switch_idx=0, dense_connect=True):
         """ Complete forward pass for the entire network
 
-            :param
-                input: The input to the network e.g. a batch of images
-                switch_idx: Index for switch_list, controls the compression of the network
+            :param input: The input to the network e.g. a batch of images
+            :param switch_idx: Index for switch_list, controls the compression of the network
+                               (default, just call first switch)
+            :param dense_connect: Densely connect all layers (as per DenseNet)
         """
 
         # Loop through all the layers
-        net = input
-        for n in range(self.get_num_layers()):
-            net = self.run_layer(net, switch_idx=switch_idx, layer_idx=n, name="layer_{}".format(n))
+        if dense_connect:
 
-        return net
+            # Densely connected network - combined through concatenation
+            net = [input]  # Store all layer outputs
+            for n in range(self.get_num_layers()):
+                inp = tf.stack(net, axis=2)
+                out = self.run_layer(inp, switch_idx=switch_idx, layer_idx=n, name="layer_{}".format(n))
+                net.append(out)
+
+            return net
+
+        else:
+            net = input
+            for n in range(self.get_num_layers()):
+                net = self.run_layer(net, switch_idx=switch_idx, layer_idx=n, name="layer_{}".format(n))
+
+            return net

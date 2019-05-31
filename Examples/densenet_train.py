@@ -4,9 +4,7 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.CIFARExample import CIFARExample
-from Architectures.impl.MobileNetV1 import MobileNetV1, training_params
-from Architectures.impl.MobileNetV2 import MobileNetV2
+from Architectures.impl.DenseNet import TransitionLayer, DenseBlock
 from Networks.impl.tucker_like import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
@@ -35,24 +33,9 @@ if __name__ == '__main__':
 
     num_classes = 10
     dataset_name = 'cifar10'
-    batch_size = training_params["batch_size"]
+    batch_size = 64
     num_epochs = 12
     switch_list = [1.0]
-
-    architecture = MobileNetV1(num_classes=num_classes)
-    # architecture = CIFARExample(num_classes=num_classes)
-
-    # See available datasets
-    print(tfds.list_builders())
-
-    # Fetch the dataset directly
-    # cifar = tfds.builder(dataset_name)
-
-    # Download the data, prepare it, and write it to disk
-    # cifar.download_and_prepare(download_dir=conf.tfds_dir, download_config=dl_config)
-
-    # Load data from disk as tf.data.Datasets
-    # datasets = cifar.as_dataset()
 
     # Already downloaded
     datasets = tfds.load(dataset_name, data_dir=conf.tfds_dir)
@@ -68,23 +51,70 @@ if __name__ == '__main__':
     with tf.variable_scope("input"):
         x = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
         y = tf.placeholder(tf.float32, shape=[None, num_classes])
-        # The current switch being used for inference (from switch_list)
-        switch_idx = tf.placeholder(tf.int32, shape=[])
 
-    use_tucker = False
-    if use_tucker:
-        model = TuckerNet(architecture=architecture)
-        model.build(conv_ranks=training_params["conv_ranks"], fc_ranks=training_params["fc_ranks"],
-                    switch_list=switch_list, name="MyTuckerNetwork")
-        logits_op = model(input=x, switch_idx=switch_idx)
-    else:
-        print("Using StandardNet")
-        model = StandardNetwork(architecture=architecture)
-        model.build("MyStandardNetwork")
-        logits_op = model(input=x)
+    # ----- CREATE THE DENSE NET ----- #
 
-    # Because before ? x 1 x 1 x ?
-    logits_op = logits_op[:, 0, 0, :]
+    # Growth rate
+    k = 12
+    net = tf.keras.layers.BatchNormalization()(x)
+    net = tf.nn.relu(net)
+    net = tf.keras.layers.Conv2D(filters=k, kernel_size=(7, 7))(net)
+    net = tf.keras.layers.MaxPool2D(pool_size=(2, 2))(net)
+
+    print("in {}".format(net))
+    d1 = DenseBlock(n=6,   # Number of layers
+                    k0=k,  # Input dims
+                    k=k)   # Growth rate
+    model1 = StandardNetwork(architecture=d1)
+    model1.build("DenseBlock1")
+    net = model1(input=net)
+    print("out {}".format(net))
+    c = d1.get_output_dim()
+    exit()
+
+    t1 = TransitionLayer(k=c)
+    model2 = StandardNetwork(architecture=t1)
+    model2.build("TransitionLayer1")
+    net = model2(input=net)
+    # Does not affect output dims
+
+    d2 = DenseBlock(n=12, k0=c, k=k)
+    model3 = StandardNetwork(architecture=d2)
+    model3.build("DenseBlock2")
+    net = model3(input=net)
+    c = d2.get_output_dim()
+
+    t2 = TransitionLayer(k=c)
+    model4 = StandardNetwork(architecture=t2)
+    model4.build("TransitionLayer2")
+    net = model4(input=net)
+
+    d3 = DenseBlock(n=32, k0=c, k=k)
+    model5 = StandardNetwork(architecture=d3)
+    model5.build("DenseBlock3")
+    net = model5(input=net)
+    c = d3.get_output_dim()
+
+    t3 = TransitionLayer(k=c)
+    model6 = StandardNetwork(architecture=t3)
+    model6.build("TransitionLayer2")
+    net = model6(input=net)
+
+    # Global average pool
+    net = tf.reduce_mean(net, [1, 2], keep_dims=True, name='global_pool')
+
+    # 1000D Fully connected layer
+    logits_op = tf.contrib.layers.fully_connected(net, 1000)
+
+    # ----- FIN ----- #
+
+    num_params = 0
+    for v in tf.trainable_variables():
+        print(v)
+        num_params += tfvar_size(v)
+
+    print("Number of parameters = {}".format(num_params))
+    exit()
 
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
@@ -125,13 +155,6 @@ if __name__ == '__main__':
     log_dir = conf.log_dir + dataset_name
     train_writer = tf.summary.FileWriter(log_dir, sess.graph)
     print("Run: \"tensorboard --logdir={}\"".format(log_dir))
-
-    num_params = 0
-    for v in tf.trainable_variables():
-        print(v)
-        num_params += tfvar_size(v)
-
-    print("Number of parameters = {}".format(num_params))
 
     for epoch in tqdm(range(num_epochs)):
 

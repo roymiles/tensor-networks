@@ -150,9 +150,11 @@ class StandardNetwork(INetwork):
             if isinstance(cur_layer, ConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
+
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
 
                 c = w["kernel"].combine()
+                print("c = {}".format(c))
 
                 if cur_layer.using_bias():
                     b = w["bias"].combine()
@@ -207,22 +209,35 @@ class StandardNetwork(INetwork):
                 return act
             else:
                 # These layers are not overridden
+                print("Woah, are you sure you should be here with: {}?".format(cur_layer))
                 return INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
 
-    def __call__(self, **kwargs):
+    def __call__(self, input, switch_idx=0, dense_connect=True):
         """ Complete forward pass for the entire network
 
-            :return net: Result from forward pass"""
-
-        self._weights.debug()
+            :param input: The input to the network e.g. a batch of images
+            :param switch_idx: Index for switch_list, controls the compression of the network
+                               (default, just call first switch)
+            :param dense_connect: Densely connect all layers (as per DenseNet)
+        """
 
         # Loop through all the layers
-        net = kwargs['input']
-        tf.summary.image("input", net)
-        del kwargs['input']  # Don't want input in kwargs
+        if dense_connect:
 
-        # TODO: Employ residual connections here
-        for n in range(self.get_num_layers()):
-            net = self.run_layer(input=net, layer_idx=n, name="layer_{}".format(n), **kwargs)
+            # Densely connected network - combined through concatenation
+            net = [input]  # Store all layer outputs
+            for n in range(self.get_num_layers()):
+                print("net: {}".format(net))
+                inp = tf.concat(net, axis=3)
+                print("inp: {}".format(inp))
+                out = self.run_layer(input=inp, layer_idx=n, name="layer_{}".format(n))
+                net.append(out)
 
-        return net
+            return net
+
+        else:
+            net = input
+            for n in range(self.get_num_layers()):
+                net = self.run_layer(input=net, layer_idx=n, name="layer_{}".format(n))
+
+            return net
