@@ -16,6 +16,7 @@ class TransitionLayer(IArchitecture):
 
         :param k0: Number of input channels
         """
+        print("k0 = {}".format(k0))
         network = [
             BatchNormalisationLayer(k0),
             ReLU(),
@@ -36,10 +37,9 @@ class DenseBlock(IArchitecture):
         """
 
         c = k0
-        print("Input dim {}".format(c))
         network = []
         for _ in range(n):
-            print("c = {}, k = {}".format(c, k))
+            print("c = {}".format(c))
             _net = [
                 BatchNormalisationLayer(c),
                 ReLU(),

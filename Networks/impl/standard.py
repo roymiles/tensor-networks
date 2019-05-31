@@ -145,8 +145,6 @@ class StandardNetwork(INetwork):
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             cur_layer = self.get_architecture().get_layer(layer_idx)
 
-            print(cur_layer)
-
             if isinstance(cur_layer, ConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
@@ -154,7 +152,6 @@ class StandardNetwork(INetwork):
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
 
                 c = w["kernel"].combine()
-                print("c = {}".format(c))
 
                 if cur_layer.using_bias():
                     b = w["bias"].combine()
@@ -224,16 +221,28 @@ class StandardNetwork(INetwork):
         # Loop through all the layers
         if dense_connect:
 
+            out = None
             # Densely connected network - combined through concatenation
             net = [input]  # Store all layer outputs
             for n in range(self.get_num_layers()):
-                print("net: {}".format(net))
-                inp = tf.concat(net, axis=3)
-                print("inp: {}".format(inp))
-                out = self.run_layer(input=inp, layer_idx=n, name="layer_{}".format(n))
-                net.append(out)
+                cur_layer = self.get_architecture().get_layer(n)
 
-            return net
+                if isinstance(cur_layer, ConvLayer):
+                    inp = tf.concat(net, axis=3)
+                else:
+                    # Just the output from the previous layer
+                    if out is not None:
+                        inp = out
+                    else:
+                        inp = input
+
+                out = self.run_layer(input=inp, layer_idx=n, name="layer_{}".format(n))
+
+                # Only concatenate after conv layers
+                if isinstance(cur_layer, ConvLayer):
+                    net.append(out)
+
+            return tf.concat(net, axis=3)
 
         else:
             net = input

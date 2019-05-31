@@ -68,11 +68,10 @@ if __name__ == '__main__':
     model1 = StandardNetwork(architecture=d1)
     model1.build("DenseBlock1")
     net = model1(input=net)
-    print("out {}".format(net))
     c = d1.get_output_dim()
-    exit()
+    print("out {}".format(net))
 
-    t1 = TransitionLayer(k=c)
+    t1 = TransitionLayer(k0=c)
     model2 = StandardNetwork(architecture=t1)
     model2.build("TransitionLayer1")
     net = model2(input=net)
@@ -84,7 +83,7 @@ if __name__ == '__main__':
     net = model3(input=net)
     c = d2.get_output_dim()
 
-    t2 = TransitionLayer(k=c)
+    t2 = TransitionLayer(k0=c)
     model4 = StandardNetwork(architecture=t2)
     model4.build("TransitionLayer2")
     net = model4(input=net)
@@ -95,7 +94,7 @@ if __name__ == '__main__':
     net = model5(input=net)
     c = d3.get_output_dim()
 
-    t3 = TransitionLayer(k=c)
+    t3 = TransitionLayer(k0=c)
     model6 = StandardNetwork(architecture=t3)
     model6.build("TransitionLayer2")
     net = model6(input=net)
