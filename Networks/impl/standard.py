@@ -2,10 +2,9 @@
 from Networks.network import Weights, INetwork
 from Layers.layer import LayerTypes
 from Layers.impl.core import *
-import Layers.impl.keynet as KeyNetLayers
-import tensorflow as tf
 from base import *
 from Networks.graph import Graph
+import Networks.Layers.core as nl
 
 
 class StandardNetwork(INetwork):
@@ -31,105 +30,20 @@ class StandardNetwork(INetwork):
                 # Only need to initialize tensors for layers that have weights
                 cur_layer = self.get_architecture().get_layer(layer_idx)
                 if isinstance(cur_layer, ConvLayer):
-
-                    shape = cur_layer.get_shape()
-
-                    # A standard network just has a single high dimensional node
-                    kernel = Graph("conv_{}".format(layer_idx))
-
-                    kernel.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
-                                    names=["W", "H", "C", "N"], initializer=cur_layer.kernel_initializer,
-                                    regularizer=cur_layer.kernel_regularizer,
-                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
-
-                    # Compile/generate the tf.Variables and add to the set of weights
-                    kernel.compile()
-
-                    if cur_layer.using_bias():
-
-                        bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
-                        bias.add_node("B", shape=[shape[3]], names=["B"], initializer=cur_layer.bias_initializer,
-                                      regularizer=cur_layer.bias_regularizer,
-                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])
-                        bias.compile()
-
-                        self._weights.set_conv_layer_weights(layer_idx, kernel, bias)
-                    else:
-                        # No bias term
-                        self._weights.set_conv_layer_weights(layer_idx, kernel, None)
+                    tf_weights = nl.convolution(cur_layer, layer_idx)
+                    self._weights.set_conv_layer_weights(layer_idx, **tf_weights)
 
                 elif isinstance(cur_layer, DepthwiseConvLayer):
-
-                    # Very similar to standard convolution
-                    shape = cur_layer.get_shape()
-                    kernel = Graph("dwconv_{}".format(layer_idx))
-                    kernel.add_node("WHCM", shape=[shape[0], shape[1], shape[2], shape[3]],
-                                    names=["W", "H", "C", "M"], initializer=cur_layer.kernel_initializer,
-                                    regularizer=cur_layer.kernel_regularizer,
-                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"]).compile()
-
-                    if cur_layer.using_bias():
-
-                        bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
-                        bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"],
-                                      initializer=cur_layer.bias_initializer, regularizer=cur_layer.bias_regularizer,
-                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])
-                        bias.compile()
-
-                        self._weights.set_dw_conv_layer_weights(layer_idx, kernel, bias)
-                    else:
-                        # No bias term
-                        self._weights.set_dw_conv_layer_weights(layer_idx, kernel, None)
+                    tf_weights = nl.depthwise_convolution(cur_layer, layer_idx)
+                    self._weights.set_dw_conv_layer_weights(layer_idx, **tf_weights)
 
                 elif isinstance(cur_layer, FullyConnectedLayer):
-
-                    shape = cur_layer.get_shape()
-
-                    # Create single node, compile the graph and then add to the set of weights
-                    kernel = Graph("fc_{}".format(layer_idx))
-                    kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"],
-                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"]).compile()
-
-                    if cur_layer.using_bias():
-
-                        bias = Graph("bias_{}".format(layer_idx))  # I x O
-                        bias.add_node("B", shape=[shape[1]], names=["B"], initializer=tf.zeros_initializer(),
-                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
-
-                        self._weights.set_fc_layer_weights(layer_idx, kernel, bias)
-                    else:
-                        # No bias term
-                        self._weights.set_fc_layer_weights(layer_idx, kernel, None)
+                    tf_weights = nl.fully_connected(cur_layer, layer_idx)
+                    self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
 
                 elif isinstance(cur_layer, BatchNormalisationLayer):
-                    # num_features is effectively the depth of the input feature map
-                    num_features = cur_layer.get_num_features()
-
-                    # Create the mean and variance weights
-                    mean = Graph("mean_{}".format(layer_idx))
-                    mean.add_node("M", shape=[num_features], names=["M"],
-                                  initializer=cur_layer.moving_mean_initializer).compile()
-
-                    variance = Graph("variance_{}".format(layer_idx))
-                    variance.add_node("V", shape=[num_features], names=["V"],
-                                      initializer=cur_layer.moving_variance_initializer).compile()
-
-                    # When NOT affine
-                    if not cur_layer.is_affine():
-                        scale = None  # gamma
-                        offset = None  # beta
-                    else:
-                        # Scale (gamma) and offset (beta) parameters
-                        scale = Graph("scale_{}".format(layer_idx))
-                        scale.add_node("S", shape=[num_features], names=["S"], initializer=cur_layer.gamma_initializer)
-                        scale.compile()
-
-                        offset = Graph("offset_{}".format(layer_idx))
-                        offset.add_node("O", shape=[num_features], names=["O"], initializer=cur_layer.beta_initializer)
-                        offset.compile()
-
-                    self._weights.set_bn_layer_weights(layer_idx=layer_idx, mean=mean, variance=variance, scale=scale,
-                                                       offset=offset)
+                    tf_weights = nl.batch_normalisation(cur_layer, layer_idx)
+                    self._weights.set_bn_layer_weights(layer_idx, **tf_weights)
 
     def run_layer(self, input, layer_idx, name, **kwargs):
         """ Pass input through a single layer
@@ -209,44 +123,17 @@ class StandardNetwork(INetwork):
                 print("Woah, are you sure you should be here with: {}?".format(cur_layer))
                 return INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
 
-    def __call__(self, input, switch_idx=0, dense_connect=True):
+    def __call__(self, input, switch_idx=0):
         """ Complete forward pass for the entire network
 
             :param input: The input to the network e.g. a batch of images
             :param switch_idx: Index for switch_list, controls the compression of the network
                                (default, just call first switch)
-            :param dense_connect: Densely connect all layers (as per DenseNet)
         """
 
         # Loop through all the layers
-        if dense_connect:
+        net = input
+        for n in range(self.get_num_layers()):
+            net = self.run_layer(input=net, layer_idx=n, name="layer_{}".format(n))
 
-            out = None
-            # Densely connected network - combined through concatenation
-            net = [input]  # Store all layer outputs
-            for n in range(self.get_num_layers()):
-                cur_layer = self.get_architecture().get_layer(n)
-
-                if isinstance(cur_layer, ConvLayer):
-                    inp = tf.concat(net, axis=3)
-                else:
-                    # Just the output from the previous layer
-                    if out is not None:
-                        inp = out
-                    else:
-                        inp = input
-
-                out = self.run_layer(input=inp, layer_idx=n, name="layer_{}".format(n))
-
-                # Only concatenate after conv layers
-                if isinstance(cur_layer, ConvLayer):
-                    net.append(out)
-
-            return tf.concat(net, axis=3)
-
-        else:
-            net = input
-            for n in range(self.get_num_layers()):
-                net = self.run_layer(input=net, layer_idx=n, name="layer_{}".format(n))
-
-            return net
+        return net

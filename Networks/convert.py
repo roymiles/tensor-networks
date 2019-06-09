@@ -1,7 +1,7 @@
 """ Convert a network between types """
 
 from Networks.impl.standard import StandardNetwork
-from Networks.impl.tucker_like import TuckerNet
+from Networks.impl.sandbox import TuckerNet
 import VBMF
 import numpy as np
 import tensorflow as tf

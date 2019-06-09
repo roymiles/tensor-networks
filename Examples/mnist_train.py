@@ -6,7 +6,7 @@ sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
 from Architectures.impl.MNISTExample import MNISTExample
 from Networks.impl.standard import StandardNetwork
-from Networks.impl.tucker_like import TuckerNet
+from Networks.impl.sandbox import TuckerNet
 
 import tensorflow_datasets as tfds
 import tensorflow as tf

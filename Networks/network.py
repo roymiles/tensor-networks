@@ -77,6 +77,7 @@ class Weights:
         :param offset:
         :return:
         """
+
         self._weights[layer_idx] = {
             "__type__": LayerTypes.BN,
             "mean": mean,
@@ -145,7 +146,7 @@ class INetwork:
 
     def get_num_layers(self):
         """
-        NOTE: There is not setter, this value is inferred when set_architecture is called
+        NOTE: There is no setter, this value is inferred when set_architecture is called
 
         :return: The number of layers in the architecture
         """

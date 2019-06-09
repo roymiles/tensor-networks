@@ -5,7 +5,7 @@ import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
 from Architectures.impl.DenseNet import TransitionLayer, DenseBlock
-from Networks.impl.tucker_like import TuckerNet
+from Networks.impl.sandbox import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
 import tensorflow_datasets as tfds

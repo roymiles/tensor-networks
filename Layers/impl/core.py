@@ -256,3 +256,60 @@ class Flatten(ILayer):
 
     def __call__(self, input):
         return tf.layers.flatten(input)
+
+
+""" Multilayer classes e.g. residual layers etc """
+
+
+class MobileNetV2BottleNeck(ILayer):
+    def __init__(self, t, c, n, strides=(1, 1)):
+        """
+        See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c
+
+        :param t: Expansion factor
+        :param c: Number of output channels
+        :param n: Repeating number
+        :param strides: Depthwise stride
+        """
+        super().__init__()
+
+        px = strides[0]
+        py = strides[1]
+        self._strides = [1, px, py, 1]
+        self._t = t
+        self._c = c
+        self._n = n
+
+        super().__init__()
+
+    def __call__(self, input, expansion_kernel, expansion_bias, depthwise_kernel, depthwise_bias, projection_kernel,
+                projection_bias):
+
+        # Expansion layer
+        net = tf.nn.conv2d(input, expansion_kernel)
+        net = tf.nn.bias_add(net, expansion_bias)
+        net = tf.nn.relu6(net)
+
+        # Depthwise layer
+        net = tf.nn.depthwise_conv2d(net, depthwise_kernel)
+        net = tf.nn.bias_add(net, depthwise_bias)
+        net = tf.nn.relu6(net)
+
+        # Projection layer (linear)
+        net = tf.nn.conv2d(net, projection_kernel)
+        net = tf.nn.bias_add(net, projection_bias)
+
+        # Residual add
+        return net + input
+
+    def get_t(self):
+        return self._t
+
+    def get_c(self):
+        return self._c
+
+    def get_n(self):
+        return self._n
+
+    def get_strides(self):
+        return self._strides

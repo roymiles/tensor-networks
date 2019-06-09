@@ -30,7 +30,7 @@ from Utils import cv2_scale, np_reshape, str2bool
 import tensorflow as tf
 from Architectures.impl.HardNet import HardNet, conv_ranks, fc_ranks
 from Networks.impl.standard import StandardNetwork
-from Networks.impl.tucker_like import TuckerNet
+from Networks.impl.sandbox import TuckerNet
 import config as conf
 from base import tfvar_size
 
