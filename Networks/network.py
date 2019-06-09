@@ -86,6 +86,15 @@ class Weights:
             "offset": offset
         }
 
+    def set_mobilenetv2_bottleneck_layer_weights(self, layer_idx, expansion_kernel, expansion_bias, depthwise_kernel,
+                                                 depthwise_bias, projection_kernel, projection_bias):
+        self._weights[layer_idx] = {
+            "__type__": LayerTypes.MOBILENETV2_BOTTLENECK,
+            "expansion_kernel": expansion_kernel, "expansion_bias": expansion_bias,
+            "depthwise_kernel": depthwise_kernel, "depthwise_bias": depthwise_bias,
+            "projection_kernel": projection_kernel, "projection_bias": projection_bias
+        }
+
     def num_parameters(self):
         """" Calculates the number of parameters in the weights """
 

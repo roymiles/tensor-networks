@@ -262,13 +262,13 @@ class Flatten(ILayer):
 
 
 class MobileNetV2BottleNeck(ILayer):
-    def __init__(self, t, c, n, strides=(1, 1)):
+    def __init__(self, k, t, c, strides=(1, 1)):
         """
         See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c
 
+        :param k: Number of input channels
         :param t: Expansion factor
         :param c: Number of output channels
-        :param n: Repeating number
         :param strides: Depthwise stride
         """
         super().__init__()
@@ -276,40 +276,52 @@ class MobileNetV2BottleNeck(ILayer):
         px = strides[0]
         py = strides[1]
         self._strides = [1, px, py, 1]
+        self._k = k
         self._t = t
         self._c = c
-        self._n = n
 
         super().__init__()
 
-    def __call__(self, input, expansion_kernel, expansion_bias, depthwise_kernel, depthwise_bias, projection_kernel,
-                projection_bias):
+    def __call__(self, input, expansion_kernel, expansion_bias, depthwise_kernel, depthwise_bias,
+                 projection_kernel, projection_bias):
+
+        # Just use tf.layers ...
+        # expansion_mean, expansion_variance, expansion_scale, expansion_offset,
+        # depthwise_mean, depthwise_variance, depthwise_scale, depthwise_offset,
+        # projection_mean, projection_variance, projection_scale, projection_offset):
 
         # Expansion layer
-        net = tf.nn.conv2d(input, expansion_kernel)
+        net = tf.nn.conv2d(input, expansion_kernel, strides=[1, 1, 1, 1], padding="SAME")
         net = tf.nn.bias_add(net, expansion_bias)
+        net = tf.layers.batch_normalization(net)
         net = tf.nn.relu6(net)
 
         # Depthwise layer
-        net = tf.nn.depthwise_conv2d(net, depthwise_kernel)
+        net = tf.nn.depthwise_conv2d(net, depthwise_kernel, strides=self._strides, padding="SAME")
         net = tf.nn.bias_add(net, depthwise_bias)
+        net = tf.layers.batch_normalization(net)
         net = tf.nn.relu6(net)
 
         # Projection layer (linear)
-        net = tf.nn.conv2d(net, projection_kernel)
+        net = tf.nn.conv2d(net, projection_kernel, strides=[1, 1, 1, 1], padding="SAME")
         net = tf.nn.bias_add(net, projection_bias)
+        net = tf.layers.batch_normalization(net)
 
-        # Residual add
-        return net + input
+        # Residual add only if stride=1 and depths match
+        # See: https://github.com/tensorflow/models/blob/415e8a450f289bcbc8c665d7a68cf36e12101155/research/slim/nets/mobilenet/conv_blocks.py#L315
+        if self._strides == [1, 1, 1, 1] and net.get_shape().as_list()[3] == input.get_shape().as_list()[3]:
+            return net + input
+        else:
+            return net
+
+    def get_k(self):
+        return self._k
 
     def get_t(self):
         return self._t
 
     def get_c(self):
         return self._c
-
-    def get_n(self):
-        return self._n
 
     def get_strides(self):
         return self._strides

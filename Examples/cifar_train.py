@@ -4,15 +4,12 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.CIFARExample import CIFARExample
-from Architectures.impl.MobileNetV1 import MobileNetV1, training_params
-from Architectures.impl.MobileNetV2 import MobileNetV2
+#from Architectures.impl.MobileNetV1 import MobileNetV1, training_params
+from Architectures.impl.MobileNetV2 import MobileNetV2, training_params
 from Networks.impl.sandbox import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
 import tensorflow_datasets as tfds
-import tensorflow as tf
-import cv2
 import os
 from tqdm import tqdm
 import config as conf
@@ -36,10 +33,10 @@ if __name__ == '__main__':
     num_classes = 10
     dataset_name = 'cifar10'
     batch_size = training_params["batch_size"]
-    num_epochs = 12
+    num_epochs = 300
     switch_list = [1.0]
 
-    architecture = MobileNetV1(num_classes=num_classes)
+    architecture = MobileNetV2(num_classes=num_classes)
     # architecture = CIFARExample(num_classes=num_classes)
 
     # See available datasets
@@ -88,6 +85,7 @@ if __name__ == '__main__':
 
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
     loss_op = tf.reduce_mean(loss_op)
+    tf.summary.scalar('Training Loss', loss_op)
 
     # Add the regularisation terms
     reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
@@ -95,7 +93,7 @@ if __name__ == '__main__':
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    tf.summary.scalar('accuracy', accuracy)
+    tf.summary.scalar('Testing Accuracy', accuracy)
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
@@ -105,13 +103,6 @@ if __name__ == '__main__':
 
     # Help for debugging nan gradients
     grads_and_vars = training_params["optimizer"].compute_gradients(loss_op)
-    # print(grads_and_vars[-4][1].name)
-    # exit()
-
-    for g, v in grads_and_vars:
-        print(v.name)
-        # tf.summary.histogram(v.name, v)
-        # tf.summary.histogram(v.name + '_grad', g)
 
     # Create session and initialize weights
     config = tf.ConfigProto(
@@ -122,7 +113,7 @@ if __name__ == '__main__':
 
     # Tensorboard
     merged = tf.summary.merge_all()
-    log_dir = conf.log_dir + dataset_name
+    log_dir = conf.log_dir + dataset_name + "v2"
     train_writer = tf.summary.FileWriter(log_dir, sess.graph)
     print("Run: \"tensorboard --logdir={}\"".format(log_dir))
 
@@ -133,6 +124,7 @@ if __name__ == '__main__':
 
     print("Number of parameters = {}".format(num_params))
 
+    lr = training_params["initial_learning_rate"]
     for epoch in tqdm(range(num_epochs)):
 
         # Training
@@ -152,16 +144,21 @@ if __name__ == '__main__':
             feed_dict = {
                 x: images,
                 y: labels,
-                switch_idx: i
+                switch_idx: i,
+                training_params["learning_rate"]: lr
             }
 
             fetches = [global_step, train_op, loss_op, merged]
             step, _, loss, summary = sess.run(fetches, feed_dict)
 
-            # if step % 10 == 0:
-            # train_writer.add_summary(summary, step)
             if step % 100 == 0:
-                print("Epoch: {}, Step {}, Loss: {}, Switch: {}".format(epoch, step, loss, switch))
+                train_writer.add_summary(summary, step)
+
+            # if step % 100 == 0:
+            #     print(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Switch: {switch}, Learning rate: {lr}")
+
+        # Decay learning rate every epoch
+        lr = lr * 0.98
 
     # Testing (after training)
     for i, switch in enumerate(switch_list):
@@ -185,26 +182,3 @@ if __name__ == '__main__':
 
     # Export model tflite
     export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name="cifar")
-
-    exit()
-    # Get the weights
-    _w1 = model.get_weights().get_layer_weights(13)['kernel'].combine(reshape=["I", "O"])
-    _w2 = model.get_weights().get_layer_weights(16)['kernel'].combine(reshape=["I", "O"])
-
-    _w3 = model.get_weights().get_layer_weights(8)['kernel'].combine(reshape=["W", "H", "C", "N"])
-
-    w1, w2, w3 = sess.run([_w1, _w2, _w3], feed_dict={})
-
-    print(w3)
-    print(w3.shape)
-    visualise_volume_slices(w3[:, 0, :, :])
-    print("fin")
-
-    #print("var1_I = {}".format(np.sum(np.var(w1, axis=0))))
-    #print("var1_O = {}".format(np.sum(np.var(w1, axis=1))))
-    #print("var2_I = {}".format(np.sum(np.var(w2, axis=0))))
-    #print("var2_O = {}".format(np.sum(np.var(w2, axis=1))))
-
-    #cv2.imshow("Fc1", w1)
-    #cv2.imshow("Fc2", w2)
-    #cv2.waitKey()

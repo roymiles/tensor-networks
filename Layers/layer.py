@@ -8,6 +8,9 @@ class LayerTypes(IntEnum):
     FC = 2
     BN = 3
 
+    # Some more unorthodox ones
+    MOBILENETV2_BOTTLENECK = 77
+
 
 """
     Why? Having wrappers for the layers allows us to add extra behaviour to the networks. 

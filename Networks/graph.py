@@ -319,6 +319,15 @@ class Graph:
         """ Get the underlying NetworkX graph """
         return self._graph
 
+    def get_node(self, node):
+        """
+        Return a single node, typically for a Tensorflow summary
+
+        :param node: Name of the node
+        :return: Corresponding tf.Tensor
+        """
+        return self._graph.nodes[node]["tfvar"]
+
     @staticmethod
     def multiway_tensor_slice(tensor, axis, widths):
         """

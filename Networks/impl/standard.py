@@ -45,6 +45,10 @@ class StandardNetwork(INetwork):
                     tf_weights = nl.batch_normalisation(cur_layer, layer_idx)
                     self._weights.set_bn_layer_weights(layer_idx, **tf_weights)
 
+                elif isinstance(cur_layer, MobileNetV2BottleNeck):
+                    tf_weights = nl.mobilenetv2_bottleneck(cur_layer, layer_idx)
+                    self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
+
     def run_layer(self, input, layer_idx, name, **kwargs):
         """ Pass input through a single layer
             Operation is dependant on the layer type
@@ -115,9 +119,29 @@ class StandardNetwork(INetwork):
                     offset = offset.combine()
 
                 return cur_layer(input, mean, variance, scale, offset)
+
             elif isinstance(cur_layer, ReLU):
-                act = INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
+                act = INetwork.run_layer(layer=cur_layer, input=input)
                 return act
+
+            elif isinstance(cur_layer, MobileNetV2BottleNeck):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert w["__type__"] == LayerTypes.MOBILENETV2_BOTTLENECK, \
+                    "The layer weights don't match up with the layer type"
+
+                expansion_kernel = w["expansion_kernel"].combine(reshape=["W", "H", "C", "N"])
+                expansion_bias = w["expansion_bias"].combine()
+                depthwise_kernel = w["depthwise_kernel"].combine()
+                depthwise_bias = w["depthwise_bias"].combine()
+                projection_kernel = w["projection_kernel"].combine(reshape=["W", "H", "C", "N"])
+                projection_bias = w["projection_bias"].combine()
+
+                return cur_layer(input=input, expansion_kernel=expansion_kernel,
+                                 expansion_bias=expansion_bias, depthwise_kernel=depthwise_kernel,
+                                 depthwise_bias=depthwise_bias, projection_kernel=projection_kernel,
+                                 projection_bias=projection_bias)
+
             else:
                 # These layers are not overridden
                 print("Woah, are you sure you should be here with: {}?".format(cur_layer))

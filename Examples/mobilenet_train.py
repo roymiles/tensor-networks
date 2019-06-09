@@ -4,14 +4,11 @@ import numpy as np
 import sys
 sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
 
-from Architectures.impl.MobileNetV1 import MobileNetV1
-from Architectures.impl.MobileNetV2 import MobileNetV2, fc_ranks, conv_ranks
+from Architectures.impl.tmp.MobileNetV2 import MobileNetV2, fc_ranks, conv_ranks
 from Networks.impl.sandbox import TuckerNet
 from Networks.impl.standard import StandardNetwork
 
 import tensorflow_datasets as tfds
-import tensorflow as tf
-import cv2
 import os
 from tqdm import tqdm
 import config as conf
