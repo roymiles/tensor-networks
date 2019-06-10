@@ -2,24 +2,16 @@ from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
 import tensorflow as tf
 
-# Configure the learning rate using an exponential decay.
-num_epochs_per_decay = 2.5
-dataset_size = 1271167
-batch_size = 64
-decay_steps = int(dataset_size / batch_size * num_epochs_per_decay)
-initial_learning_rate = 1e-4
-_LEARNING_RATE_DECAY_FACTOR = 0.94
-
-learning_rate = tf.train.exponential_decay(
-    initial_learning_rate,
-    tf.train.get_or_create_global_step(),
-    decay_steps,
-    _LEARNING_RATE_DECAY_FACTOR,
-    staircase=True)
-
+learning_rate = tf.placeholder(tf.float64, shape=[])
 training_params = {
+    "initial_learning_rate": 1e-4,
+    "learning_rate": learning_rate,
+
+    "num_epochs_per_decay": 3,
+    "lr_decay": 0.94,
+
     "batch_size": 64,
-    "optimizer": tf.train.GradientDescentOptimizer(learning_rate),
+    "optimizer": tf.train.GradientDescentOptimizer(learning_rate=learning_rate),
 
     # These hyperparameters control the compression
     # of the convolutional and fully connected weights
@@ -98,6 +90,9 @@ class MobileNetV1(IArchitecture):
             DropoutLayer(0.999),
             # Logits
             ConvLayer(shape=[3, 3, 1024, num_classes]),
+
+            # Remove spatial dims, so output is ? x 10
+            GlobalAveragePooling(keep_dims=False)
         ]
 
         super().__init__(network)

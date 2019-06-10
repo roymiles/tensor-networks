@@ -136,7 +136,7 @@ def depthwise_convolution(cur_layer, layer_idx):
     kernel.add_node("WHCM", shape=[shape[0], shape[1], shape[2], shape[3]],
                     names=["W", "H", "C", "M"], initializer=cur_layer.kernel_initializer,
                     regularizer=cur_layer.kernel_regularizer,
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"]).compile()
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS]).compile()
 
     # Stay None if no bias term
     bias = None
@@ -157,7 +157,7 @@ def fully_connected(cur_layer, layer_idx):
     # Create single node, compile the graph and then add to the set of weights
     kernel = Graph("fc_{}".format(layer_idx))
     kernel.add_node("IO", shape=[shape[0], shape[1]], names=["I", "O"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"]).compile()
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS]).compile()
 
     bias = None
     if cur_layer.using_bias():
@@ -178,7 +178,7 @@ def convolution(cur_layer, layer_idx):
     kernel.add_node("WHCN", shape=[shape[0], shape[1], shape[2], shape[3]],
                     names=["W", "H", "C", "N"], initializer=cur_layer.kernel_initializer,
                     regularizer=cur_layer.kernel_regularizer,
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
     # Compile/generate the tf.Variables and add to the set of weights
     kernel.compile()
@@ -215,21 +215,24 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
     # H/s x W/s x (tk) -> H/s x W/s x n     1 x 1 x tk x n
     projection_kernel = Graph("bneck_projection_{}".format(layer_idx))
 
-    factorise_pointwise_kernels = True
+    factorise_pointwise_kernels = False
 
     if factorise_pointwise_kernels:
         # Factorising the pointwise kernels
         expansion_kernel.add_node("WH", shape=[1, 1],
                                   names=["W", "H"],
-                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                  initializer=tf.keras.initializers.he_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
         expansion_kernel.add_node("C", shape=[k],
                                   names=["C"],
-                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                  initializer=tf.keras.initializers.he_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
         expansion_kernel.add_node("N", shape=[t*k],
                                   names=["N"],
-                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                  initializer=tf.keras.initializers.he_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
         expansion_kernel.add_edge("WH", "G", name="r1", length=1)
         expansion_kernel.add_edge("C", "G", name="r2", length=56)
@@ -239,15 +242,18 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
         # ---
         projection_kernel.add_node("WH", shape=[1, 1],
                                    names=["W", "H"],
-                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                   initializer=tf.keras.initializers.he_normal(),
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
         projection_kernel.add_node("C", shape=[t*k],
                                    names=["C"],
-                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                   initializer=tf.keras.initializers.he_normal(),
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
         projection_kernel.add_node("N", shape=[c],
                                    names=["N"],
-                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                   initializer=tf.keras.initializers.he_normal(),
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
 
         projection_kernel.add_edge("WH", "G", name="r1", length=1)
@@ -259,37 +265,42 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
         # First index, because spatial index is of size 1
         g1 = tf.reshape(expansion_kernel.get_node("G"), shape=(1, 56, 56, 1))
         g2 = tf.reshape(projection_kernel.get_node("G"), shape=(1, 56, 56, 1))
+
         tf.summary.image("Expansion g", g1)
         tf.summary.image("Projection g", g2)
+        tf.summary.histogram("Expansion g", g1)
+        tf.summary.histogram("Projection g", g2)
+
     else:
         # Standard MobileNet
         expansion_kernel.add_node("WHCN", shape=[1, 1, k, t*k],
                                   names=["W", "H", "C", "N"],
-                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                  initializer=tf.keras.initializers.he_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay)).compile()
 
         projection_kernel.add_node("WHCN", shape=[1, 1, t*k, c],
                                    names=["W", "H", "C", "N"],
-                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay)).compile()
 
     depthwise_kernel.add_node("WHCM", shape=[3, 3, t*k, 1],
                               names=["W", "H", "C", "M"],
-                              collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"],
+                              collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                               regularizer=tf.contrib.layers.l2_regularizer(weight_decay)).compile()
 
     # Use biases for all the convolutions
     expansion_bias = Graph("expansion_bias_{}".format(layer_idx))  # W x H x C x N
     expansion_bias.add_node("B", shape=[t * k], names=["B"],
-                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
+                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES]).compile()
 
     depthwise_bias = Graph("depthwise_bias_{}".format(layer_idx))
     depthwise_bias.add_node("B", shape=[t * k], names=["B"],
-                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
+                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES]).compile()
 
     projection_bias = Graph("projection_bias_{}".format(layer_idx))
     projection_bias.add_node("B", shape=[c], names=["B"],
-                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
+                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES]).compile()
 
     return {"expansion_kernel": expansion_kernel, "expansion_bias": expansion_bias,
             "depthwise_kernel": depthwise_kernel, "depthwise_bias": depthwise_bias,

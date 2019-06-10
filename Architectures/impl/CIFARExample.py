@@ -1,6 +1,5 @@
 from Architectures.architectures import IArchitecture
-from Layers.impl.core import ConvLayer, ReLU, MaxPoolingLayer, DropoutLayer, Flatten, FullyConnectedLayer, \
-    BatchNormalisationLayer
+from Layers.impl.core import *
 
 
 # These hyperparameters control the compression
@@ -14,6 +13,18 @@ conv_ranks = {
 fc_ranks = {
     13: [52, 52],
     16: [52, 52]
+}
+
+learning_rate = tf.placeholder(tf.float64, shape=[])
+training_params = {
+    "initial_learning_rate": 0.01,
+    "learning_rate": learning_rate,
+    "batch_size": 128,
+
+    "nb_epoch": 12,
+    "lr_decay": 1e-6,
+
+    "optimizer": tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9, use_nesterov=True),
 }
 
 

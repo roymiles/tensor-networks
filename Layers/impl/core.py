@@ -172,20 +172,23 @@ class MaxPoolingLayer(PoolingLayer):
 
 class GlobalAveragePooling:
     """ Pool over entire spatial dimensions"""
-    def __init__(self):
+    def __init__(self, keep_dims=True):
+        self._keep_dims = keep_dims
+
         super().__init__()
 
-    def __call__(self, input, keep_dims=True):
-        return tf.reduce_mean(input, [1, 2], keep_dims=keep_dims, name='global_pool')
+    def __call__(self, input):
+        return tf.reduce_mean(input, [1, 2], keep_dims=self._keep_dims, name='global_pool')
 
 
 class DropoutLayer(ILayer):
-    def __init__(self, keep_prob):
+    def __init__(self, rate):
+        # rate defines the fraction of input units to drop
         super().__init__()
-        self._keep_prob = keep_prob
+        self._rate = rate
 
     def __call__(self, input):
-        return tf.nn.dropout(input, self._keep_prob)
+        return tf.nn.dropout(input, rate=self._rate)
 
 
 class BatchNormalisationLayer(ILayer):
@@ -325,3 +328,6 @@ class MobileNetV2BottleNeck(ILayer):
 
     def get_strides(self):
         return self._strides
+
+    def get_kernel_initializer(self):
+        return tf.keras.initializers.he_normal()

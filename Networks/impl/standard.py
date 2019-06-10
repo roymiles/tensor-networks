@@ -144,7 +144,7 @@ class StandardNetwork(INetwork):
 
             else:
                 # These layers are not overridden
-                print("Woah, are you sure you should be here with: {}?".format(cur_layer))
+                print("The following layer does not have a concrete implementation: {}?".format(cur_layer))
                 return INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
 
     def __call__(self, input, switch_idx=0):

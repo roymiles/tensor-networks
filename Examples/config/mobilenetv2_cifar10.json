@@ -1,0 +1,21 @@
+{
+  "architecture": "mobilenetv2",
+  "dataset_name": "cifar10",
+  "experiment_dir": "cifar10_test_exp",
+
+  "num_epochs": 800,
+  "num_classes": 10,
+  "batch_size": 128,
+
+  "weight_decay": 5e-4,
+  "momentum": 0.9,
+  "learning_rate": 1e-4,
+  "learning_rate_decay": 0.98,
+  "num_epochs_decay": 1,
+
+  "resume_from": "checkpoint.pth.tar",
+  "pretrained_path": "pretrained_weights/",
+  "test_every": 10,
+  "to_train": true,
+  "to_test": true
+}

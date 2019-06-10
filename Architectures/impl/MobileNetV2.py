@@ -1,16 +1,12 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
 
-initial_learning_rate = 0.1
 learning_rate = tf.placeholder(tf.float64, shape=[])
-decay = 0.9
-momentum = 0.9
-
 training_params = {
     "initial_learning_rate": 0.1,
     "learning_rate": learning_rate,
     "batch_size": 96,
-    "optimizer": tf.train.RMSPropOptimizer(learning_rate=learning_rate, decay=decay, momentum=momentum),
+    "optimizer": tf.train.RMSPropOptimizer(learning_rate=learning_rate, decay=0.9, momentum=0.9),
 }
 
 
@@ -35,20 +31,33 @@ class MobileNetV2(IArchitecture):
             MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
             MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
             MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
+            DropoutLayer(rate=0.25),
 
             MobileNetV2BottleNeck(k=64, t=6, c=96, strides=(1, 1)),
             MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
             MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
+            DropoutLayer(rate=0.25),
 
             MobileNetV2BottleNeck(k=96, t=6, c=160, strides=(2, 2)),
             MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
             MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
+            DropoutLayer(rate=0.25),
 
             MobileNetV2BottleNeck(k=160, t=1, c=320, strides=(1, 1)),
+            DropoutLayer(rate=0.25),
 
             ConvLayer(shape=[1, 1, 320, 1280], strides=(1, 1)),
-            GlobalAveragePooling(),
-            ConvLayer(shape=[1, 1, 1280, num_classes]),
+            BatchNormalisationLayer(num_features=1280),
+            ReLU6(),
+
+            GlobalAveragePooling(keep_dims=False),
+            FullyConnectedLayer(shape=[1280, num_classes])
+
+            # GlobalAveragePooling(keep_dims=True),
+            # ConvLayer(shape=[1, 1, 1280, num_classes]),
+
+            # Remove spatial dims, so output is ? x 10
+            # GlobalAveragePooling(keep_dims=False)
         ]
 
         super().__init__(network)

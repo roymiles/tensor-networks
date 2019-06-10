@@ -19,11 +19,11 @@ def convolution(cur_layer, layer_idx, ranks):
 
     # Add the nodes w/ exposed indices
     kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
     kernel.add_node("C", shape=[shape[2]], names=["C"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
     kernel.add_node("N", shape=[shape[3]], names=["N"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
     # Auxiliary indices
     kernel.add_edge("WH", "G", name="r0", length=ranks[0])
@@ -54,11 +54,11 @@ def depthwise_convolution(cur_layer, layer_idx, ranks):
     # Similar to standard convolution but with channel multiplier (M)
     # instead of output channels dimension
     kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
     kernel.add_node("C", shape=[shape[2]], names=["C"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
     kernel.add_node("M", shape=[shape[3]], names=["M"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
     kernel.add_edge("WH", "G", name="r0", length=ranks[0])
     kernel.add_edge("C", "G", name="r1", length=ranks[1])
@@ -86,9 +86,9 @@ def fully_connected(cur_layer, layer_idx, ranks):
 
     # Nodes..
     kernel.add_node("I", shape=[shape[0]], names=["I"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
     kernel.add_node("O", shape=[shape[1]], names=["O"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, "weights"])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
     # Auxiliary indices
     kernel.add_edge("I", "G1", name="r0", length=ranks[0])
