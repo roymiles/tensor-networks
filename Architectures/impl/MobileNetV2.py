@@ -15,8 +15,14 @@ class MobileNetV2(IArchitecture):
 
     def __init__(self, num_classes):
         network = [
+            # Fudge dataset normalisation
+            BatchNormalisationLayer(3),
+
             # in: 224 x 224 x 3
             ConvLayer(shape=[3, 3, 3, 32], strides=(2, 2)),
+            BatchNormalisationLayer(num_features=32),
+            DropoutLayer(rate=0.2),
+            ReLU6(),
 
             MobileNetV2BottleNeck(k=32, t=1, c=16, strides=(1, 1)),
 
@@ -31,27 +37,28 @@ class MobileNetV2(IArchitecture):
             MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
             MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
             MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
-            DropoutLayer(rate=0.25),
 
             MobileNetV2BottleNeck(k=64, t=6, c=96, strides=(1, 1)),
             MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
             MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
-            DropoutLayer(rate=0.25),
 
             MobileNetV2BottleNeck(k=96, t=6, c=160, strides=(2, 2)),
             MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
             MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
-            DropoutLayer(rate=0.25),
 
             MobileNetV2BottleNeck(k=160, t=1, c=320, strides=(1, 1)),
-            DropoutLayer(rate=0.25),
 
             ConvLayer(shape=[1, 1, 320, 1280], strides=(1, 1)),
             BatchNormalisationLayer(num_features=1280),
             ReLU6(),
 
-            GlobalAveragePooling(keep_dims=False),
-            FullyConnectedLayer(shape=[1280, num_classes])
+            # Classification part
+            GlobalAveragePooling(keep_dims=True),
+            DropoutLayer(rate=0.2),
+            ConvLayer(shape=[1, 1, 1280, num_classes]),
+            GlobalAveragePooling(keep_dims=False)
+
+            # FullyConnectedLayer(shape=[1280, num_classes])
 
             # GlobalAveragePooling(keep_dims=True),
             # ConvLayer(shape=[1, 1, 1280, num_classes]),

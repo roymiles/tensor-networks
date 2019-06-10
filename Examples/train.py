@@ -17,7 +17,7 @@ from base import *
 from tflite import export_tflite_from_session
 from Examples.config.utils import load_config, get_architecture
 
-from Networks.impl.standard import StandardNetwork
+from Networks.impl.standard import StandardNetwork as MyNetwork
 
 
 # The info messages are getting tedious now
@@ -33,6 +33,7 @@ print(tf.__version__)
 
 if __name__ == '__main__':
 
+    # Change if want to test different model/dataset
     tc = load_config("mobilenetv2_cifar10.json")
 
     architecture = get_architecture(tc['architecture'])(num_classes=tc['num_classes'])
@@ -52,12 +53,13 @@ if __name__ == '__main__':
     ds_test = ds_test.batch(2000)
 
     with tf.variable_scope("input"):
-        x = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
+        x = tf.placeholder(tf.float32, shape=[None, tc['img_width'], tc['img_height'], tc['num_channels']])
         y = tf.placeholder(tf.float32, shape=[None, tc['num_classes']])
         learning_rate = tf.placeholder(tf.float64, shape=[])
 
-    model = StandardNetwork(architecture=architecture)
-    model.build("MyStandardNetwork")
+    model = MyNetwork(architecture=architecture)
+    model.build("MyNetwork")
+
     logits_op = model(input=x)
 
     loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
@@ -65,8 +67,8 @@ if __name__ == '__main__':
     tf.summary.scalar('Training Loss', loss_op)
 
     # Add the regularisation terms
-    #reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    #loss_op += loss_op + sum(reg_losses)
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    loss_op += loss_op + sum(reg_losses)
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -75,12 +77,12 @@ if __name__ == '__main__':
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
     train_op = tf.train.RMSPropOptimizer(learning_rate=learning_rate,
-                                         decay=0.9, momentum=0.9).minimize(loss_op, global_step=global_step)
+                                         momentum=tc['momentum']).minimize(loss_op, global_step=global_step)
     init_op = tf.global_variables_initializer()
 
     # Create session and initialize weights
     config = tf.ConfigProto(
-        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
     )
     sess = tf.Session(config=config)
     sess.run(init_op)

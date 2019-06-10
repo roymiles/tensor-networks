@@ -310,10 +310,21 @@ class MobileNetV2BottleNeck(ILayer):
         net = tf.nn.bias_add(net, projection_bias)
         net = tf.layers.batch_normalization(net)
 
-        # Residual add only if stride=1 and depths match
-        # See: https://github.com/tensorflow/models/blob/415e8a450f289bcbc8c665d7a68cf36e12101155/research/slim/nets/mobilenet/conv_blocks.py#L315
-        if self._strides == [1, 1, 1, 1] and net.get_shape().as_list()[3] == input.get_shape().as_list()[3]:
-            return net + input
+        # Only residual add when strides is 1
+        is_residual = True if self._strides == [1, 1, 1, 1] else False
+        is_conv_res = False if net.get_shape().as_list()[3] == input.get_shape().as_list()[3] else True
+
+        if is_residual:
+
+            if is_conv_res:
+                # See: https://github.com/MG2033/MobileNet-V2/blob/master/layers.py
+                # If not matching channels, place a 1x1 convolution to ensure match
+                x = tf.layers.conv2d(input, net.get_shape().as_list()[3], (1, 1), use_bias=False,
+                                     kernel_initializer=tf.keras.initializers.glorot_normal(),
+                                     name="fix-channel-mismatch")
+                return net + x
+            else:
+                return net + input
         else:
             return net
 
@@ -328,6 +339,3 @@ class MobileNetV2BottleNeck(ILayer):
 
     def get_strides(self):
         return self._strides
-
-    def get_kernel_initializer(self):
-        return tf.keras.initializers.he_normal()

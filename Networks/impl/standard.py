@@ -19,35 +19,35 @@ class StandardNetwork(INetwork):
 
             :param name: Variable scope e.g. StandardNetwork1
         """
-        with tf.variable_scope(name):
+        # with tf.variable_scope(name):
 
-            # All the weights of the network are stored in this container
-            self._weights = Weights()
+        # All the weights of the network are stored in this container
+        self._weights = Weights()
 
-            # Initialize the standard convolutional and fully connected weights
-            for layer_idx in range(self._num_layers):
+        # Initialize the standard convolutional and fully connected weights
+        for layer_idx in range(self._num_layers):
 
-                # Only need to initialize tensors for layers that have weights
-                cur_layer = self.get_architecture().get_layer(layer_idx)
-                if isinstance(cur_layer, ConvLayer):
-                    tf_weights = nl.convolution(cur_layer, layer_idx)
-                    self._weights.set_conv_layer_weights(layer_idx, **tf_weights)
+            # Only need to initialize tensors for layers that have weights
+            cur_layer = self.get_architecture().get_layer(layer_idx)
+            if isinstance(cur_layer, ConvLayer):
+                tf_weights = nl.convolution(cur_layer, layer_idx)
+                self._weights.set_conv_layer_weights(layer_idx, **tf_weights)
 
-                elif isinstance(cur_layer, DepthwiseConvLayer):
-                    tf_weights = nl.depthwise_convolution(cur_layer, layer_idx)
-                    self._weights.set_dw_conv_layer_weights(layer_idx, **tf_weights)
+            elif isinstance(cur_layer, DepthwiseConvLayer):
+                tf_weights = nl.depthwise_convolution(cur_layer, layer_idx)
+                self._weights.set_dw_conv_layer_weights(layer_idx, **tf_weights)
 
-                elif isinstance(cur_layer, FullyConnectedLayer):
-                    tf_weights = nl.fully_connected(cur_layer, layer_idx)
-                    self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
+            elif isinstance(cur_layer, FullyConnectedLayer):
+                tf_weights = nl.fully_connected(cur_layer, layer_idx)
+                self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
 
-                elif isinstance(cur_layer, BatchNormalisationLayer):
-                    tf_weights = nl.batch_normalisation(cur_layer, layer_idx)
-                    self._weights.set_bn_layer_weights(layer_idx, **tf_weights)
+            elif isinstance(cur_layer, BatchNormalisationLayer):
+                tf_weights = nl.batch_normalisation(cur_layer, layer_idx)
+                self._weights.set_bn_layer_weights(layer_idx, **tf_weights)
 
-                elif isinstance(cur_layer, MobileNetV2BottleNeck):
-                    tf_weights = nl.mobilenetv2_bottleneck(cur_layer, layer_idx)
-                    self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
+            elif isinstance(cur_layer, MobileNetV2BottleNeck):
+                tf_weights = nl.mobilenetv2_bottleneck(cur_layer, layer_idx)
+                self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
 
     def run_layer(self, input, layer_idx, name, **kwargs):
         """ Pass input through a single layer
@@ -69,10 +69,10 @@ class StandardNetwork(INetwork):
 
                 assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
 
-                c = w["kernel"].combine()
+                c = w["kernel"]
 
                 if cur_layer.using_bias():
-                    b = w["bias"].combine()
+                    b = w["bias"]
                 else:
                     b = None
 
@@ -83,8 +83,8 @@ class StandardNetwork(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.DW_CONV, "The layer weights don't match up with the layer type"
 
-                c = w["kernel"].combine()
-                b = w["bias"].combine()
+                c = w["kernel"]
+                b = w["bias"]
 
                 return cur_layer(input, kernel=c, bias=b)
 
@@ -93,8 +93,8 @@ class StandardNetwork(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
                 assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
 
-                c = w["kernel"].combine()
-                b = w["bias"].combine()
+                c = w["kernel"]
+                b = w["bias"]
 
                 return cur_layer(input, kernel=c, bias=b)
 
@@ -103,20 +103,9 @@ class StandardNetwork(INetwork):
                 w = self._weights.get_layer_weights(layer_idx)
 
                 mean = w["mean"]
-                if isinstance(mean, Graph):
-                    mean = mean.combine()
-
                 variance = w["variance"]
-                if isinstance(variance, Graph):
-                    variance = variance.combine()
-
                 scale = w["scale"]
-                if isinstance(scale, Graph):
-                    scale = scale.combine()
-
                 offset = w["offset"]
-                if isinstance(offset, Graph):
-                    offset = offset.combine()
 
                 return cur_layer(input, mean, variance, scale, offset)
 
@@ -130,12 +119,12 @@ class StandardNetwork(INetwork):
                 assert w["__type__"] == LayerTypes.MOBILENETV2_BOTTLENECK, \
                     "The layer weights don't match up with the layer type"
 
-                expansion_kernel = w["expansion_kernel"].combine(reshape=["W", "H", "C", "N"])
-                expansion_bias = w["expansion_bias"].combine()
-                depthwise_kernel = w["depthwise_kernel"].combine()
-                depthwise_bias = w["depthwise_bias"].combine()
-                projection_kernel = w["projection_kernel"].combine(reshape=["W", "H", "C", "N"])
-                projection_bias = w["projection_bias"].combine()
+                expansion_kernel = w["expansion_kernel"]
+                expansion_bias = w["expansion_bias"]
+                depthwise_kernel = w["depthwise_kernel"]
+                depthwise_bias = w["depthwise_bias"]
+                projection_kernel = w["projection_kernel"]
+                projection_bias = w["projection_bias"]
 
                 return cur_layer(input=input, expansion_kernel=expansion_kernel,
                                  expansion_bias=expansion_bias, depthwise_kernel=depthwise_kernel,
