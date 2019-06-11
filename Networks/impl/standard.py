@@ -5,6 +5,7 @@ from Layers.impl.core import *
 from base import *
 from Networks.graph import Graph
 import Networks.Layers.core as nl
+from Networks.Layers.mobilenetv2 import *
 
 
 class StandardNetwork(INetwork):
@@ -46,7 +47,7 @@ class StandardNetwork(INetwork):
                 self._weights.set_bn_layer_weights(layer_idx, **tf_weights)
 
             elif isinstance(cur_layer, MobileNetV2BottleNeck):
-                tf_weights = nl.mobilenetv2_bottleneck(cur_layer, layer_idx)
+                tf_weights = mobilenetv2_bottleneck(cur_layer, layer_idx)
                 self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
 
     def run_layer(self, input, layer_idx, name, **kwargs):
@@ -62,6 +63,7 @@ class StandardNetwork(INetwork):
 
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             cur_layer = self.get_architecture().get_layer(layer_idx)
+            print(f"hey {cur_layer}")
 
             if isinstance(cur_layer, ConvLayer):
 

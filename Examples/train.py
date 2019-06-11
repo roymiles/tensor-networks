@@ -15,26 +15,33 @@ from tqdm import tqdm
 import config as conf
 from base import *
 from tflite import export_tflite_from_session
-from Examples.config.utils import load_config, get_architecture
+from Examples.config.utils import load_config, get_architecture, get_optimizer
 
 from Networks.impl.standard import StandardNetwork as MyNetwork
+from transforms import random_horizontal_flip, normalize
+import numpy as np
 
 
 # The info messages are getting tedious now
 tf.logging.set_verbosity(tf.logging.WARN)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-# set random seeds
-random.seed(1234)
-tf.random.set_random_seed(1234)
-np.random.seed(1234)
-
 print(tf.__version__)
 
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    tc = load_config("mobilenetv2_cifar10.json")
+    tc = load_config("mobilenetv1_cifar10.json")
+
+    if "seed" in tc.keys():
+        seed = tc['seed']
+    else:
+        seed = 1234
+
+    # set random seeds
+    random.seed(seed)
+    tf.random.set_random_seed(seed)
+    np.random.seed(seed)
 
     architecture = get_architecture(tc['architecture'])(num_classes=tc['num_classes'])
 
@@ -46,8 +53,15 @@ if __name__ == '__main__':
 
     ds_train, ds_test = datasets['train'], datasets['test']
 
+    print(datasets)
+    print(ds_train)
     # Build your input pipeline
-    ds_train = ds_train.batch(tc['batch_size']).prefetch(1000)
+    ds_train = ds_train.padded_batch(
+        batch_size=tc['batch_size'],
+        padded_shapes={
+          'label': [],
+          'image': [-1, -1, -1]
+        })
 
     # No batching just use entire test data
     ds_test = ds_test.batch(2000)
@@ -67,8 +81,8 @@ if __name__ == '__main__':
     tf.summary.scalar('Training Loss', loss_op)
 
     # Add the regularisation terms
-    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    loss_op += loss_op + sum(reg_losses)
+    #reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    #loss_op += loss_op + sum(reg_losses)
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -76,8 +90,8 @@ if __name__ == '__main__':
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    train_op = tf.train.RMSPropOptimizer(learning_rate=learning_rate,
-                                         momentum=tc['momentum']).minimize(loss_op, global_step=global_step)
+    train_op = get_optimizer(tc['optimizer'])(learning_rate=learning_rate).minimize(loss_op, global_step=global_step)
+
     init_op = tf.global_variables_initializer()
 
     # Create session and initialize weights
@@ -100,6 +114,18 @@ if __name__ == '__main__':
 
     print("Number of parameters = {}".format(num_params))
 
+    def uwotm8(img):
+        e = np.zeros(shape=(32, 32, 3))
+        e[:img.shape[0], :img.shape[1], :img.shape[2]] = img
+        return e
+
+    def preprocess_batch(images):
+        images = random_horizontal_flip(images)
+
+        images = np.array(images) / 255.0
+        images = (images - 0.449) / 0.226
+        return images
+
     lr = tc['learning_rate']
     pbar = tqdm(range(tc['num_epochs']))
     for epoch in pbar:
@@ -108,8 +134,25 @@ if __name__ == '__main__':
         for batch in tfds.as_numpy(ds_train):
             images, labels = batch['image'], batch['label']
 
+            # Pad to appropriate size (32x32x3)
+            # images = np.array([uwotm8(img) for img in images])
+
             # Normalise in range [0, 1)
-            images = images / 255.0
+            # images = images / 255.0
+            # images = preprocess_batch(images)
+
+            # mean = [0.485, 0.456, 0.406]
+            # std = [0.229, 0.224, 0.225]
+            # images = normalize(images, mean, std)
+
+            """
+            train_transform = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+            ])"""
 
             # One hot encode
             labels = np.eye(tc['num_classes'])[labels]
@@ -136,24 +179,22 @@ if __name__ == '__main__':
         if epoch % tc['num_epochs_decay'] == 0:
             lr = lr * tc['learning_rate_decay']
 
-    if epoch % tc['test_every'] == 0:
-        # Testing (after training)
-        for batch in tfds.as_numpy(ds_test):
-            images, labels = batch['image'], batch['label']
+        if epoch % tc['test_every'] == 0 and epoch != 0:
+            for batch in tfds.as_numpy(ds_test):
+                images, labels = batch['image'], batch['label']
 
-            # Normalise in range [0, 1)
-            images = images / 255.0
+                images = preprocess_batch(images)
 
-            # One hot encode
-            labels = np.eye(tc['num_classes'])[labels]
+                # One hot encode
+                labels = np.eye(tc['num_classes'])[labels]
 
-            feed_dict = {
-                x: images,
-                y: labels,
-            }
+                feed_dict = {
+                    x: images,
+                    y: labels,
+                }
 
-            acc = sess.run(accuracy, feed_dict)
-            print("Accuracy = {}".format(acc))
+                acc = sess.run(accuracy, feed_dict)
+                print("Accuracy = {}".format(acc))
 
     # Export model tflite
     export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name="cifar")

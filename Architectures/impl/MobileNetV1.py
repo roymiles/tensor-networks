@@ -44,11 +44,6 @@ class MobileNetV1(IArchitecture):
     """ This is the original MobileNet architecture for ImageNet
         Of course, the convolutional layers are replaced with depthwise separable layers """
 
-    weight_decay = 0.00004
-    stddev = 0.09
-    batch_norm_decay = 0.9997
-    batch_norm_epsilon = 0.001
-
     def DepthSepConv(self, shape, stride, depth):
         # Depth is pretty much shape[3] (if included)
         w = shape[0]
@@ -58,11 +53,13 @@ class MobileNetV1(IArchitecture):
 
         # By default, don't regularise depthwise filters
         sequential = [
-            DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride),
-                               kernel_initializer=tf.truncated_normal_initializer(stddev=self.stddev)),
-            ConvLayer(shape=[1, 1, c, depth], kernel_regularizer=tf.contrib.layers.l2_regularizer(self.weight_decay)),
+            DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
+            BatchNormalisationLayer(num_features=c * depth_multiplier),
+            ReLU(),
+            # Pointwise
+            ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False),
             # Not managed to integrate moving average decay
-            BatchNormalisationLayer(num_features=depth, variance_epsilon=self.batch_norm_epsilon),
+            BatchNormalisationLayer(num_features=depth),
             ReLU()
         ]
 
@@ -72,6 +69,8 @@ class MobileNetV1(IArchitecture):
         network = [
             # NOTE: Comments are for input size
             ConvLayer(shape=[3, 3, 3, 32], strides=(2, 2)),
+            ReLU(),
+
             *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),
             *self.DepthSepConv(shape=[3, 3, 64], stride=2, depth=128),
             *self.DepthSepConv(shape=[3, 3, 128], stride=1, depth=128),
@@ -86,13 +85,9 @@ class MobileNetV1(IArchitecture):
             *self.DepthSepConv(shape=[3, 3, 512], stride=2, depth=1024),
             *self.DepthSepConv(shape=[3, 3, 1024], stride=1, depth=1024),
 
-            GlobalAveragePooling(),
-            DropoutLayer(0.999),
-            # Logits
-            ConvLayer(shape=[3, 3, 1024, num_classes]),
-
-            # Remove spatial dims, so output is ? x 10
-            GlobalAveragePooling(keep_dims=False)
+            ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
+            GlobalAveragePooling(keep_dims=False),
+            FullyConnectedLayer(shape=[1024, num_classes])
         ]
 
         super().__init__(network)

@@ -112,10 +112,18 @@ class BiasLayerConstant(ILayer):
 
 
 class FullyConnectedLayer(ILayer):
-    def __init__(self, shape, use_bias=True):
+    def __init__(self, shape, use_bias=True, kernel_initializer=tf.glorot_normal_initializer(),
+                 bias_initializer=tf.zeros_initializer(),
+                 kernel_regularizer=None, bias_regularizer=None):
+
         super().__init__()
         self._shape = shape
         self._use_bias = use_bias
+
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
 
     def get_shape(self):
         return self._shape
