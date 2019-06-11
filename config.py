@@ -1,17 +1,19 @@
 """ Generic configuration file with no dependencies
     For example, learning rate, batch size etc """
 
+working_dir = "/media/roy/New Volume/"
+
 # Where all the tfds datasets are downloaded to
-tfds_dir = "/media/roy/New Volume/tensorflow-datasets/"
+tfds_dir = working_dir + "tensorflow-datasets/"
 
 # Where tensorboard logs are stored
 log_dir = "/home/roy/Desktop/Tensorboard/"
 
 # Where checkpoints are saved
-ckpt_dir = "/media/roy/New Volume/Checkpoints/"
+ckpt_dir = working_dir + "Checkpoints/"
 
 # Where tflite files are exported
-tflite_dir = "/media/roy/New Volume/tflite"
+tflite_dir = working_dir + "tflite"
 
 # List of all the datasets, for reference
 # ['abstract_reasoning', 'bair_robot_pushing_small', 'caltech101', 'cats_vs_dogs', 'celeb_a', 'celeb_a_hq', 'chexpert',

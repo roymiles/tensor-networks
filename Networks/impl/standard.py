@@ -61,9 +61,8 @@ class StandardNetwork(INetwork):
         Additional parameters are named in kwargs
         """
 
-        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
+        with tf.variable_scope(name):
             cur_layer = self.get_architecture().get_layer(layer_idx)
-            print(f"hey {cur_layer}")
 
             if isinstance(cur_layer, ConvLayer):
 

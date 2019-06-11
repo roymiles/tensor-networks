@@ -53,18 +53,16 @@ if __name__ == '__main__':
 
     ds_train, ds_test = datasets['train'], datasets['test']
 
-    print(datasets)
-    print(ds_train)
     # Build your input pipeline
     ds_train = ds_train.padded_batch(
         batch_size=tc['batch_size'],
         padded_shapes={
           'label': [],
           'image': [-1, -1, -1]
-        })
+        }).shuffle(1000).prefetch(1000)
 
     # No batching just use entire test data
-    ds_test = ds_test.batch(2000)
+    ds_test = ds_test.batch(2000).shuffle(1000).prefetch(1000)
 
     with tf.variable_scope("input"):
         x = tf.placeholder(tf.float32, shape=[None, tc['img_width'], tc['img_height'], tc['num_channels']])
@@ -96,9 +94,11 @@ if __name__ == '__main__':
 
     # Create session and initialize weights
     config = tf.ConfigProto(
-        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
+        # device_count={'GPU': 0},  # If want to run on CPU only
+        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
+        
     )
-    sess = tf.Session(config=config)
+    sess = tf.InteractiveSession(config=config)  # Session, Interactive session catches errors better
     sess.run(init_op)
 
     # Tensorboard
@@ -113,11 +113,6 @@ if __name__ == '__main__':
         num_params += tfvar_size(v)
 
     print("Number of parameters = {}".format(num_params))
-
-    def uwotm8(img):
-        e = np.zeros(shape=(32, 32, 3))
-        e[:img.shape[0], :img.shape[1], :img.shape[2]] = img
-        return e
 
     def preprocess_batch(images):
         images = random_horizontal_flip(images)
@@ -137,22 +132,11 @@ if __name__ == '__main__':
             # Pad to appropriate size (32x32x3)
             # images = np.array([uwotm8(img) for img in images])
 
-            # Normalise in range [0, 1)
-            # images = images / 255.0
-            # images = preprocess_batch(images)
+            images = preprocess_batch(images)
 
             # mean = [0.485, 0.456, 0.406]
             # std = [0.229, 0.224, 0.225]
             # images = normalize(images, mean, std)
-
-            """
-            train_transform = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-            ])"""
 
             # One hot encode
             labels = np.eye(tc['num_classes'])[labels]
@@ -176,7 +160,7 @@ if __name__ == '__main__':
                 # pbar.set_description(f"Epoch: {epoch}, Step {step}, Pred: {pred[0]}, Trg: {labels[0]}")
 
         # Decay learning rate every n epochs
-        if epoch % tc['num_epochs_decay'] == 0:
+        if epoch % tc['num_epochs_decay'] == 0 and epoch != 0:
             lr = lr * tc['learning_rate_decay']
 
         if epoch % tc['test_every'] == 0 and epoch != 0:
