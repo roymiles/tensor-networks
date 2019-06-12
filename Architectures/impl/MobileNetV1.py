@@ -1,43 +1,5 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
-import tensorflow as tf
-
-learning_rate = tf.placeholder(tf.float64, shape=[])
-training_params = {
-    "initial_learning_rate": 1e-4,
-    "learning_rate": learning_rate,
-
-    "num_epochs_per_decay": 3,
-    "lr_decay": 0.94,
-
-    "batch_size": 64,
-    "optimizer": tf.train.GradientDescentOptimizer(learning_rate=learning_rate),
-
-    # These hyperparameters control the compression
-    # of the convolutional and fully connected weights
-    "conv_ranks": {
-        0: [6, 8, 16],
-        1: [6, 16, 32],
-        2: [6, 32, 64],
-        3: [6, 64, 64],
-        4: [6, 64, 128],
-        5: [6, 128, 128],
-        6: [6, 128, 256],
-
-        7: [6, 256, 256],
-        8: [6, 256, 256],
-        9: [6, 256, 256],
-        10: [6, 256, 256],
-        11: [6, 256, 256],
-
-        12: [6, 256, 512],
-        13: [6, 512, 512]
-    },
-    "fc_ranks": {
-        16: [512, 256]
-    }
-
-}
 
 
 class MobileNetV1(IArchitecture):
@@ -65,10 +27,10 @@ class MobileNetV1(IArchitecture):
 
         return sequential
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, channels):
         network = [
             # NOTE: Comments are for input size
-            ConvLayer(shape=[3, 3, 3, 32], strides=(2, 2)),
+            ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2)),
             ReLU(),
 
             *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),

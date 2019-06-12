@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    tc = load_config("mobilenetv1_cifar10.json")
+    tc = load_config("mnist_example.json")
 
     if "seed" in tc.keys():
         seed = tc['seed']
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     tf.random.set_random_seed(seed)
     np.random.seed(seed)
 
-    architecture = get_architecture(tc['architecture'])(num_classes=tc['num_classes'])
+    architecture = get_architecture(tc['architecture'])
 
     # See available datasets
     print(tfds.list_builders())
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    train_op = get_optimizer(tc['optimizer'])(learning_rate=learning_rate).minimize(loss_op, global_step=global_step)
+    train_op = get_optimizer(tc).minimize(loss_op, global_step=global_step)
 
     init_op = tf.global_variables_initializer()
 
@@ -115,10 +115,10 @@ if __name__ == '__main__':
     print("Number of parameters = {}".format(num_params))
 
     def preprocess_batch(images):
-        images = random_horizontal_flip(images)
+        #images = random_horizontal_flip(images)
 
         images = np.array(images) / 255.0
-        images = (images - 0.449) / 0.226
+        #images = (images - 0.449) / 0.226
         return images
 
     lr = tc['learning_rate']

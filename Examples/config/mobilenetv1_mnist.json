@@ -1,0 +1,19 @@
+{
+  "architecture": "mobilenetv1",
+  "dataset_name": "mnist",
+
+  "num_epochs": 50,
+  "img_height": 28,
+  "img_width": 28,
+  "num_channels": 1,
+  "num_classes": 10,
+  "batch_size": 64,
+
+  "optimizer": "adam",
+  "learning_rate": 10,
+  "learning_rate_decay": 0.5,
+  "num_epochs_decay": 2,
+
+  "test_every": 1,
+  "seed": 42
+}
