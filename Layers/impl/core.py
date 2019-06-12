@@ -200,33 +200,15 @@ class DropoutLayer(ILayer):
 
 
 class BatchNormalisationLayer(ILayer):
-    def __init__(self, num_features, affine=True, variance_epsilon=0.001, beta_initializer=tf.zeros_initializer(),
-                 gamma_initializer=tf.ones_initializer(), moving_mean_initializer=tf.zeros_initializer(),
-                 moving_variance_initializer=tf.ones_initializer()):
+    def __init__(self, affine=True):
 
         """ If affine is False, the scale and offset parameters won't be used
             When affine=False the output of BatchNorm is equivalent to considering gamma=1 and beta=0 as constants. """
         super().__init__()
-        self._num_features = num_features
         self._affine = affine
-        self._variance_epsilon = variance_epsilon
 
-        self.beta_initializer = beta_initializer
-        self.gamma_initializer = gamma_initializer
-        self.moving_mean_initializer = moving_mean_initializer
-        self.moving_variance_initializer = moving_variance_initializer
-
-    def is_affine(self):
-        return self._affine
-
-    def get_num_features(self):
-        return self._num_features
-
-    def get_variance_epsilon(self):
-        return self._variance_epsilon
-
-    def __call__(self, input, mean, variance, offset, scale):
-        return tf.nn.batch_normalization(input, mean, variance, offset, scale, variance_epsilon=self._variance_epsilon)
+    def __call__(self, input, is_training):
+        return tf.layers.batch_normalization(input, training=is_training)
 
 
 class ReLU(ILayer):

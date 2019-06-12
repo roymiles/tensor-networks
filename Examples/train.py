@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("cifar_example.json")
+    args = load_config("mobilenetv1_cifar10.json")
 
     if hasattr(args, 'seed'):
         seed = args.seed
@@ -54,24 +54,25 @@ if __name__ == '__main__':
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
-    ds_train = ds_train.padded_batch(
-        batch_size=args.batch_size,
-        padded_shapes={
-          'label': [],
-          'image': [-1, -1, -1]
-        }).shuffle(1000).prefetch(1000)
+    #ds_train = ds_train.padded_batch(
+    #    batch_size=args.batch_size,
+    #    padded_shapes={
+    #      'label': [],
+    #      'image': [-1, -1, -1]
+    #    }).shuffle(1000).prefetch(1000)
 
-    # No batching just use entire test data
-    ds_test = ds_test.batch(2000).shuffle(1000).prefetch(1000)
+    ds_train = ds_train.batch(args.batch_size).shuffle(args.batch_size * 50).prefetch(args.batch_size * 10)
+    ds_test = ds_test.batch(args.batch_size * 20).prefetch(1000)
 
     with tf.variable_scope("input"):
         x = tf.placeholder(tf.float32, shape=[None, args.img_width, args.img_height, args.num_channels])
         y = tf.placeholder(tf.float32, shape=[None, args.num_classes])
+        is_training = tf.placeholder(tf.bool, shape=[])
 
     model = MyNetwork(architecture=architecture)
     model.build("MyNetwork")
 
-    logits_op = model(input=x)
+    logits_op = model(input=x, is_training=is_training)
 
     loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
     tf.summary.scalar('Training Loss', loss_op)
@@ -116,10 +117,10 @@ if __name__ == '__main__':
     def preprocess_batch(images):
         # TODO: Make this arguments in .json and utils.py
 
-        #images = random_horizontal_flip(images)
+        images = random_horizontal_flip(images)
 
         images = np.array(images) / 255.0
-        #images = (images - 0.449) / 0.226
+        # images = (images - 0.449) / 0.226
         return images
 
     lr = args.learning_rate
@@ -142,7 +143,8 @@ if __name__ == '__main__':
             feed_dict = {
                 x: images,
                 y: labels,
-                learning_rate: lr
+                learning_rate: lr,
+                is_training: True
             }
 
             fetches = [global_step, train_op, loss_op, merged, logits_op]
@@ -161,6 +163,7 @@ if __name__ == '__main__':
         if epoch % args.num_epochs_decay == 0 and epoch != 0:
             lr = lr * args.learning_rate_decay
 
+        acc = []
         if epoch % args.test_every == 0 and epoch != 0:
             for batch in tfds.as_numpy(ds_test):
                 images, labels = batch['image'], batch['label']
@@ -173,10 +176,13 @@ if __name__ == '__main__':
                 feed_dict = {
                     x: images,
                     y: labels,
+                    is_training: False
                 }
 
-                acc = sess.run(accuracy, feed_dict)
-                print("Accuracy = {}".format(acc))
+                acc.append(sess.run(accuracy, feed_dict))
+
+            test_acc = np.mean(acc)
+            print("Accuracy = {}".format(test_acc))
 
     # Export model tflite
     export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name="cifar")

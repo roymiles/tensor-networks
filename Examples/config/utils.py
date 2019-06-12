@@ -6,6 +6,7 @@ from Architectures.impl.MobileNetV1 import MobileNetV1
 from Architectures.impl.MobileNetV2 import MobileNetV2
 from Architectures.impl.CIFARExample import CIFARExample
 from Architectures.impl.MNISTExample import MNISTExample
+from Architectures.impl.AlexNet import AlexNet
 
 
 def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
@@ -46,6 +47,8 @@ def get_architecture(args):
         return CIFARExample(num_classes=args.num_classes)
     elif name == "mnist_example":
         return MNISTExample()
+    elif name == "alexnet":
+        return AlexNet(num_classes=args.num_classes)
     else:
         raise Exception("Unknown architecture")
 

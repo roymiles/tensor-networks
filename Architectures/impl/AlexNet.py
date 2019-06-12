@@ -1,20 +1,33 @@
 from Architectures.architectures import IArchitecture
-from Layers.impl.core import ConvLayer
+from Layers.impl.core import *
 
 
 class AlexNet(IArchitecture):
-    def __init__(self):
+    def __init__(self, num_classes):
         network = [
-            # TODO: Finish
-            # NOTE: Comments are for input size
-            ConvLayer(shape=[3, 3, 3, 96]),  # 227x227x3
-            ConvLayer(shape=[3, 3, 96, 256]),
-            ConvLayer(shape=[3, 3, 256, 384], strides=[1, 2, 2, 1]),
-            ConvLayer(shape=[3, 3, 384, 384]),
-            ConvLayer(shape=[3, 3, 384, 256], strides=[1, 2, 2, 1]),
-            ConvLayer(shape=[3, 3, 256, 256]),
-            ConvLayer(shape=[3, 3, 256, 512], strides=[1, 2, 2, 1]),
+            ConvLayer(shape=[3, 3, 3, 96]),
+            MaxPoolingLayer(pool_size=(3, 3)),
+            ReLU(),
 
+            ConvLayer(shape=[3, 3, 96, 256]),
+            ReLU(),
+            MaxPoolingLayer(pool_size=(3, 3)),
+
+            ConvLayer(shape=[3, 3, 256, 384], strides=(2, 2)),
+            ReLU(),
+            ConvLayer(shape=[3, 3, 384, 384]),
+            ReLU(),
+            ConvLayer(shape=[3, 3, 384, 256], strides=(2, 2)),
+            ReLU(),
+
+            MaxPoolingLayer(pool_size=(3, 3)),
+
+            Flatten(),
+            Dense(shape=(256, 4096)),
+            ReLU(),
+            Dense(shape=(4096, 4096)),
+            ReLU(),
+            Dense(shape=(4096, num_classes)),
         ]
 
         super().__init__(network)

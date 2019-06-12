@@ -63,29 +63,6 @@ class Weights:
             "bias": bias
         }
 
-    def set_bn_layer_weights(self, layer_idx, mean, variance, scale, offset):
-        """
-
-        All the parameters, beside layer_idx, are either Graph instances or tf.Variables of dims N
-        Where N is the number of features
-
-        :param layer_idx:
-        :param mean:
-        :param mean:
-        :param variance:
-        :param scale:
-        :param offset:
-        :return:
-        """
-
-        self._weights[layer_idx] = {
-            "__type__": LayerTypes.BN,
-            "mean": mean,
-            "variance": variance,
-            "scale": scale,
-            "offset": offset
-        }
-
     def set_mobilenetv2_bottleneck_layer_weights(self, layer_idx, expansion_kernel, expansion_bias, depthwise_kernel,
                                                  depthwise_bias, projection_kernel, projection_bias):
         self._weights[layer_idx] = {
@@ -110,14 +87,6 @@ class Weights:
                 else:
                     # tf.Variable
                     num_params += tfvar_size(w["kernel"])
-
-            elif w["__type__"] == LayerTypes.BN:
-
-                # Do not currently support tensor networks for batch norm layers
-                num_params += tfvar_size(w["mean"])
-                num_params += tfvar_size(w["variance"])
-                num_params += tfvar_size(w["scale"])
-                num_params += tfvar_size(w["offset"])
 
             else:
                 raise Exception("Unknown weight type")

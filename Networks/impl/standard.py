@@ -42,23 +42,21 @@ class StandardNetwork(INetwork):
                 tf_weights = nl.fully_connected(cur_layer, layer_idx)
                 self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
 
-            elif isinstance(cur_layer, BatchNormalisationLayer):
-                tf_weights = nl.batch_normalisation(cur_layer, layer_idx)
-                self._weights.set_bn_layer_weights(layer_idx, **tf_weights)
-
             elif isinstance(cur_layer, MobileNetV2BottleNeck):
                 tf_weights = mobilenetv2_bottleneck(cur_layer, layer_idx)
                 self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
 
-    def run_layer(self, input, layer_idx, name, **kwargs):
+    def run_layer(self, input, layer_idx, name, is_training=True, switch_idx=0):
         """ Pass input through a single layer
             Operation is dependant on the layer type
 
         :param input : input is a 4 dimensional feature map [B, W, H, C]
         :param layer_idx : Layer number
         :param name : For variable scoping
+        :param is_training: bool, is training or testing mode
+        :param switch_idx: Index for switch_list, controls the compression of the network
+                       (default, just call first switch)
 
-        Additional parameters are named in kwargs
         """
 
         with tf.variable_scope(name):
@@ -100,15 +98,7 @@ class StandardNetwork(INetwork):
                 return cur_layer(input, kernel=c, bias=b)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
-
-                w = self._weights.get_layer_weights(layer_idx)
-
-                mean = w["mean"]
-                variance = w["variance"]
-                scale = w["scale"]
-                offset = w["offset"]
-
-                return cur_layer(input, mean, variance, scale, offset)
+                return cur_layer(input, is_training=is_training)
 
             elif isinstance(cur_layer, ReLU):
                 act = INetwork.run_layer(layer=cur_layer, input=input)
@@ -134,15 +124,16 @@ class StandardNetwork(INetwork):
 
             else:
                 # These layers are not overridden
-                print("The following layer does not have a concrete implementation: {}?".format(cur_layer))
-                return INetwork.run_layer(layer=cur_layer, input=input, **kwargs)
+                print(f"The following layer does not have a concrete implementation: {cur_layer}")
+                return INetwork.run_layer(layer=cur_layer, input=input)
 
-    def __call__(self, input, switch_idx=0):
+    def __call__(self, input, is_training=True, switch_idx=0):
         """ Complete forward pass for the entire network
 
             :param input: The input to the network e.g. a batch of images
             :param switch_idx: Index for switch_list, controls the compression of the network
                                (default, just call first switch)
+            :param is_training: bool, is training or testing mode
         """
 
         tf.summary.image("Input data", input)
@@ -150,6 +141,7 @@ class StandardNetwork(INetwork):
         # Loop through all the layers
         net = input
         for n in range(self.get_num_layers()):
-            net = self.run_layer(input=net, layer_idx=n, name="layer_{}".format(n))
+            net = self.run_layer(input=net, layer_idx=n, name=f"layer_{n}",
+                                 is_training=is_training, switch_idx=switch_idx)
 
         return net

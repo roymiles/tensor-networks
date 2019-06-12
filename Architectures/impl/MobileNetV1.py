@@ -16,12 +16,12 @@ class MobileNetV1(IArchitecture):
         # By default, don't regularise depthwise filters
         sequential = [
             DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
-            BatchNormalisationLayer(num_features=c * depth_multiplier),
+            BatchNormalisationLayer(),
             ReLU(),
             # Pointwise
             ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False),
             # Not managed to integrate moving average decay
-            BatchNormalisationLayer(num_features=depth),
+            BatchNormalisationLayer(),
             ReLU()
         ]
 
@@ -49,6 +49,7 @@ class MobileNetV1(IArchitecture):
 
             # ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
             GlobalAveragePooling(keep_dims=False),
+            Flatten(),
             FullyConnectedLayer(shape=[1024, num_classes])
         ]
 
