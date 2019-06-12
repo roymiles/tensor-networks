@@ -54,7 +54,7 @@ if __name__ == '__main__':
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
-    #ds_train = ds_train.padded_batch(
+    # ds_train = ds_train.padded_batch(
     #    batch_size=args.batch_size,
     #    padded_shapes={
     #      'label': [],
@@ -78,8 +78,8 @@ if __name__ == '__main__':
     tf.summary.scalar('Training Loss', loss_op)
 
     # Add the regularisation terms
-    #reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    #loss_op += loss_op + sum(reg_losses)
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    loss_op += loss_op + sum(reg_losses)
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))

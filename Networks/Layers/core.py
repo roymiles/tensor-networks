@@ -9,75 +9,76 @@
 
 import tensorflow as tf
 from Networks.graph import Graph
+from Networks.network import Weights
 
 
-def depthwise_convolution(cur_layer, layer_idx):
-    """
-        Implements standard depthwise convolution using a tensor network
-        with a single node (aka no factorisation)
-    """
+class CreateWeights:
+    @staticmethod
+    def depthwiseConvolution(cur_layer, layer_idx):
+        """
+            Implements standard depthwise convolution using a tensor network
+            with a single node (aka no factorisation)
+        """
 
-    # Very similar to standard convolution
-    shape = cur_layer.get_shape()
+        # Very similar to standard convolution
+        shape = cur_layer.get_shape()
 
-    kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], shape[2], shape[3]],
-                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                             initializer=cur_layer.kernel_initializer,
-                             regularizer=cur_layer.kernel_regularizer,
-                             trainable=True)
+        kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], shape[2], shape[3]],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                 initializer=cur_layer.kernel_initializer,
+                                 regularizer=cur_layer.kernel_regularizer,
+                                 trainable=True)
 
-    bias = None
-    if cur_layer.using_bias():
-        bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[2] * shape[3]],  # W x H x C x M
-                               initializer=cur_layer.bias_initializer,
-                               regularizer=cur_layer.bias_regularizer,
-                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
-                               trainable=True)
+        bias = None
+        if cur_layer.using_bias():
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[2] * shape[3]],  # W x H x C x M
+                                   initializer=cur_layer.bias_initializer,
+                                   regularizer=cur_layer.bias_regularizer,
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
 
-    return {"kernel": kernel, "bias": bias}
+        return Weights.DepthwiseConvolution(kernel, bias)
 
+    @staticmethod
+    def fullyConnected(cur_layer, layer_idx):
+        shape = cur_layer.get_shape()
 
-def fully_connected(cur_layer, layer_idx):
-    shape = cur_layer.get_shape()
+        kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1]],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                 initializer=cur_layer.kernel_initializer,
+                                 regularizer=cur_layer.kernel_regularizer,
+                                 trainable=True)
 
-    kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1]],
-                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                             initializer=cur_layer.kernel_initializer,
-                             regularizer=cur_layer.kernel_regularizer,
-                             trainable=True)
+        bias = None
+        if cur_layer.using_bias():
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[1]],  # I x O
+                                   initializer=cur_layer.bias_initializer,
+                                   regularizer=cur_layer.bias_regularizer,
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
 
-    bias = None
-    if cur_layer.using_bias():
-        bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[1]],  # I x O
-                               initializer=cur_layer.bias_initializer,
-                               regularizer=cur_layer.bias_regularizer,
-                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
-                               trainable=True)
+        return Weights.FullyConnected(kernel, bias)
 
-    return {"kernel": kernel, "bias": bias}
+    @staticmethod
+    def convolution(cur_layer, layer_idx):
+        shape = cur_layer.get_shape()
 
+        kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], shape[2], shape[3]],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                 initializer=cur_layer.kernel_initializer,
+                                 regularizer=cur_layer.kernel_regularizer,
+                                 trainable=True)
 
-def convolution(cur_layer, layer_idx):
-    shape = cur_layer.get_shape()
+        tf.summary.histogram(f"conv_{layer_idx}", kernel)
 
-    kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], shape[2], shape[3]],
-                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                             initializer=tf.contrib.layers.xavier_initializer(),
-                             trainable=True)
-                             # initializer=cur_layer.kernel_initializer,
-                             # regularizer=cur_layer.kernel_regularizer)
+        bias = None
+        if cur_layer.using_bias():
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[3]],  # W x H x C x *N*
+                                   initializer=cur_layer.bias_initializer,
+                                   regularizer=cur_layer.bias_regularizer,
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
 
-    tf.summary.histogram(f"conv_{layer_idx}", kernel)
+            tf.summary.histogram(f"conv_bias_{layer_idx}", bias)
 
-    bias = None
-    if cur_layer.using_bias():
-        bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[3]],  # W x H x C x *N*
-                               # initializer=cur_layer.bias_initializer,
-                               initializer=tf.initializers.zeros(),
-                               regularizer=cur_layer.bias_regularizer,
-                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
-                               trainable=True)
-
-        tf.summary.histogram(f"conv_bias_{layer_idx}", bias)
-
-    return {"kernel": kernel, "bias": bias}
+        return Weights.Convolution(kernel, bias)

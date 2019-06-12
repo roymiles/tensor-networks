@@ -39,15 +39,15 @@ def get_architecture(args):
 
     print(args)
     name = args.architecture
-    if name == "mobilenetv2":
-        return MobileNetV2(num_classes=args.num_classes, channels=args.num_channels)
-    elif name == "mobilenetv1":
+    if name == "MobileNetV1":
         return MobileNetV1(num_classes=args.num_classes, channels=args.num_channels)
-    elif name == "cifar_example":
+    elif name == "MobileNetV2":
+        return MobileNetV2(num_classes=args.num_classes, channels=args.num_channels)
+    elif name == "CIFARExample":
         return CIFARExample(num_classes=args.num_classes)
-    elif name == "mnist_example":
+    elif name == "MNISTExample":
         return MNISTExample()
-    elif name == "alexnet":
+    elif name == "AlexNet":
         return AlexNet(num_classes=args.num_classes)
     else:
         raise Exception("Unknown architecture")
@@ -65,11 +65,11 @@ def get_optimizer(args):
         learning_rate = tf.placeholder(tf.float64, shape=[])
 
     name = args.optimizer
-    if name == "adam":
+    if name == "Adam":
         return tf.train.AdamOptimizer(learning_rate=learning_rate), learning_rate
-    elif name == "rmsprop":
+    elif name == "RMSProp":
         return tf.train.RMSPropOptimizer(learning_rate=learning_rate), learning_rate
-    elif name == "momentum":
+    elif name == "Momentum":
         return tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=args.momentum,
                                           use_nesterov=args.use_nesterov), learning_rate
     else:

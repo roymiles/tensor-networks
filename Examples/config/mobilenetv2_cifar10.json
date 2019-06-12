@@ -1,7 +1,6 @@
 {
   "architecture": "mobilenetv2",
   "dataset_name": "cifar10",
-  "experiment_dir": "cifar10_test_exp",
 
   "num_epochs": 800,
   "img_height": 32,

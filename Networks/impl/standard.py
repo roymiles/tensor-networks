@@ -19,31 +19,32 @@ class StandardNetwork(INetwork):
 
             :param name: Variable scope e.g. StandardNetwork1
         """
-        # with tf.variable_scope(name):
+        with tf.variable_scope(name):
 
-        # All the weights of the network are stored in this container
-        self._weights = Weights()
+            # All the weights of the network are stored in this container
+            self._weights = Weights()
 
-        # Initialize the standard convolutional and fully connected weights
-        for layer_idx in range(self._num_layers):
+            # Initialize the standard convolutional and fully connected weights
+            for layer_idx in range(self._num_layers):
 
-            # Only need to initialize tensors for layers that have weights
-            cur_layer = self.get_architecture().get_layer(layer_idx)
-            if isinstance(cur_layer, ConvLayer):
-                tf_weights = nl.convolution(cur_layer, layer_idx)
-                self._weights.set_conv_layer_weights(layer_idx, **tf_weights)
+                # Only need to initialize tensors for layers that have weights
+                cur_layer = self.get_architecture().get_layer(layer_idx)
+                if isinstance(cur_layer, ConvLayer):
+                    # TODO: Pass tf_weight parameters directly!
+                    tf_weights = nl.CreateWeights.convolution(cur_layer, layer_idx)
+                    self._weights.set_conv_layer_weights(layer_idx, tf_weights)
 
-            elif isinstance(cur_layer, DepthwiseConvLayer):
-                tf_weights = nl.depthwise_convolution(cur_layer, layer_idx)
-                self._weights.set_dw_conv_layer_weights(layer_idx, **tf_weights)
+                elif isinstance(cur_layer, DepthwiseConvLayer):
+                    tf_weights = nl.CreateWeights.depthwiseConvolution(cur_layer, layer_idx)
+                    self._weights.set_dw_conv_layer_weights(layer_idx, **tf_weights)
 
-            elif isinstance(cur_layer, FullyConnectedLayer):
-                tf_weights = nl.fully_connected(cur_layer, layer_idx)
-                self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
+                elif isinstance(cur_layer, FullyConnectedLayer):
+                    tf_weights = nl.CreateWeights.fullyConnected(cur_layer, layer_idx)
+                    self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
 
-            elif isinstance(cur_layer, MobileNetV2BottleNeck):
-                tf_weights = mobilenetv2_bottleneck(cur_layer, layer_idx)
-                self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
+                elif isinstance(cur_layer, MobileNetV2BottleNeck):
+                    tf_weights = mobilenetv2_bottleneck(cur_layer, layer_idx)
+                    self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
 
     def run_layer(self, input, layer_idx, name, is_training=True, switch_idx=0):
         """ Pass input through a single layer
