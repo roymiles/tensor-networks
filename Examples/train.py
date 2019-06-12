@@ -31,10 +31,10 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    tc = load_config("mnist_example.json")
+    args = load_config("mnist_example.json")
 
-    if "seed" in tc.keys():
-        seed = tc['seed']
+    if hasattr(args, 'seed'):
+        seed = args.seed
     else:
         seed = 1234
 
@@ -43,19 +43,19 @@ if __name__ == '__main__':
     tf.random.set_random_seed(seed)
     np.random.seed(seed)
 
-    architecture = get_architecture(tc['architecture'])
+    architecture = get_architecture(args)
 
     # See available datasets
     print(tfds.list_builders())
 
     # Already downloaded
-    datasets = tfds.load(tc['dataset_name'], data_dir=conf.tfds_dir)
+    datasets = tfds.load(args.dataset_name, data_dir=conf.tfds_dir)
 
     ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
     ds_train = ds_train.padded_batch(
-        batch_size=tc['batch_size'],
+        batch_size=args.batch_size,
         padded_shapes={
           'label': [],
           'image': [-1, -1, -1]
@@ -65,9 +65,8 @@ if __name__ == '__main__':
     ds_test = ds_test.batch(2000).shuffle(1000).prefetch(1000)
 
     with tf.variable_scope("input"):
-        x = tf.placeholder(tf.float32, shape=[None, tc['img_width'], tc['img_height'], tc['num_channels']])
-        y = tf.placeholder(tf.float32, shape=[None, tc['num_classes']])
-        learning_rate = tf.placeholder(tf.float64, shape=[])
+        x = tf.placeholder(tf.float32, shape=[None, args.img_width, args.img_height, args.num_channels])
+        y = tf.placeholder(tf.float32, shape=[None, args.num_classes])
 
     model = MyNetwork(architecture=architecture)
     model.build("MyNetwork")
@@ -88,7 +87,8 @@ if __name__ == '__main__':
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    train_op = get_optimizer(tc).minimize(loss_op, global_step=global_step)
+    opt, learning_rate = get_optimizer(args)
+    train_op = opt.minimize(loss_op, global_step=global_step)
 
     init_op = tf.global_variables_initializer()
 
@@ -103,7 +103,7 @@ if __name__ == '__main__':
 
     # Tensorboard
     merged = tf.summary.merge_all()
-    log_dir = conf.log_dir + tc['dataset_name']
+    log_dir = conf.log_dir + args.dataset_name
     train_writer = tf.summary.FileWriter(log_dir, sess.graph)
     print("Run: \"tensorboard --logdir={}\"".format(log_dir))
 
@@ -121,8 +121,8 @@ if __name__ == '__main__':
         #images = (images - 0.449) / 0.226
         return images
 
-    lr = tc['learning_rate']
-    pbar = tqdm(range(tc['num_epochs']))
+    lr = args.learning_rate
+    pbar = tqdm(range(args.num_epochs))
     for epoch in pbar:
 
         # Training
@@ -139,7 +139,7 @@ if __name__ == '__main__':
             # images = normalize(images, mean, std)
 
             # One hot encode
-            labels = np.eye(tc['num_classes'])[labels]
+            labels = np.eye(args.num_classes)[labels]
 
             feed_dict = {
                 x: images,
@@ -160,17 +160,17 @@ if __name__ == '__main__':
                 # pbar.set_description(f"Epoch: {epoch}, Step {step}, Pred: {pred[0]}, Trg: {labels[0]}")
 
         # Decay learning rate every n epochs
-        if epoch % tc['num_epochs_decay'] == 0 and epoch != 0:
-            lr = lr * tc['learning_rate_decay']
+        if epoch % args.num_epochs_decay == 0 and epoch != 0:
+            lr = lr * args.learning_rate_decay
 
-        if epoch % tc['test_every'] == 0 and epoch != 0:
+        if epoch % args.test_every == 0 and epoch != 0:
             for batch in tfds.as_numpy(ds_test):
                 images, labels = batch['image'], batch['label']
 
                 images = preprocess_batch(images)
 
                 # One hot encode
-                labels = np.eye(tc['num_classes'])[labels]
+                labels = np.eye(args.num_classes)[labels]
 
                 feed_dict = {
                     x: images,
