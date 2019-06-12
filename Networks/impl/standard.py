@@ -1,6 +1,5 @@
 """ Just call the layers normally, no core tensors, tensor contraction etc """
 from Networks.network import Weights, INetwork
-from Layers.layer import LayerTypes
 from Layers.impl.core import *
 from base import *
 from Networks.graph import Graph
@@ -65,37 +64,40 @@ class StandardNetwork(INetwork):
             if isinstance(cur_layer, ConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
-
-                assert w["__type__"] == LayerTypes.CONV, "The layer weights don't match up with the layer type"
-
-                c = w["kernel"]
+                assert isinstance(w, Weights.Convolution), "The layer weights don't match up with the layer type"
 
                 if cur_layer.using_bias():
-                    b = w["bias"]
+                    b = w.bias
                 else:
                     b = None
 
-                return cur_layer(input, kernel=c, bias=b)
+                return cur_layer(input, kernel=w.kernel, bias=b)
 
             elif isinstance(cur_layer, DepthwiseConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
-                assert w["__type__"] == LayerTypes.DW_CONV, "The layer weights don't match up with the layer type"
+                assert isinstance(w, Weights.DepthwiseConvolution), \
+                    "The layer weights don't match up with the layer type"
 
-                c = w["kernel"]
-                b = w["bias"]
+                if cur_layer.using_bias():
+                    b = w.bias
+                else:
+                    b = None
 
-                return cur_layer(input, kernel=c, bias=b)
+                return cur_layer(input, kernel=w.kernel, bias=b)
 
             elif isinstance(cur_layer, FullyConnectedLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
-                assert w["__type__"] == LayerTypes.FC, "The layer weights don't match up with the layer type"
+                assert isinstance(w, Weights.FullyConnected), \
+                    "The layer weights don't match up with the layer type"
 
-                c = w["kernel"]
-                b = w["bias"]
+                if cur_layer.using_bias():
+                    b = w.bias
+                else:
+                    b = None
 
-                return cur_layer(input, kernel=c, bias=b)
+                return cur_layer(input, kernel=w.kernel, bias=b)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
                 return cur_layer(input, is_training=is_training)
@@ -107,20 +109,13 @@ class StandardNetwork(INetwork):
             elif isinstance(cur_layer, MobileNetV2BottleNeck):
 
                 w = self._weights.get_layer_weights(layer_idx)
-                assert w["__type__"] == LayerTypes.MOBILENETV2_BOTTLENECK, \
+                assert isinstance(w, Weights.Mobilenetv2Bottleneck), \
                     "The layer weights don't match up with the layer type"
 
-                expansion_kernel = w["expansion_kernel"]
-                expansion_bias = w["expansion_bias"]
-                depthwise_kernel = w["depthwise_kernel"]
-                depthwise_bias = w["depthwise_bias"]
-                projection_kernel = w["projection_kernel"]
-                projection_bias = w["projection_bias"]
-
-                return cur_layer(input=input, expansion_kernel=expansion_kernel,
-                                 expansion_bias=expansion_bias, depthwise_kernel=depthwise_kernel,
-                                 depthwise_bias=depthwise_bias, projection_kernel=projection_kernel,
-                                 projection_bias=projection_bias)
+                return cur_layer(input=input, expansion_kernel=w.expansion_kernel,
+                                 expansion_bias=w.expansion_bias, depthwise_kernel=w.depthwise_kernel,
+                                 depthwise_bias=w.depthwise_bias, projection_kernel=w.projection_kernel,
+                                 projection_bias=w.projection_bias)
 
             else:
                 # These layers are not overridden

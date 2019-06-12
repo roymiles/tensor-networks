@@ -2,8 +2,8 @@
 from abc import abstractmethod
 from Architectures.architectures import IArchitecture
 from base import tfvar_size
-from Layers.layer import LayerTypes
 from Networks.graph import Graph
+from collections import namedtuple
 
 
 class Weights:
@@ -14,6 +14,14 @@ class Weights:
 
     # Stored as key:value pair, where key is a layer_idx
     _weights = {}
+
+    # All the types of weights
+    Convolution = namedtuple('Convolution', ["kernel", "bias"])
+    DepthwiseConvolution = namedtuple('DepthwiseConvolution', ["kernel", "bias"])
+    FullyConnected = namedtuple('FullyConnected', ["kernel", "bias"])
+    Mobilenetv2Bottleneck = namedtuple('Mobilenetv2Bottleneck', ["expansion_kernel", "expansion_bias",
+                                                                 "depthwise_kernel", "depthwise_bias",
+                                                                 "projection_kernel", "projection_bias"])
 
     def __init__(self):
         pass
@@ -27,11 +35,7 @@ class Weights:
         :param bias: Graph/tf.Variable type, dims N
         :return:
         """
-        self._weights[layer_idx] = {
-            "__type__": LayerTypes.CONV,
-            "kernel": kernel,
-            "bias": bias
-        }
+        self._weights[layer_idx] = self.Convolution(kernel, bias)
 
     def set_dw_conv_layer_weights(self, layer_idx, kernel, bias):
         """
@@ -42,11 +46,7 @@ class Weights:
         :param bias: Graph/tf.Variable type, dims CxM
         :return:
         """
-        self._weights[layer_idx] = {
-            "__type__": LayerTypes.DW_CONV,
-            "kernel": kernel,
-            "bias": bias
-        }
+        self._weights[layer_idx] = self.DepthwiseConvolution(kernel, bias)
 
     def set_fc_layer_weights(self, layer_idx, kernel, bias):
         """
@@ -57,20 +57,14 @@ class Weights:
         :param bias: Graph/tf.Variable type, dims N
         :return:
         """
-        self._weights[layer_idx] = {
-            "__type__": LayerTypes.FC,
-            "kernel": kernel,
-            "bias": bias
-        }
+        self._weights[layer_idx] = self.FullyConnected(kernel, bias)
 
     def set_mobilenetv2_bottleneck_layer_weights(self, layer_idx, expansion_kernel, expansion_bias, depthwise_kernel,
                                                  depthwise_bias, projection_kernel, projection_bias):
-        self._weights[layer_idx] = {
-            "__type__": LayerTypes.MOBILENETV2_BOTTLENECK,
-            "expansion_kernel": expansion_kernel, "expansion_bias": expansion_bias,
-            "depthwise_kernel": depthwise_kernel, "depthwise_bias": depthwise_bias,
-            "projection_kernel": projection_kernel, "projection_bias": projection_bias
-        }
+
+        self._weights[layer_idx] = self.Mobilenetv2Bottleneck(expansion_kernel, expansion_bias,
+                                                              depthwise_kernel, depthwise_bias,
+                                                              projection_kernel, projection_bias)
 
     def num_parameters(self):
         """" Calculates the number of parameters in the weights """
@@ -79,14 +73,14 @@ class Weights:
         for w in self._weights.values():
 
             # The same approach for convolutional or fully connected weights
-            if w["__type__"] == LayerTypes.CONV or w["__type__"] == LayerTypes.FC:
+            if isinstance(w, Weights.Convolution) or isinstance(w, Weights.FullyConnected):
 
-                if isinstance(w["kernel"], Graph):
+                if isinstance(w.kernel, Graph):
                     # Tensor network
-                    num_params += w["kernel"].num_parameters()
+                    num_params += w.kernel.num_parameters()
                 else:
                     # tf.Variable
-                    num_params += tfvar_size(w["kernel"])
+                    num_params += tfvar_size(w.kernel)
 
             else:
                 raise Exception("Unknown weight type")
