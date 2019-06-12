@@ -47,7 +47,7 @@ class MobileNetV1(IArchitecture):
             *self.DepthSepConv(shape=[3, 3, 512], stride=2, depth=1024),
             *self.DepthSepConv(shape=[3, 3, 1024], stride=1, depth=1024),
 
-            ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
+            # ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
             GlobalAveragePooling(keep_dims=False),
             FullyConnectedLayer(shape=[1024, num_classes])
         ]

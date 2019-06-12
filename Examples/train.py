@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("mnist_example.json")
+    args = load_config("cifar_example.json")
 
     if hasattr(args, 'seed'):
         seed = args.seed
@@ -73,8 +73,7 @@ if __name__ == '__main__':
 
     logits_op = model(input=x)
 
-    loss_op = tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op)
-    loss_op = tf.reduce_mean(loss_op)
+    loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
     tf.summary.scalar('Training Loss', loss_op)
 
     # Add the regularisation terms
@@ -109,12 +108,14 @@ if __name__ == '__main__':
 
     num_params = 0
     for v in tf.trainable_variables():
-        print(v)
+        # print(v)
         num_params += tfvar_size(v)
 
     print("Number of parameters = {}".format(num_params))
 
     def preprocess_batch(images):
+        # TODO: Make this arguments in .json and utils.py
+
         #images = random_horizontal_flip(images)
 
         images = np.array(images) / 255.0
@@ -128,9 +129,6 @@ if __name__ == '__main__':
         # Training
         for batch in tfds.as_numpy(ds_train):
             images, labels = batch['image'], batch['label']
-
-            # Pad to appropriate size (32x32x3)
-            # images = np.array([uwotm8(img) for img in images])
 
             images = preprocess_batch(images)
 

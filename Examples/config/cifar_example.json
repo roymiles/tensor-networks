@@ -1,0 +1,21 @@
+{
+  "architecture": "cifar_example",
+  "dataset_name": "cifar10",
+
+  "num_epochs": 5,
+  "img_height": 32,
+  "img_width": 32,
+  "num_channels": 3,
+  "num_classes": 10,
+  "batch_size": 128,
+
+  "optimizer": "momentum",
+  "momentum": 0.9,
+  "use_nesterov": true,
+  "learning_rate": 0.01,
+  "learning_rate_decay": 0.99,
+  "num_epochs_decay": 1,
+
+  "test_every": 1,
+  "seed": 42
+}

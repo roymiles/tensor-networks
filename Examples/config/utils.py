@@ -43,7 +43,7 @@ def get_architecture(args):
     elif name == "mobilenetv1":
         return MobileNetV1(num_classes=args.num_classes, channels=args.num_channels)
     elif name == "cifar_example":
-        return CIFARExample()
+        return CIFARExample(num_classes=args.num_classes)
     elif name == "mnist_example":
         return MNISTExample()
     else:
@@ -66,5 +66,8 @@ def get_optimizer(args):
         return tf.train.AdamOptimizer(learning_rate=learning_rate), learning_rate
     elif name == "rmsprop":
         return tf.train.RMSPropOptimizer(learning_rate=learning_rate), learning_rate
+    elif name == "momentum":
+        return tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=args.momentum,
+                                          use_nesterov=args.use_nesterov), learning_rate
     else:
         raise Exception("Unknown optimizer")

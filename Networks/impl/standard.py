@@ -145,6 +145,8 @@ class StandardNetwork(INetwork):
                                (default, just call first switch)
         """
 
+        tf.summary.image("Input data", input)
+
         # Loop through all the layers
         net = input
         for n in range(self.get_num_layers()):

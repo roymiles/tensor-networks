@@ -173,14 +173,20 @@ def convolution(cur_layer, layer_idx):
 
     kernel = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], shape[2], shape[3]],
                              collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                             initializer=cur_layer.kernel_initializer,
-                             regularizer=cur_layer.kernel_regularizer)
+                             initializer=tf.contrib.layers.xavier_initializer())
+                             # initializer=cur_layer.kernel_initializer,
+                             # regularizer=cur_layer.kernel_regularizer)
+
+    tf.summary.histogram(f"conv_{layer_idx}", kernel)
 
     bias = None
     if cur_layer.using_bias():
         bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[3]],  # W x H x C x *N*
-                               initializer=cur_layer.bias_initializer,
+                               # initializer=cur_layer.bias_initializer,
+                               initializer=tf.initializers.zeros(),
                                regularizer=cur_layer.bias_regularizer,
                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES])
+
+        tf.summary.histogram(f"conv_bias_{layer_idx}", bias)
 
     return {"kernel": kernel, "bias": bias}
