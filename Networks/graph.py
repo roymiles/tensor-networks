@@ -5,7 +5,6 @@
 import tensorflow as tf
 import networkx as nx
 from base import *
-import numpy as np
 from base import random_string
 
 

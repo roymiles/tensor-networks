@@ -212,4 +212,5 @@ if __name__ == '__main__':
                     break
 
     # Export model tflite
-    export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name=f"{args.architecture}_{args.dataset_name}")
+    export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op],
+                               name=f"{args.architecture}_{args.dataset_name}")

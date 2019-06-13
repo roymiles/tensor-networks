@@ -1,7 +1,7 @@
 """ Define interfaces for a network and the weights inside the network """
 from Layers.impl.core import *
 from Architectures.architectures import IArchitecture
-from Networks.weights import Weights
+from Weights.weights import Weights
 import tensorflow as tf
 
 
