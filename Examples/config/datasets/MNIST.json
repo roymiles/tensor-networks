@@ -1,0 +1,8 @@
+{
+  "train_size": 50000,
+  "test_size": 10000,
+  "img_height": 28,
+  "img_width": 28,
+  "num_channels": 1,
+  "num_classes": 10
+}

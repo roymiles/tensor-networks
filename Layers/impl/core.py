@@ -1,5 +1,6 @@
 import tensorflow as tf
 from Layers.layer import ILayer
+from Networks.Layers.core import CreateWeights
 
 
 class ConvLayer(ILayer):
@@ -21,6 +22,10 @@ class ConvLayer(ILayer):
         self.bias_initializer = bias_initializer
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
+
+    @staticmethod
+    def create_weights():
+        return CreateWeights.convolution
 
     def get_shape(self):
         return self._shape
@@ -47,6 +52,10 @@ class ConvLayerConstant(ILayer):
         self._kernel = kernel
         self._strides = strides
         self._padding = padding
+
+    @staticmethod
+    def create_weights():
+        return CreateWeights.convolution
 
     def get_kernel(self):
         return self._kernel
@@ -78,6 +87,10 @@ class DepthwiseConvLayer(ILayer):
         self.bias_initializer = bias_initializer
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
+
+    @staticmethod
+    def create_weights():
+        return CreateWeights.depthwise_convolution
 
     def get_shape(self):
         return self._shape
@@ -124,6 +137,10 @@ class FullyConnectedLayer(ILayer):
         self.bias_initializer = bias_initializer
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
+
+    @staticmethod
+    def create_weights():
+        return CreateWeights.fully_connected
 
     def get_shape(self):
         return self._shape
@@ -274,6 +291,10 @@ class MobileNetV2BottleNeck(ILayer):
         self._c = c
 
         super().__init__()
+
+    @staticmethod
+    def create_weights():
+        return None
 
     def __call__(self, input, expansion_kernel, expansion_bias, depthwise_kernel, depthwise_bias,
                  projection_kernel, projection_bias):

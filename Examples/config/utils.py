@@ -29,26 +29,26 @@ def load_config(name, as_obj=True):
             return json.load(json_file)
 
 
-def get_architecture(args):
+def get_architecture(args, ds_args):
     """
         Get the architecture based on the arguments
 
-        :param args: Object containing arguments as members, including name of architecture, (num_classes?) etc
+        :param args: Model/Training arguments
+        :param ds_args: Dataset arguments
         :return: The architecture instance
     """
 
-    print(args)
     name = args.architecture
     if name == "MobileNetV1":
-        return MobileNetV1(num_classes=args.num_classes, channels=args.num_channels)
+        return MobileNetV1(num_classes=ds_args.num_classes, channels=ds_args.num_channels)
     elif name == "MobileNetV2":
-        return MobileNetV2(num_classes=args.num_classes, channels=args.num_channels)
+        return MobileNetV2(num_classes=ds_args.num_classes, channels=ds_args.num_channels)
     elif name == "CIFARExample":
-        return CIFARExample(num_classes=args.num_classes)
+        return CIFARExample(num_classes=ds_args.num_classes)
     elif name == "MNISTExample":
         return MNISTExample()
     elif name == "AlexNet":
-        return AlexNet(num_classes=args.num_classes)
+        return AlexNet(num_classes=ds_args.num_classes)
     else:
         raise Exception("Unknown architecture")
 

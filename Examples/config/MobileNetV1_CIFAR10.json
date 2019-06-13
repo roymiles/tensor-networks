@@ -1,12 +1,6 @@
 {
   "architecture": "MobileNetV1",
-  "dataset_name": "cifar100",
-
-  "num_epochs": 200,
-  "img_height": 32,
-  "img_width": 32,
-  "num_channels": 3,
-  "num_classes": 100,
+  "dataset_name": "cifar10",
   "batch_size": 256,
 
   "optimizer": "Momentum",

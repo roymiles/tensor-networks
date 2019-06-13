@@ -26,70 +26,14 @@ class Weights:
     def __init__(self):
         pass
 
-    def set_conv_layer_weights(self, layer_idx, kernel, bias):
-        """
-        Add a set of weights for a convolutional layer
-
-        :param layer_idx:
-        :param kernel: Graph/tf.Variable type, dims WxHxCxN
-        :param bias: Graph/tf.Variable type, dims N
-        :return:
-        """
-        self._weights[layer_idx] = self.Convolution(kernel, bias)
-
-    def set_dw_conv_layer_weights(self, layer_idx, kernel, bias):
-        """
-        Add a set of weights for a convolutional layer
-
-        :param layer_idx:
-        :param kernel: Graph/tf.Variable type, dims WxHxCxM
-        :param bias: Graph/tf.Variable type, dims CxM
-        :return:
-        """
-        self._weights[layer_idx] = self.DepthwiseConvolution(kernel, bias)
-
-    def set_fc_layer_weights(self, layer_idx, kernel, bias):
-        """
-        Add a set of weights for a fully connected layer
-
-        :param layer_idx:
-        :param kernel: Graph/tf.Variable type, dims IO
-        :param bias: Graph/tf.Variable type, dims N
-        :return:
-        """
-        self._weights[layer_idx] = self.FullyConnected(kernel, bias)
-
-    def set_mobilenetv2_bottleneck_layer_weights(self, layer_idx, expansion_kernel, expansion_bias, depthwise_kernel,
-                                                 depthwise_bias, projection_kernel, projection_bias):
-
-        self._weights[layer_idx] = self.Mobilenetv2Bottleneck(expansion_kernel, expansion_bias,
-                                                              depthwise_kernel, depthwise_bias,
-                                                              projection_kernel, projection_bias)
-
-    def num_parameters(self):
-        """" Calculates the number of parameters in the weights """
-
-        num_params = 0
-        for w in self._weights.values():
-
-            # The same approach for convolutional or fully connected weights
-            if isinstance(w, Weights.Convolution) or isinstance(w, Weights.FullyConnected):
-
-                if isinstance(w.kernel, Graph):
-                    # Tensor network
-                    num_params += w.kernel.num_parameters()
-                else:
-                    # tf.Variable
-                    num_params += tfvar_size(w.kernel)
-
-            else:
-                raise Exception("Unknown weight type")
-
-        return num_params
+    def set_weights(self, layer_idx, tf_weights):
+        self._weights[layer_idx] = tf_weights
 
     def get_layer_weights(self, layer_idx):
         """ Return the weights for a given layer """
-        return self._weights[layer_idx]
+        w = self._weights[layer_idx]
+        # for name, value in w._asdict().iteritems():
+        return w
 
     def debug(self):
         for layer_idx, weight in self._weights.items():

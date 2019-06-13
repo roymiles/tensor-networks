@@ -1,0 +1,15 @@
+{
+  "architecture": "MobileNetV1",
+  "dataset_name": "MNIST",
+
+  "num_epochs": 50,
+  "batch_size": 64,
+
+  "optimizer": "Adam",
+  "learning_rate": 0.1,
+  "learning_rate_decay": 0.5,
+  "num_epochs_decay": 2,
+
+  "test_every": 1,
+  "seed": 42
+}

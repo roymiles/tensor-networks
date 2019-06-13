@@ -1,0 +1,16 @@
+{
+  "architecture": "CIFARExample",
+  "dataset_name": "CIFAR10",
+
+  "batch_size": 128,
+  "optimizer": "Momentum",
+  "momentum": 0.9,
+  "use_nesterov": true,
+  "learning_rate": 0.01,
+  "learning_rate_decay": 0.99,
+  "num_epochs_decay": 1,
+  "num_epochs": 10,
+
+  "test_every": 1,
+  "seed": 42
+}

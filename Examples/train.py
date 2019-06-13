@@ -31,7 +31,8 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("mobilenetv1_cifar10.json")
+    args = load_config("AlexNet_CIFAR100.json")
+    ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     if hasattr(args, 'seed'):
         seed = args.seed
@@ -43,13 +44,13 @@ if __name__ == '__main__':
     tf.random.set_random_seed(seed)
     np.random.seed(seed)
 
-    architecture = get_architecture(args)
+    architecture = get_architecture(args, ds_args)
 
     # See available datasets
     print(tfds.list_builders())
 
     # Already downloaded
-    datasets = tfds.load(args.dataset_name, data_dir=conf.tfds_dir)
+    datasets = tfds.load(args.dataset_name.lower(), data_dir=conf.tfds_dir)
 
     ds_train, ds_test = datasets['train'], datasets['test']
 
@@ -61,12 +62,31 @@ if __name__ == '__main__':
     #      'image': [-1, -1, -1]
     #    }).shuffle(1000).prefetch(1000)
 
-    ds_train = ds_train.batch(args.batch_size).shuffle(args.batch_size * 50).prefetch(args.batch_size * 10)
-    ds_test = ds_test.batch(args.batch_size * 20).prefetch(1000)
+    # See: https://stackoverflow.com/questions/55141076/how-to-apply-data-augmentation-in-tensorflow-2-0-after-tfds-load
+    # ds_train = ds_train.map(
+    #     lambda image, label: (tf.image.random_flip_left_right(image), label)
+    # ).shuffle(args.batch_size * 50).batch(args.batch_size).prefetch(args.batch_size * 10).repeat()
+    ds_train = ds_train.shuffle(args.batch_size * 50).batch(args.batch_size)
+    ds_test = ds_test.shuffle(args.batch_size * 50).batch(-1)
+
+    """ds_train_iter = ds_train.make_one_shot_iterator()
+    ds_get_next_train_batch = ds_train_iter.get_next()
+
+    ds_test_iter = ds_test.make_one_shot_iterator()
+    ds_get_next_test_batch = ds_test_iter.get_next()"""
+
+    train_iterator = ds_train.make_initializable_iterator()
+    next_train_element = train_iterator.get_next()
+
+    test_iterator = ds_train.make_initializable_iterator()
+    next_test_element = test_iterator.get_next()
+
+    """num_train_batches_per_epoch = int(50000 / args.batch_size)
+    num_test_batches_per_epoch = int(10000 / (args.batch_size * 20))"""
 
     with tf.variable_scope("input"):
-        x = tf.placeholder(tf.float32, shape=[None, args.img_width, args.img_height, args.num_channels])
-        y = tf.placeholder(tf.float32, shape=[None, args.num_classes])
+        x = tf.placeholder(tf.float32, shape=[None, ds_args.img_width, ds_args.img_height, ds_args.num_channels])
+        y = tf.placeholder(tf.float32, shape=[None, ds_args.num_classes])
         is_training = tf.placeholder(tf.bool, shape=[])
 
     model = MyNetwork(architecture=architecture)
@@ -128,36 +148,48 @@ if __name__ == '__main__':
     for epoch in pbar:
 
         # Training
-        for batch in tfds.as_numpy(ds_train):
-            images, labels = batch['image'], batch['label']
+        sess.run(train_iterator.initializer)
+        num_batch = 0
+        while True:
+            try:
+                batch = sess.run(next_train_element)
+                images = batch["image"]
+                labels = batch["label"]
+                # images, labels = batch['image'], batch['label']
 
-            images = preprocess_batch(images)
+                images = preprocess_batch(images)
 
-            # mean = [0.485, 0.456, 0.406]
-            # std = [0.229, 0.224, 0.225]
-            # images = normalize(images, mean, std)
+                # mean = [0.485, 0.456, 0.406]
+                # std = [0.229, 0.224, 0.225]
+                # images = normalize(images, mean, std)
 
-            # One hot encode
-            labels = np.eye(args.num_classes)[labels]
+                # One hot encode
+                labels = np.eye(ds_args.num_classes)[labels]
 
-            feed_dict = {
-                x: images,
-                y: labels,
-                learning_rate: lr,
-                is_training: True
-            }
+                feed_dict = {
+                    x: images,
+                    y: labels,
+                    learning_rate: lr,
+                    is_training: True
+                }
 
-            fetches = [global_step, train_op, loss_op, merged, logits_op]
-            step, _, loss, summary, pred = sess.run(fetches, feed_dict)
+                fetches = [global_step, train_op, loss_op, merged, logits_op]
+                step, _, loss, summary, pred = sess.run(fetches, feed_dict)
 
-            if step % 100 == 0:
-                train_writer.add_summary(summary, step)
+                num_batch += 1
+                if step % 100 == 0:
+                    train_writer.add_summary(summary, step)
 
-                # Standard description
-                pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
+                    # Standard description
+                    pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
 
-                # See if logits have blown up
-                # pbar.set_description(f"Epoch: {epoch}, Step {step}, Pred: {pred[0]}, Trg: {labels[0]}")
+                    # See if logits have blown up
+                    # pbar.set_description(f"Epoch: {epoch}, Step {step}, Pred: {pred[0]}, Trg: {labels[0]}")
+
+            except tf.errors.OutOfRangeError:
+                # print(f"Batch num = {num_batch}")
+                break
+
 
         # Decay learning rate every n epochs
         if epoch % args.num_epochs_decay == 0 and epoch != 0:
@@ -165,24 +197,35 @@ if __name__ == '__main__':
 
         acc = []
         if epoch % args.test_every == 0 and epoch != 0:
-            for batch in tfds.as_numpy(ds_test):
-                images, labels = batch['image'], batch['label']
 
-                images = preprocess_batch(images)
+            # Test step
+            sess.run(test_iterator.initializer)
+            while True:
+                try:
+                    batch = sess.run(next_test_element)
+                    images = batch["image"]
+                    labels = batch["label"]
 
-                # One hot encode
-                labels = np.eye(args.num_classes)[labels]
+                    images, labels = batch['image'], batch['label']
 
-                feed_dict = {
-                    x: images,
-                    y: labels,
-                    is_training: False
-                }
+                    images = preprocess_batch(images)
 
-                acc.append(sess.run(accuracy, feed_dict))
+                    # One hot encode
+                    labels = np.eye(ds_args.num_classes)[labels]
+
+                    feed_dict = {
+                        x: images,
+                        y: labels,
+                        is_training: False
+                    }
+
+                    acc.append(sess.run(accuracy, feed_dict))
+
+                except tf.errors.OutOfRangeError:
+                    break
 
             test_acc = np.mean(acc)
             print("Accuracy = {}".format(test_acc))
 
     # Export model tflite
-    export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name="cifar")
+    export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name=f"{args.architecture}_{args.dataset_name}")

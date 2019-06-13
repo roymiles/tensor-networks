@@ -2,9 +2,6 @@
 from Networks.network import Weights, INetwork
 from Layers.impl.core import *
 from base import *
-from Networks.graph import Graph
-import Networks.Layers.core as nl
-from Networks.Layers.mobilenetv2 import *
 
 
 class StandardNetwork(INetwork):
@@ -29,22 +26,13 @@ class StandardNetwork(INetwork):
 
                 # Only need to initialize tensors for layers that have weights
                 cur_layer = self.get_architecture().get_layer(layer_idx)
-                if isinstance(cur_layer, ConvLayer):
-                    # TODO: Pass tf_weight parameters directly!
-                    tf_weights = nl.CreateWeights.convolution(cur_layer, layer_idx)
-                    self._weights.set_conv_layer_weights(layer_idx, tf_weights)
 
-                elif isinstance(cur_layer, DepthwiseConvLayer):
-                    tf_weights = nl.CreateWeights.depthwiseConvolution(cur_layer, layer_idx)
-                    self._weights.set_dw_conv_layer_weights(layer_idx, **tf_weights)
-
-                elif isinstance(cur_layer, FullyConnectedLayer):
-                    tf_weights = nl.CreateWeights.fullyConnected(cur_layer, layer_idx)
-                    self._weights.set_fc_layer_weights(layer_idx, **tf_weights)
-
-                elif isinstance(cur_layer, MobileNetV2BottleNeck):
-                    tf_weights = mobilenetv2_bottleneck(cur_layer, layer_idx)
-                    self._weights.set_mobilenetv2_bottleneck_layer_weights(layer_idx, **tf_weights)
+                # If the current layer has a create_weights function, call it and add the weights
+                # to the set of weights
+                create_op = getattr(cur_layer, "create_weights", None)
+                if callable(create_op):
+                    tf_weights = create_op()(cur_layer, layer_idx)
+                    self._weights.set_weights(layer_idx, tf_weights)
 
     def run_layer(self, input, layer_idx, name, is_training=True, switch_idx=0):
         """ Pass input through a single layer
