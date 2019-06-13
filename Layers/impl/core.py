@@ -1,10 +1,15 @@
 import tensorflow as tf
 from Layers.layer import ILayer
 from Networks.Layers.core import CreateWeights
+from Networks.impl.standard import StandardNetwork
+from Networks.impl.sandbox import SandboxNetwork
+
+STANDARD = 1
+SANDBOX = 2
 
 
 class ConvLayer(ILayer):
-    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",
+    def __init__(self, shape, build_method=STANDARD, strides=(1, 1), use_bias=True, padding="SAME",
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         super().__init__()
@@ -12,6 +17,7 @@ class ConvLayer(ILayer):
         px = strides[0]
         py = strides[1]
         self._strides = [1, px, py, 1]
+        self._build_method = build_method
 
         self._shape = shape
         self._padding = padding
@@ -23,9 +29,11 @@ class ConvLayer(ILayer):
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
 
-    @staticmethod
-    def create_weights():
-        return CreateWeights.convolution
+    def create_weights(self):
+        if self._build_method == STANDARD:
+            return CreateWeights.Core.convolution
+        else:
+            raise Exception(f"Unknown network, Unable to create the weights for this layer: {ConvLayer}")
 
     def get_shape(self):
         return self._shape
@@ -47,15 +55,18 @@ class ConvLayer(ILayer):
 
 class ConvLayerConstant(ILayer):
     """ Same as ConvLayer, but fixed, constant filter """
-    def __init__(self, kernel, strides=[1, 1, 1, 1], padding="SAME"):
+    def __init__(self, kernel, build_method=STANDARD, strides=[1, 1, 1, 1], padding="SAME"):
         super().__init__()
         self._kernel = kernel
+        self._build_method = build_method
         self._strides = strides
         self._padding = padding
 
-    @staticmethod
-    def create_weights():
-        return CreateWeights.convolution
+    def create_weights(self):
+        if self._build_method == STANDARD:
+            return CreateWeights.Core.convolution
+        else:
+            raise Exception(f"Unknown network, Unable to create the weights for this layer: {ConvLayer}")
 
     def get_kernel(self):
         return self._kernel
@@ -70,7 +81,7 @@ class ConvLayerConstant(ILayer):
 class DepthwiseConvLayer(ILayer):
     """ Depthwise convolution
         NOTE: Pointwise convolution uses standard conv layer """
-    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",
+    def __init__(self, shape, build_method=STANDARD, strides=(1, 1), use_bias=True, padding="SAME",
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         super().__init__()
@@ -78,6 +89,7 @@ class DepthwiseConvLayer(ILayer):
         px = strides[0]
         py = strides[1]
         self._strides = [1, px, py, 1]
+        self._build_method = build_method
 
         self._shape = shape
         self._padding = padding
@@ -88,9 +100,11 @@ class DepthwiseConvLayer(ILayer):
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
 
-    @staticmethod
-    def create_weights():
-        return CreateWeights.depthwise_convolution
+    def create_weights(self):
+        if self._build_method == STANDARD:
+            return CreateWeights.Core.depthwise_convolution
+        else:
+            raise Exception(f"Unknown network, Unable to create the weights for this layer: {DepthwiseConvLayer}")
 
     def get_shape(self):
         return self._shape
@@ -125,12 +139,13 @@ class BiasLayerConstant(ILayer):
 
 
 class FullyConnectedLayer(ILayer):
-    def __init__(self, shape, use_bias=True, kernel_initializer=tf.glorot_normal_initializer(),
+    def __init__(self, shape, build_method=STANDARD, use_bias=True, kernel_initializer=tf.glorot_normal_initializer(),
                  bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
 
         super().__init__()
         self._shape = shape
+        self._build_method = build_method
         self._use_bias = use_bias
 
         self.kernel_initializer = kernel_initializer
@@ -138,9 +153,11 @@ class FullyConnectedLayer(ILayer):
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
 
-    @staticmethod
-    def create_weights():
-        return CreateWeights.fully_connected
+    def create_weights(self):
+        if self._build_method == STANDARD:
+            return CreateWeights.Core.fully_connected
+        else:
+            raise Exception(f"Unknown network, Unable to create the weights for this layer: {FullyConnectedLayer}")
 
     def get_shape(self):
         return self._shape
@@ -272,7 +289,7 @@ class Flatten(ILayer):
 
 
 class MobileNetV2BottleNeck(ILayer):
-    def __init__(self, k, t, c, strides=(1, 1)):
+    def __init__(self, k, t, c, build_method=STANDARD, strides=(1, 1)):
         """
         See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c
 
@@ -286,15 +303,18 @@ class MobileNetV2BottleNeck(ILayer):
         px = strides[0]
         py = strides[1]
         self._strides = [1, px, py, 1]
+        self._build_method = build_method
         self._k = k
         self._t = t
         self._c = c
 
         super().__init__()
 
-    @staticmethod
-    def create_weights():
-        return None
+    def create_weights(self):
+        if self._build_method == STANDARD:
+            return CreateWeights.Core.mobilenetv2_bottleneck
+        else:
+            raise Exception(f"Unknown network, Unable to create the weights for this layer: {MobileNetV2BottleNeck}")
 
     def __call__(self, input, expansion_kernel, expansion_bias, depthwise_kernel, depthwise_bias,
                  projection_kernel, projection_bias):

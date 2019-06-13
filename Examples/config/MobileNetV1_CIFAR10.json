@@ -1,14 +1,15 @@
 {
   "architecture": "MobileNetV1",
-  "dataset_name": "cifar10",
+  "dataset_name": "CIFAR100",
   "batch_size": 256,
 
-  "optimizer": "Momentum",
+  "optimizer": "Adam",
   "momentum": 0.9,
   "use_nesterov": true,
-  "learning_rate": 0.1,
-  "learning_rate_decay": 0.2,
+  "learning_rate": 1e-3,
+  "learning_rate_decay": 0.5,
   "num_epochs_decay": 60,
+  "num_epochs": 50,
 
   "test_every": 1,
   "seed": 42

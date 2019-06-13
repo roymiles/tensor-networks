@@ -6,12 +6,12 @@ class MobileNetV1(IArchitecture):
     """ This is the original MobileNet architecture for ImageNet
         Of course, the convolutional layers are replaced with depthwise separable layers """
 
-    def DepthSepConv(self, shape, stride, depth):
+    def DepthSepConv(self, shape, stride, depth, depth_multiplier=1):
         # Depth is pretty much shape[3] (if included)
         w = shape[0]
         h = shape[1]
         c = shape[2]
-        depth_multiplier = 1
+        # depth_multiplier = 1
 
         # By default, don't regularise depthwise filters
         sequential = [

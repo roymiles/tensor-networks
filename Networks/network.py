@@ -1,9 +1,8 @@
 """ Define interfaces for a network and the weights inside the network """
 from abc import abstractmethod
 from Architectures.architectures import IArchitecture
-from base import tfvar_size
-from Networks.graph import Graph
 from collections import namedtuple
+import tensorflow as tf
 
 
 class Weights:
@@ -30,7 +29,10 @@ class Weights:
         self._weights[layer_idx] = tf_weights
 
     def get_layer_weights(self, layer_idx):
-        """ Return the weights for a given layer """
+        """
+            Return the weights for a given layer
+            Loops through all members in the weight namedtuple and combines them if of Graph type
+        """
         w = self._weights[layer_idx]
         # for name, value in w._asdict().iteritems():
         return w
@@ -91,15 +93,51 @@ class INetwork:
             For example, in a Tucker network this will be the sum of all parameters in each core tensor """
         return self._weights.num_parameters()
 
-    # The following methods must be overridden by every network
+    def build(self, name):
+        """
+            Build the tf.Variable weights used by the network
+
+            :param name: Variable scope e.g. StandardNetwork1
+        """
+        with tf.variable_scope(name):
+
+            # All the weights of the network are stored in this container
+            self._weights = Weights()
+
+            # Initialize the standard convolutional and fully connected weights
+            for layer_idx in range(self._num_layers):
+
+                # Only need to initialize tensors for layers that have weights
+                cur_layer = self.get_architecture().get_layer(layer_idx)
+
+                # If the current layer has a create_weights function, call it and add the weights
+                # to the set of weights
+                create_op = getattr(cur_layer, "create_weights", None)
+                if callable(create_op):
+                    tf_weights = create_op()(cur_layer, layer_idx)
+                    self._weights.set_weights(layer_idx, tf_weights)
+
+    def __call__(self, input, is_training=True, switch_idx=0):
+        """ Complete forward pass for the entire network
+
+            :param input: The input to the network e.g. a batch of images
+            :param switch_idx: Index for switch_list, controls the compression of the network
+                               (default, just call first switch)
+            :param is_training: bool, is training or testing mode
+        """
+
+        tf.summary.image("Input data", input)
+
+        # Loop through all the layers
+        net = input
+        for n in range(self.get_num_layers()):
+            net = self.run_layer(input=net, layer_idx=n, name=f"layer_{n}",
+                                 is_training=is_training, switch_idx=switch_idx)
+
+        return net
 
     @staticmethod
     @abstractmethod
     def run_layer(layer, **kwargs):
         # If the child classes have not overridden the behaviour, just call them with all the same arguments
         return layer(**kwargs)
-
-    @abstractmethod
-    def __call__(self):
-        """ Complete forward pass for the entire network """
-        raise Exception("All network classes must override a call function, how else do you do inference!")

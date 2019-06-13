@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("AlexNet_CIFAR100.json")
+    args = load_config("MobileNetV1_MNIST.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     if hasattr(args, 'seed'):
@@ -69,20 +69,11 @@ if __name__ == '__main__':
     ds_train = ds_train.shuffle(args.batch_size * 50).batch(args.batch_size)
     ds_test = ds_test.shuffle(args.batch_size * 50).batch(-1)
 
-    """ds_train_iter = ds_train.make_one_shot_iterator()
-    ds_get_next_train_batch = ds_train_iter.get_next()
-
-    ds_test_iter = ds_test.make_one_shot_iterator()
-    ds_get_next_test_batch = ds_test_iter.get_next()"""
-
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
 
     test_iterator = ds_train.make_initializable_iterator()
     next_test_element = test_iterator.get_next()
-
-    """num_train_batches_per_epoch = int(50000 / args.batch_size)
-    num_test_batches_per_epoch = int(10000 / (args.batch_size * 20))"""
 
     with tf.variable_scope("input"):
         x = tf.placeholder(tf.float32, shape=[None, ds_args.img_width, ds_args.img_height, ds_args.num_channels])
@@ -173,8 +164,8 @@ if __name__ == '__main__':
                     is_training: True
                 }
 
-                fetches = [global_step, train_op, loss_op, merged, logits_op]
-                step, _, loss, summary, pred = sess.run(fetches, feed_dict)
+                fetches = [global_step, train_op, loss_op, merged]
+                step, _, loss, summary = sess.run(fetches, feed_dict)
 
                 num_batch += 1
                 if step % 100 == 0:
@@ -183,19 +174,14 @@ if __name__ == '__main__':
                     # Standard description
                     pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
 
-                    # See if logits have blown up
-                    # pbar.set_description(f"Epoch: {epoch}, Step {step}, Pred: {pred[0]}, Trg: {labels[0]}")
-
             except tf.errors.OutOfRangeError:
                 # print(f"Batch num = {num_batch}")
                 break
-
 
         # Decay learning rate every n epochs
         if epoch % args.num_epochs_decay == 0 and epoch != 0:
             lr = lr * args.learning_rate_decay
 
-        acc = []
         if epoch % args.test_every == 0 and epoch != 0:
 
             # Test step
@@ -219,13 +205,11 @@ if __name__ == '__main__':
                         is_training: False
                     }
 
-                    acc.append(sess.run(accuracy, feed_dict))
+                    acc = sess.run(accuracy, feed_dict)
+                    print("Test accuracy = {}".format(acc))
 
                 except tf.errors.OutOfRangeError:
                     break
-
-            test_acc = np.mean(acc)
-            print("Accuracy = {}".format(test_acc))
 
     # Export model tflite
     export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op], name=f"{args.architecture}_{args.dataset_name}")

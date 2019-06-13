@@ -3,7 +3,6 @@
     This is mainly experimenting with arbitrary tensor networks
 
 """
-from Layers.layer import LayerTypes
 from Layers.impl.core import *
 from base import *
 from Networks.network import Weights, INetwork
@@ -12,7 +11,7 @@ import Networks.Layers.core as nl
 import Networks.Layers.sandbox as nls
 
 
-class TuckerNet(INetwork):
+class SandboxNetwork(INetwork):
 
     def __init__(self, architecture):
         """ Build an example tensor network
@@ -25,7 +24,7 @@ class TuckerNet(INetwork):
                        This is an object of type Architecture (see architectures.py)
         """
 
-        super(TuckerNet, self).__init__()
+        super(SandboxNetwork, self).__init__()
         self.set_architecture(architecture)
         self._is_built = False
         self._switch_list = [1]
