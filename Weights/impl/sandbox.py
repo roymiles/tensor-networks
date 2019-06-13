@@ -3,14 +3,16 @@ from Weights.weights import Weights
 from Networks.graph import Graph
 
 
-def convolution(cur_layer, layer_idx, ranks):
+def convolution(cur_layer, layer_idx):
     """
-    WH, C, and N each individually share an auxilliary index with a core tensor g
-    This core tensor, g, is a 3-way tensor of shape [r1, r2, r3] (as specified in ranks)
-
-    :param ranks: The ranks (size of auxilliary indices)
+        WH, C, and N each individually share an auxilliary index with a core tensor g
+        This core tensor, g, is a 3-way tensor of shape [r1, r2, r3] (as specified in ranks)
     """
     shape = cur_layer.get_shape()
+
+    # The size of auxilliary indices
+    ranks = cur_layer.ranks
+    assert len(ranks) == 3, "Must specified r0, r1, r2"
 
     kernel = Graph("conv_{}".format(layer_idx))
 
@@ -29,6 +31,7 @@ def convolution(cur_layer, layer_idx, ranks):
 
     # Compile/generate the tf.Variables and add to the set of weights
     kernel.compile()
+    kernel.set_output_shape(["W", "H", "C", "N"])
 
     bias = None
     if cur_layer.using_bias():

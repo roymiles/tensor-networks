@@ -1,5 +1,6 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
+import Weights.impl.sandbox
 
 
 class MobileNetV1(IArchitecture):
@@ -19,7 +20,8 @@ class MobileNetV1(IArchitecture):
             BatchNormalisationLayer(),
             ReLU(),
             # Pointwise
-            ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False),
+            ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
+                      build_method=Weights.impl.sandbox, ranks=[1, 2, 2]),
             # Not managed to integrate moving average decay
             BatchNormalisationLayer(),
             ReLU()

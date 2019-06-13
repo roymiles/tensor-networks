@@ -18,6 +18,10 @@ class Graph:
     # Tensorflow naming scope
     _name = None
 
+    # List of nodes for the output kernel
+    # If left as None, the output kernel is not reshaped after all the nodes are contracted
+    _output_shape = None
+
     def __init__(self, name):
         self._graph = nx.Graph()
         self._name = name
@@ -122,6 +126,12 @@ class Graph:
 
         self._is_compiled = True
 
+    def set_output_shape(self, shape):
+        if not self._is_compiled:
+            raise Exception("Can only set the output shape after the graph is compiled")
+
+        self._output_shape = shape
+
     @staticmethod
     def debug(g, title="debug"):
         """ Just temporary for debugging """
@@ -146,14 +156,12 @@ class Graph:
 
         return i
 
-    def combine(self, switch=1.0, reshape=None):
+    def combine(self, switch=1.0):
         """ Combine all the nodes into a single tensor - which is likely then used for convolution or something
             returns: tf.Variable with dimensions the same as all exposed edges
 
-            :param
-                switch: Value in range (0, 1] to control compression.
-                        Effectively only uses a percentage of each factor, so s x W
-                reshape: List of desired index order
+            :param switch: Value in range (0, 1] to control compression.
+                           Effectively only uses a percentage of each factor, so s x W
 
             :returns W: Single weight tensor with all the exposed dimensions """
 
@@ -172,8 +180,8 @@ class Graph:
         # Calculate the reshape by looping through all edges and matching
         # to the reshape index names (supplied in function argument)
         s = []
-        if reshape:
-            for index_name in reshape:
+        if self._output_shape:  # List of desired index order
+            for index_name in self._output_shape:
                 for _, _, a in self._graph.edges(data=True):
                     if a['name'] == index_name:
                         s.append(a['weight'])
@@ -245,7 +253,7 @@ class Graph:
         # Reshape to desired
         tfvar = g.nodes[n3]["tfvar"]
 
-        if reshape and s:
+        if self._output_shape and s:
             tfvar = tf.reshape(tfvar, s)
 
         return tfvar
