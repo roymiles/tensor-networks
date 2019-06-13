@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("MobileNetV1_MNIST.json")
+    args = load_config("MobileNetV1_ImageNet2012.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     if hasattr(args, 'seed'):
@@ -52,22 +52,36 @@ if __name__ == '__main__':
     # Already downloaded
     datasets = tfds.load(args.dataset_name.lower(), data_dir=conf.tfds_dir)
 
-    ds_train, ds_test = datasets['train'], datasets['test']
+    ds_train, ds_test = datasets['train'], datasets['validation']  # Uses "test" on CIFAR, MNIST
 
     # Build your input pipeline
-    # ds_train = ds_train.padded_batch(
-    #    batch_size=args.batch_size,
-    #    padded_shapes={
-    #      'label': [],
-    #      'image': [-1, -1, -1]
-    #    }).shuffle(1000).prefetch(1000)
-
     # See: https://stackoverflow.com/questions/55141076/how-to-apply-data-augmentation-in-tensorflow-2-0-after-tfds-load
-    # ds_train = ds_train.map(
+    # ds_train.map(
     #     lambda image, label: (tf.image.random_flip_left_right(image), label)
-    # ).shuffle(args.batch_size * 50).batch(args.batch_size).prefetch(args.batch_size * 10).repeat()
-    ds_train = ds_train.shuffle(args.batch_size * 50).batch(args.batch_size)
-    ds_test = ds_test.shuffle(args.batch_size * 50).batch(-1)
+    # )
+    ds_train = ds_train.map(
+         lambda x: {
+             "image": tf.image.random_flip_left_right(x['image']),
+             "label": x['label'],
+             "file_name": x['file_name']
+         }
+    ).map(
+        lambda x: {
+            "image": tf.image.resize_image_with_crop_or_pad(x['image'], target_width=ds_args.img_width,
+                                                            target_height=ds_args.img_height),
+            "label": x['label'],
+            "file_name": x['file_name']
+        }
+    ).shuffle(args.batch_size * 50).batch(args.batch_size)
+
+    ds_test = ds_test.map(
+        lambda x: {
+            "image": tf.image.resize_image_with_crop_or_pad(x['image'], target_width=ds_args.img_width,
+                                                            target_height=ds_args.img_height),
+            "label": x['label'],
+            "file_name": x['file_name']
+        }
+    ).shuffle(args.batch_size * 50)
 
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
@@ -206,6 +220,7 @@ if __name__ == '__main__':
                     }
 
                     acc = sess.run(accuracy, feed_dict)
+                    # TODO: PLEASE FIX THIS, WHY NOT COMPATABLE WITH TENSORBOARD SCALAR PLOT
                     print("Test accuracy = {}".format(acc))
 
                 except tf.errors.OutOfRangeError:
