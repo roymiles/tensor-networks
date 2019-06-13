@@ -25,7 +25,7 @@ def convolution(cur_layer, layer_idx):
                     collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
     # Auxiliary indices
-    kernel.add_edge("WH", "G", name="r0", length=ranks[0])
+    kernel.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
     kernel.add_edge("C", "G", name="r1", length=ranks[1])
     kernel.add_edge("N", "G", name="r2", length=ranks[2])
 
@@ -33,8 +33,12 @@ def convolution(cur_layer, layer_idx):
     kernel.compile()
     kernel.set_output_shape(["W", "H", "C", "N"])
 
+    g = tf.reshape(kernel.get_node("G"), shape=(1, 56, 56, 1))
+    tf.summary.image(f"Core tensor, Pointwise - {layer_idx}", g)
+
     bias = None
     if cur_layer.using_bias():
+        # TODO: Do not need to use graph for everything...
         bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
         bias.add_node("B", shape=[shape[3]], names=["B"], initializer=tf.zeros_initializer(),
                       collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])

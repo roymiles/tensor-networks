@@ -21,7 +21,7 @@ class MobileNetV1(IArchitecture):
             ReLU(),
             # Pointwise
             ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                      build_method=Weights.impl.sandbox, ranks=[1, 2, 2]),
+                      build_method=Weights.impl.sandbox, ranks=[1, 56, 56]),
             # Not managed to integrate moving average decay
             BatchNormalisationLayer(),
             ReLU()

@@ -63,7 +63,8 @@ class Graph:
         # So can chain operations
         return self
 
-    def add_edge(self, u_of_edge, v_of_edge, length, name):
+    def add_edge(self, u_of_edge, v_of_edge, length, name, initializer=tf.glorot_normal_initializer(),
+                 regularizer=None, shared=False, collections=None):
         """
         Adds an edge between two tensors. If these tensors do not exist, it will create them
 
@@ -71,6 +72,12 @@ class Graph:
         :param v_of_edge: Names of the two nodes e.g. "A", "B"
         :param length: Size/length of the edge/dimension
         :param name: Name of the auxilliary index, typically r1, r2 etc
+
+        NOTE: if v_of_edge does not exist, the following arguments are used for its creation
+        :param initializer: Initialization strategy
+        :param regularizer: If a regularization term, for example L2 norm, weight decay
+        :param shared: (boolean) If the weight is shared across layers
+        :param collections: Used if you want to group tensorflow variables
         """
 
         if self._is_compiled:
@@ -78,15 +85,13 @@ class Graph:
 
         # Check if the nodes exist. If they do not, add them.
         # NOTE: Assumes nodes that do not exist are not dummy nodes
-        # NOTE: If you want an initialization, regularizer, shared etc.. make the node first (aka add_node)
         if not self._graph.has_node(u_of_edge):
-            # Dummy is always v_of_edge
             self._graph.add_node(u_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
                                  regularizer=None, shared=None, collections=None)
 
         if not self._graph.has_node(v_of_edge):
-            self._graph.add_node(v_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
-                                 regularizer=None, shared=None, collections=None)
+            self._graph.add_node(v_of_edge, dummy_node=False, initializer=initializer,
+                                 regularizer=regularizer, shared=shared, collections=collections)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
