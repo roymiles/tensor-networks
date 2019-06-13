@@ -1,8 +1,6 @@
 import tensorflow as tf
 from Layers.layer import ILayer
-from Networks.Layers.core import CreateWeights
-from Networks.impl.standard import StandardNetwork
-from Networks.impl.sandbox import SandboxNetwork
+from Networks.weights import CreateWeights
 
 STANDARD = 1
 SANDBOX = 2

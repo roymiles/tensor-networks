@@ -4,14 +4,6 @@ class IArchitecture:
         # Array of sequential layers
         self._network = network
 
-    def num_parameters(self):
-        """ Get the number of parameters for an entire architecture """
-        n = 0
-        for layer in self._network:
-            n += layer.num_parameters()
-
-        return n
-
     def num_layers(self):
         return len(self._network)
 

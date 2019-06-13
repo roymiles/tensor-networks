@@ -17,7 +17,7 @@ from base import *
 from tflite import export_tflite_from_session
 from Examples.config.utils import load_config, get_architecture, get_optimizer
 
-from Networks.impl.standard import StandardNetwork as MyNetwork
+from Networks.network import Network as MyNetwork
 from transforms import random_horizontal_flip, normalize
 import numpy as np
 
@@ -83,7 +83,7 @@ if __name__ == '__main__':
     model = MyNetwork(architecture=architecture)
     model.build("MyNetwork")
 
-    logits_op = model(input=x, is_training=is_training)
+    logits_op = model(x, is_training=is_training)
 
     loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
     tf.summary.scalar('Training Loss', loss_op)

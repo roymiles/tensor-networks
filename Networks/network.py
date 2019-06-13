@@ -1,54 +1,19 @@
 """ Define interfaces for a network and the weights inside the network """
-from abc import abstractmethod
+from Layers.impl.core import *
 from Architectures.architectures import IArchitecture
-from collections import namedtuple
+from Networks.weights import Weights
 import tensorflow as tf
 
 
-class Weights:
-    """
-        All networks use this weight data structure to store and query the weights values
-        The weight values are either stored as tensor networks or tf.Variables
-    """
+class Network:
 
-    # Stored as key:value pair, where key is a layer_idx
-    _weights = {}
-
-    # All the types of weights
-    Convolution = namedtuple('Convolution', ["kernel", "bias"])
-    DepthwiseConvolution = namedtuple('DepthwiseConvolution', ["kernel", "bias"])
-    FullyConnected = namedtuple('FullyConnected', ["kernel", "bias"])
-    Mobilenetv2Bottleneck = namedtuple('Mobilenetv2Bottleneck', ["expansion_kernel", "expansion_bias",
-                                                                 "depthwise_kernel", "depthwise_bias",
-                                                                 "projection_kernel", "projection_bias"])
-
-    def __init__(self):
-        pass
-
-    def set_weights(self, layer_idx, tf_weights):
-        self._weights[layer_idx] = tf_weights
-
-    def get_layer_weights(self, layer_idx):
-        """
-            Return the weights for a given layer
-            Loops through all members in the weight namedtuple and combines them if of Graph type
-        """
-        w = self._weights[layer_idx]
-        # for name, value in w._asdict().iteritems():
-        return w
-
-    def debug(self):
-        for layer_idx, weight in self._weights.items():
-            print("Layer {} -> {}".format(layer_idx, weight))
-
-
-class INetwork:
-
-    def __init__(self):
+    def __init__(self, architecture):
         # The following define the state which is common across all networks
         self._architecture = None
         self._num_layers = None
         self._weights = None
+
+        self.set_architecture(architecture)
 
     def set_weights(self, weights):
 
@@ -97,7 +62,7 @@ class INetwork:
         """
             Build the tf.Variable weights used by the network
 
-            :param name: Variable scope e.g. StandardNetwork1
+            :param name: Variable scope e.g. "StandardNetwork1"
         """
         with tf.variable_scope(name):
 
@@ -117,27 +82,83 @@ class INetwork:
                     tf_weights = create_op()(cur_layer, layer_idx)
                     self._weights.set_weights(layer_idx, tf_weights)
 
-    def __call__(self, input, is_training=True, switch_idx=0):
+    def __call__(self, x, is_training=True, switch_idx=0):
         """ Complete forward pass for the entire network
 
-            :param input: The input to the network e.g. a batch of images
+            :param x: The input to the network e.g. a batch of images
             :param switch_idx: Index for switch_list, controls the compression of the network
                                (default, just call first switch)
             :param is_training: bool, is training or testing mode
         """
 
-        tf.summary.image("Input data", input)
+        tf.summary.image("Input data", x)
 
         # Loop through all the layers
-        net = input
+        net = x
         for n in range(self.get_num_layers()):
-            net = self.run_layer(input=net, layer_idx=n, name=f"layer_{n}",
+            net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
                                  is_training=is_training, switch_idx=switch_idx)
 
         return net
 
-    @staticmethod
-    @abstractmethod
-    def run_layer(layer, **kwargs):
-        # If the child classes have not overridden the behaviour, just call them with all the same arguments
-        return layer(**kwargs)
+    def run_layer(self, x, layer_idx, name, is_training=True, switch_idx=0):
+        """ Pass input through a single layer
+            Operation is dependant on the layer type
+
+        :param x : input is a 4 dimensional feature map [B, W, H, C]
+        :param layer_idx : Layer number
+        :param name : For variable scoping
+        :param is_training: bool, is training or testing mode
+        :param switch_idx: Index for switch_list, controls the compression of the network
+                       (default, just call first switch)
+
+        """
+
+        with tf.variable_scope(name):
+            cur_layer = self.get_architecture().get_layer(layer_idx)
+
+            if isinstance(cur_layer, ConvLayer):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert isinstance(w, Weights.Convolution), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, kernel=w.kernel, bias=w.bias)
+
+            elif isinstance(cur_layer, DepthwiseConvLayer):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert isinstance(w, Weights.DepthwiseConvolution), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, kernel=w.kernel, bias=w.bias)
+
+            elif isinstance(cur_layer, FullyConnectedLayer):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert isinstance(w, Weights.FullyConnected), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, kernel=w.kernel, bias=w.bias)
+
+            elif isinstance(cur_layer, BatchNormalisationLayer):
+                return cur_layer(x, is_training=is_training)
+
+            elif isinstance(cur_layer, ReLU):
+                act = cur_layer(x)
+                return act
+
+            elif isinstance(cur_layer, MobileNetV2BottleNeck):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert isinstance(w, Weights.Mobilenetv2Bottleneck), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, expansion_kernel=w.expansion_kernel,
+                                 expansion_bias=w.expansion_bias, depthwise_kernel=w.depthwise_kernel,
+                                 depthwise_bias=w.depthwise_bias, projection_kernel=w.projection_kernel,
+                                 projection_bias=w.projection_bias)
+
+            else:
+                print(f"The following layer does not have a concrete implementation: {cur_layer}")
+                return cur_layer(x)
