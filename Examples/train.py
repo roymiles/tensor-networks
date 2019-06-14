@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("MobileNetV1_MNIST.json")
+    args = load_config("MobileNetV2_MNIST.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     if hasattr(args, 'seed'):
@@ -89,7 +89,7 @@ if __name__ == '__main__':
         y = tf.placeholder(tf.float32, shape=[None, ds_args.num_classes])
         is_training = tf.placeholder(tf.bool, shape=[])
 
-    model = MyNetwork(architecture=architecture)
+    model = MyNetwork(architecture=architecture, switches=[0.5, 1.0])
     model.build("MyNetwork")
 
     logits_op = model(x, is_training=is_training)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     merged = tf.summary.merge_all()
     log_dir = f"{conf.log_dir}/{args.dataset_name}/{args.architecture}"
     train_writer = tf.summary.FileWriter(log_dir, sess.graph)
-    print("Run: \"tensorboard --logdir={}\"".format(log_dir))
+    print("Run: tensorboard --logdir=\"{}\"".format(log_dir))
 
     num_params = 0
     for v in tf.trainable_variables():
@@ -190,7 +190,7 @@ if __name__ == '__main__':
 
             # Test step
             sess.run(test_iterator.initializer)
-            acc2 = []
+            # acc2 = []
             while True:
                 try:
                     batch = sess.run(next_test_element)
@@ -213,11 +213,11 @@ if __name__ == '__main__':
 
                     # TODO: PLEASE FIX THIS, WHY NOT COMPATABLE WITH TENSORBOARD SCALAR PLOT
                     # print("Test accuracy = {}".format(acc))
-                    acc2.append(acc)
+                    # acc2.append(acc)
                 except tf.errors.OutOfRangeError:
                     break
 
-            print(f"Test accuracy {np.mean(acc2)}")
+            # print(f"Test accuracy {np.mean(acc2)}")
 
     # Export standard model
     save_path = f"{conf.save_dir}/{args.dataset_name}_{args.architecture}.pbtxt"

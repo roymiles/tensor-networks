@@ -228,8 +228,11 @@ class BatchNormalisationLayer(ILayer):
         super().__init__()
         self._affine = affine
 
-    def __call__(self, input, is_training):
-        return tf.layers.batch_normalization(input, training=is_training)
+    def __call__(self, input, is_training, switch_idx):
+        # Independant batch normalisation (for each switch)
+        with tf.variable_scope(f"switch_{switch_idx}", reuse=tf.AUTO_REUSE):
+            net = tf.layers.batch_normalization(input, training=is_training)
+            return net
 
 
 class ReLU(ILayer):
@@ -248,7 +251,7 @@ class ReLU6(ILayer):
         return tf.nn.relu6(input)
 
 
-class hswish(ILayer):
+class HSwish(ILayer):
     def __init__(self):
         super().__init__()
 
@@ -300,29 +303,20 @@ class MobileNetV2BottleNeck(ILayer):
     def create_weights(self):
         return self._build_method.mobilenetv2_bottleneck
 
-    def __call__(self, input, expansion_kernel, expansion_bias, depthwise_kernel, depthwise_bias,
-                 projection_kernel, projection_bias):
-
-        # Just use tf.layers ...
-        # expansion_mean, expansion_variance, expansion_scale, expansion_offset,
-        # depthwise_mean, depthwise_variance, depthwise_scale, depthwise_offset,
-        # projection_mean, projection_variance, projection_scale, projection_offset):
+    def __call__(self, input, expansion_kernel, depthwise_kernel, projection_kernel):
 
         # Expansion layer
         net = tf.nn.conv2d(input, expansion_kernel, strides=[1, 1, 1, 1], padding="SAME")
-        net = tf.nn.bias_add(net, expansion_bias)
         net = tf.layers.batch_normalization(net)
-        net = tf.nn.relu6(net)
+        net = tf.nn.relu(net)
 
         # Depthwise layer
         net = tf.nn.depthwise_conv2d(net, depthwise_kernel, strides=self._strides, padding="SAME")
-        net = tf.nn.bias_add(net, depthwise_bias)
         net = tf.layers.batch_normalization(net)
-        net = tf.nn.relu6(net)
+        net = tf.nn.relu(net)
 
         # Projection layer (linear)
         net = tf.nn.conv2d(net, projection_kernel, strides=[1, 1, 1, 1], padding="SAME")
-        net = tf.nn.bias_add(net, projection_bias)
         net = tf.layers.batch_normalization(net)
 
         # Only residual add when strides is 1
@@ -337,6 +331,7 @@ class MobileNetV2BottleNeck(ILayer):
                 x = tf.layers.conv2d(input, net.get_shape().as_list()[3], (1, 1), use_bias=False,
                                      kernel_initializer=tf.keras.initializers.glorot_normal(),
                                      name="fix-channel-mismatch")
+                x = tf.layers.batch_normalization(x)
                 return net + x
             else:
                 return net + input
@@ -354,3 +349,59 @@ class MobileNetV2BottleNeck(ILayer):
 
     def get_strides(self):
         return self._strides
+
+
+class PointwiseDot(ILayer):
+    """
+        Potential replacement for pointwise convolution
+    """
+    def __init__(self, shape, build_method=Weights.impl.sandbox, use_bias=True,
+                 kernel_initializer=tf.glorot_normal_initializer(),
+                 bias_initializer=tf.zeros_initializer(),
+                 kernel_regularizer=None, bias_regularizer=None):
+
+        super().__init__()
+        self._shape = shape
+        self._build_method = build_method
+        self._use_bias = use_bias
+
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
+
+    def create_weights(self):
+        return self._build_method.pointwise_dot
+
+    def get_shape(self):
+        return self._shape
+
+    def using_bias(self):
+        return self._use_bias
+
+    def __call__(self, input, c, g, n, bias1=None, bias2=None, bias3=None):
+        # input : B x w x h x c
+        # c     : c x r1
+        # g     : r1 x r2
+        # n     : r2 x n
+        net = tf.tensordot(input, c, axes=[3, 0])
+        if bias1:
+            net = tf.nn.bias_add(net, bias1)
+        net = tf.layers.batch_normalization(net)
+
+        # B x w x h x r1
+        net = tf.tensordot(net, g, axes=[3, 0])
+        if bias2:
+            net = tf.nn.bias_add(net, bias2)
+        net = tf.layers.batch_normalization(net)
+        net = tf.nn.relu(net)
+
+        # B x w x h x r2
+        net = tf.tensordot(net, n, axes=[3, 0])
+        if bias3:
+            net = tf.nn.bias_add(net, bias3)
+        net = tf.layers.batch_normalization(net)
+        net = tf.nn.relu(net)
+
+        # B x w x h x n
+        return net

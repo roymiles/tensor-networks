@@ -1,5 +1,5 @@
 {
-  "architecture": "MobileNetV1",
+  "architecture": "MobileNetV2",
   "dataset_name": "MNIST",
 
   "num_epochs": 100,

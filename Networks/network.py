@@ -7,13 +7,13 @@ import tensorflow as tf
 
 class Network:
 
-    def __init__(self, architecture):
-        # The following define the state which is common across all networks
-        self._architecture = None
-        self._num_layers = None
-        self._weights = None
+    def __init__(self, architecture, switches):
+        assert isinstance(architecture, IArchitecture), "architecture argument must be of type IArchitecture"
+        self._architecture = architecture
+        self._num_layers = architecture.num_layers()
 
-        self.set_architecture(architecture)
+        self._weights = None
+        self._switches = switches
 
     def set_weights(self, weights):
 
@@ -34,20 +34,6 @@ class Network:
         :return: The number of layers in the architecture
         """
         return self._num_layers
-
-    def set_architecture(self, architecture):
-        """
-        Set the architecture for the network
-
-        :param architecture: Class of type IArchitecture
-        """
-
-        assert isinstance(architecture, IArchitecture), "architecture argument must be of type IArchitecture"
-
-        self._architecture = architecture
-
-        # So we don't have to recalculate it every time
-        self._num_layers = architecture.num_layers()
 
     def get_architecture(self):
         """ Return the underlying architecture of this network, will be of type IArchitecture """
@@ -81,25 +67,6 @@ class Network:
                 if callable(create_op):
                     tf_weights = create_op()(cur_layer, layer_idx)
                     self._weights.set_weights(layer_idx, tf_weights)
-
-    def __call__(self, x, is_training=True, switch_idx=0):
-        """ Complete forward pass for the entire network
-
-            :param x: The input to the network e.g. a batch of images
-            :param switch_idx: Index for switch_list, controls the compression of the network
-                               (default, just call first switch)
-            :param is_training: bool, is training or testing mode
-        """
-
-        tf.summary.image("Input data", x)
-
-        # Loop through all the layers
-        net = x
-        for n in range(self.get_num_layers()):
-            net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
-                                 is_training=is_training, switch_idx=switch_idx)
-
-        return net
 
     def run_layer(self, x, layer_idx, name, is_training=True, switch_idx=0):
         """ Pass input through a single layer
@@ -142,7 +109,7 @@ class Network:
                 return cur_layer(x, kernel=w.kernel, bias=w.bias)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
-                return cur_layer(x, is_training=is_training)
+                return cur_layer(x, is_training=is_training, switch_idx=switch_idx)
 
             elif isinstance(cur_layer, ReLU):
                 act = cur_layer(x)
@@ -154,11 +121,36 @@ class Network:
                 assert isinstance(w, Weights.Mobilenetv2Bottleneck), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, expansion_kernel=w.expansion_kernel,
-                                 expansion_bias=w.expansion_bias, depthwise_kernel=w.depthwise_kernel,
-                                 depthwise_bias=w.depthwise_bias, projection_kernel=w.projection_kernel,
-                                 projection_bias=w.projection_bias)
+                return cur_layer(x, expansion_kernel=w.expansion_kernel, depthwise_kernel=w.depthwise_kernel,
+                                 projection_kernel=w.projection_kernel)
+
+            elif isinstance(cur_layer, PointwiseDot):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert isinstance(w, Weights.PointwiseDot), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, c=w.c, g=w.g, n=w.n, bias1=w.bias1, bias2=w.bias2, bias3=w.bias3)
 
             else:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")
                 return cur_layer(x)
+
+    def __call__(self, x, is_training=True, switch_idx=0):
+        """ Complete forward pass for the entire network
+
+            :param x: The input to the network e.g. a batch of images
+            :param switch_idx: Index for switch_list, controls the compression of the network
+                               (default, just call first switch)
+            :param is_training: bool, is training or testing mode
+        """
+
+        tf.summary.image("Input data", x)
+
+        # Loop through all the layers
+        net = x
+        for n in range(self.get_num_layers()):
+            net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
+                                 is_training=is_training, switch_idx=switch_idx)
+
+        return net

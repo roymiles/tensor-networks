@@ -13,16 +13,12 @@ training_params = {
 class MobileNetV2(IArchitecture):
     """ See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c """
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, channels):
         network = [
-            # Fudge dataset normalisation
-            BatchNormalisationLayer(3),
-
             # in: 224 x 224 x 3
-            ConvLayer(shape=[3, 3, 3, 32], strides=(2, 2)),
-            BatchNormalisationLayer(num_features=32),
-            DropoutLayer(rate=0.2),
-            ReLU6(),
+            ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2)),
+            BatchNormalisationLayer(),
+            ReLU(),
 
             MobileNetV2BottleNeck(k=32, t=1, c=16, strides=(1, 1)),
 
@@ -49,14 +45,16 @@ class MobileNetV2(IArchitecture):
             MobileNetV2BottleNeck(k=160, t=1, c=320, strides=(1, 1)),
 
             ConvLayer(shape=[1, 1, 320, 1280], strides=(1, 1)),
-            BatchNormalisationLayer(num_features=1280),
-            ReLU6(),
+            BatchNormalisationLayer(),
+            ReLU(),
 
             # Classification part
-            GlobalAveragePooling(keep_dims=True),
-            DropoutLayer(rate=0.2),
-            ConvLayer(shape=[1, 1, 1280, num_classes]),
-            GlobalAveragePooling(keep_dims=False)
+            GlobalAveragePooling(keep_dims=False),
+            FullyConnectedLayer(shape=[1280, num_classes])
+
+            # DropoutLayer(rate=0.2),
+            # ConvLayer(shape=[1, 1, 1280, num_classes]),
+            # GlobalAveragePooling(keep_dims=False)
 
             # FullyConnectedLayer(shape=[1280, num_classes])
 

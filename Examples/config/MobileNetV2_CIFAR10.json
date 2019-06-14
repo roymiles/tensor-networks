@@ -9,10 +9,7 @@
   "learning_rate": 0.01,
   "learning_rate_decay": 0.98,
   "num_epochs_decay": 1,
+  "num_epochs": 100,
 
-  "resume_from": "checkpoint.pth.tar",
-  "pretrained_path": "pretrained_weights/",
-  "test_every": 10,
-  "to_train": true,
-  "to_test": true
+  "test_every": 1
 }

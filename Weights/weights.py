@@ -19,9 +19,8 @@ class Weights:
     Convolution = namedtuple('Convolution', ["kernel", "bias"])
     DepthwiseConvolution = namedtuple('DepthwiseConvolution', ["kernel", "bias"])
     FullyConnected = namedtuple('FullyConnected', ["kernel", "bias"])
-    Mobilenetv2Bottleneck = namedtuple('Mobilenetv2Bottleneck', ["expansion_kernel", "expansion_bias",
-                                                                 "depthwise_kernel", "depthwise_bias",
-                                                                 "projection_kernel", "projection_bias"])
+    Mobilenetv2Bottleneck = namedtuple('Mobilenetv2Bottleneck', ["expansion_kernel", "depthwise_kernel", "projection_kernel"])
+    PointwiseDot = namedtuple('PointwiseDot', ["c", "g", "n", "bias1", "bias2", "bias3"])
 
     def __init__(self):
         pass

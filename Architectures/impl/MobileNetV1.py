@@ -21,8 +21,9 @@ class MobileNetV1(IArchitecture):
             ReLU(),
             # Pointwise
             ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                      # build_method=Weights.impl.sandbox, ranks=[1, 56, 56],
+                      # build_method=Weights.impl.sandbox, ranks=[1, 24, 24],
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
+            #PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
             # Not managed to integrate moving average decay
             BatchNormalisationLayer(),
             ReLU()
