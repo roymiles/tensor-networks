@@ -2,7 +2,7 @@
   "architecture": "MobileNetV1",
   "dataset_name": "MNIST",
 
-  "num_epochs": 50,
+  "num_epochs": 1,
   "batch_size": 64,
 
   "optimizer": "Adam",

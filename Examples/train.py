@@ -14,8 +14,8 @@ import os
 from tqdm import tqdm
 import config as conf
 from base import *
-from tflite import export_tflite_from_session
-from Examples.config.utils import load_config, get_architecture, get_optimizer
+from tflite import *
+from Examples.config.utils import load_config, get_architecture, get_optimizer, get_data_augmentation_fn
 
 from Networks.network import Network as MyNetwork
 from transforms import random_horizontal_flip, normalize
@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("MobileNetV1_ImageNet2012.json")
+    args = load_config("MobileNetV1_MNIST.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     if hasattr(args, 'seed'):
@@ -51,8 +51,10 @@ if __name__ == '__main__':
 
     # Already downloaded
     datasets = tfds.load(args.dataset_name.lower(), data_dir=conf.tfds_dir)
+    info = tfds.builder(args.dataset_name.lower()).info
+    label_names = info.features['label'].names
 
-    ds_train, ds_test = datasets['train'], datasets['validation']  # Uses "test" on CIFAR, MNIST
+    ds_train, ds_test = datasets['train'], datasets['test']  # Uses "test" on CIFAR, MNIST
 
     # Build your input pipeline
     # See: https://stackoverflow.com/questions/55141076/how-to-apply-data-augmentation-in-tensorflow-2-0-after-tfds-load
@@ -61,17 +63,10 @@ if __name__ == '__main__':
     # )
     ds_train = ds_train.map(
          lambda x: {
-             "image": tf.image.random_flip_left_right(x['image']),
+             "image": get_data_augmentation_fn(ds_args)(x['image']),
              "label": x['label'],
-             "file_name": x['file_name']
+             # "file_name": x['file_name']
          }
-    ).map(
-        lambda x: {
-            "image": tf.image.resize_image_with_crop_or_pad(x['image'], target_width=ds_args.img_width,
-                                                            target_height=ds_args.img_height),
-            "label": x['label'],
-            "file_name": x['file_name']
-        }
     ).shuffle(args.batch_size * 50).batch(args.batch_size)
 
     ds_test = ds_test.map(
@@ -79,7 +74,7 @@ if __name__ == '__main__':
             "image": tf.image.resize_image_with_crop_or_pad(x['image'], target_width=ds_args.img_width,
                                                             target_height=ds_args.img_height),
             "label": x['label'],
-            "file_name": x['file_name']
+            # "file_name": x['file_name']
         }
     ).shuffle(args.batch_size * 50)
 
@@ -128,7 +123,7 @@ if __name__ == '__main__':
 
     # Tensorboard
     merged = tf.summary.merge_all()
-    log_dir = conf.log_dir + args.dataset_name
+    log_dir = f"{conf.log_dir}/{args.dataset_name}/{args.architecture}"
     train_writer = tf.summary.FileWriter(log_dir, sess.graph)
     print("Run: \"tensorboard --logdir={}\"".format(log_dir))
 
@@ -139,14 +134,8 @@ if __name__ == '__main__':
 
     print("Number of parameters = {}".format(num_params))
 
-    def preprocess_batch(images):
-        # TODO: Make this arguments in .json and utils.py
-
-        images = random_horizontal_flip(images)
-
-        images = np.array(images) / 255.0
-        # images = (images - 0.449) / 0.226
-        return images
+    # Add ops to save and restore all the variables.
+    saver = tf.train.Saver()
 
     lr = args.learning_rate
     pbar = tqdm(range(args.num_epochs))
@@ -158,11 +147,9 @@ if __name__ == '__main__':
         while True:
             try:
                 batch = sess.run(next_train_element)
-                images = batch["image"]
-                labels = batch["label"]
-                # images, labels = batch['image'], batch['label']
+                images, labels = batch['image'], batch['label']
 
-                images = preprocess_batch(images)
+                images = images / 255.0
 
                 # mean = [0.485, 0.456, 0.406]
                 # std = [0.229, 0.224, 0.225]
@@ -188,6 +175,9 @@ if __name__ == '__main__':
                     # Standard description
                     pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
 
+                    # Save the variables to disk.
+                    save_path = saver.save(sess, f"{conf.ckpt_dir}/{args.dataset_name}_{args.architecture}_{step}.ckpt")
+
             except tf.errors.OutOfRangeError:
                 # print(f"Batch num = {num_batch}")
                 break
@@ -200,15 +190,13 @@ if __name__ == '__main__':
 
             # Test step
             sess.run(test_iterator.initializer)
+            acc2 = []
             while True:
                 try:
                     batch = sess.run(next_test_element)
-                    images = batch["image"]
-                    labels = batch["label"]
-
                     images, labels = batch['image'], batch['label']
 
-                    images = preprocess_batch(images)
+                    images = images / 255.0
 
                     # One hot encode
                     labels = np.eye(ds_args.num_classes)[labels]
@@ -219,13 +207,33 @@ if __name__ == '__main__':
                         is_training: False
                     }
 
-                    acc = sess.run(accuracy, feed_dict)
-                    # TODO: PLEASE FIX THIS, WHY NOT COMPATABLE WITH TENSORBOARD SCALAR PLOT
-                    print("Test accuracy = {}".format(acc))
+                    fetches = [accuracy, merged]
+                    acc, summary = sess.run(fetches, feed_dict)
+                    # train_writer.add_summary(summary, step)
 
+                    # TODO: PLEASE FIX THIS, WHY NOT COMPATABLE WITH TENSORBOARD SCALAR PLOT
+                    # print("Test accuracy = {}".format(acc))
+                    acc2.append(acc)
                 except tf.errors.OutOfRangeError:
                     break
 
+            print(f"Test accuracy {np.mean(acc2)}")
+
+    # Export standard model
+    save_path = f"{conf.save_dir}/{args.dataset_name}_{args.architecture}.pbtxt"
+    tf.train.write_graph(sess.graph.as_graph_def(), '.', save_path, as_text=True)
+
+    # Save the labels
+    with open(f"{conf.labels_dir}/{args.dataset_name}.txt", 'w') as f:
+        for item in label_names:
+            f.write("%s\n" % item)
+
+    # Freeze the graph
+    frozen_graph = freeze_graph(sess, ["layer_82/BiasAdd"])  # logits_op.name
+
     # Export model tflite
-    export_tflite_from_session(sess, input_nodes=[x], output_nodes=[logits_op],
-                               name=f"{args.architecture}_{args.dataset_name}")
+    export_tflite_from_frozen_graph(frozen_graph, input_nodes=[x], output_nodes=[logits_op],
+                                    dataset_name=args.dataset_name, architecture_name=args.architecture)
+
+    print("Finished")
+

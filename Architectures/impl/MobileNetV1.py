@@ -21,7 +21,8 @@ class MobileNetV1(IArchitecture):
             ReLU(),
             # Pointwise
             ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                      build_method=Weights.impl.sandbox, ranks=[1, 56, 56]),
+                      # build_method=Weights.impl.sandbox, ranks=[1, 56, 56],
+                      kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
             # Not managed to integrate moving average decay
             BatchNormalisationLayer(),
             ReLU()
@@ -29,10 +30,12 @@ class MobileNetV1(IArchitecture):
 
         return sequential
 
-    def __init__(self, num_classes, channels):
+    def __init__(self, num_classes, channels, weight_decay=5e-4):
+        self._weight_decay = weight_decay
         network = [
             # NOTE: Comments are for input size
-            ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2)),
+            ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2),
+                      kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
             ReLU(),
 
             *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),
@@ -52,7 +55,8 @@ class MobileNetV1(IArchitecture):
             # ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
             GlobalAveragePooling(keep_dims=False),
             Flatten(),
-            FullyConnectedLayer(shape=[1024, num_classes])
+            FullyConnectedLayer(shape=[1024, num_classes],
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay))
         ]
 
         super().__init__(network)

@@ -57,7 +57,7 @@ def get_optimizer(args):
     """
         Get the optimizer based on the arguments
 
-        :param tc: Object containing arguments as members, including name of optimizer, learning rate etc
+        :param args: Object containing arguments as members, including name of optimizer, learning rate etc
         :return: Optimizer, just call .minimize on this object
     """
 
@@ -74,3 +74,9 @@ def get_optimizer(args):
                                           use_nesterov=args.use_nesterov), learning_rate
     else:
         raise Exception("Unknown optimizer")
+
+
+def get_data_augmentation_fn(ds_args):
+    return lambda x: tf.image.resize_image_with_crop_or_pad(tf.image.random_flip_left_right(x),
+                                                            target_width=ds_args.img_width,
+                                                            target_height=ds_args.img_height)

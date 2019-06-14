@@ -15,14 +15,6 @@ def random_horizontal_flip(images):
     ])
 
 
-def pad_or_trunc(t):
-    dim = tf.size(t)
-    return tf.cond(tf.equal(dim, k),
-                   lambda: t,
-                   lambda: tf.cond(tf.greater(dim, k),
-                                   lambda: tf.slice(t, [0], [k]),
-                                   lambda: tf.concat([t, tf.zeros(k-dim, dtype=tf.int32)], 0)))
-
 def normalize(images, mean, std):
     """ Mean and std are for each channel RGB
         NOTE USED """

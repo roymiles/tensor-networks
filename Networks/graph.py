@@ -408,7 +408,7 @@ class Graph:
             # Compress the factors using switch, effectively only use a percentage across this index
             # The size of the dimension after compression (just multiply by switch)
             d = tf.dtypes.cast(switch * u_shape[i], dtype=tf.int32)
-            print("{} -> {}".format(u_shape[i], d))
+            # print("{} -> {}".format(u_shape[i], d))
             # assert d > 0, "Compressing a bit too much on this index"
             widths.append(d)
 
