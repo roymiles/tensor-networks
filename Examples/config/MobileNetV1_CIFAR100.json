@@ -3,7 +3,9 @@
   "dataset_name": "CIFAR100",
   "batch_size": 128,
 
-  "optimizer": "Adam",
+  "optimizer": "Momentum",
+  "momentum":0.9,
+  "use_nesterov": false,
   "learning_rate": 0.1,
   "learning_rate_decay": 0.2,
   "num_epochs_decay": 60,

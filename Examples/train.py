@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("MobileNetV2_MNIST.json")
+    args = load_config("MobileNetV1_CIFAR100.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     if hasattr(args, 'seed'):
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
 
-    test_iterator = ds_train.make_initializable_iterator()
+    test_iterator = ds_test.make_initializable_iterator()
     next_test_element = test_iterator.get_next()
 
     with tf.variable_scope("input"):
