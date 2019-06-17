@@ -145,7 +145,7 @@ class Network:
             :param is_training: bool, is training or testing mode
         """
 
-        tf.summary.image("Input data", x)
+        tf.summary.image("Input data", x, collections=['train', 'test'])
 
         # Loop through all the layers
         net = x

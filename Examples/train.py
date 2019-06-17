@@ -76,7 +76,7 @@ if __name__ == '__main__':
             "label": x['label'],
             # "file_name": x['file_name']
         }
-    ).shuffle(args.batch_size * 50)
+    ).shuffle(args.batch_size * 50).batch(10000)
 
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
@@ -94,16 +94,20 @@ if __name__ == '__main__':
 
     logits_op = model(x, is_training=is_training)
 
-    loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
-    tf.summary.scalar('Training Loss', loss_op)
+    with tf.variable_scope("loss"):
+        loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
+        tf.summary.scalar('training_loss', loss_op, collections=['train'])
+        tf.summary.scalar('testing_loss', loss_op, collections=['test'])
 
-    # Add the regularisation terms
-    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    loss_op += loss_op + sum(reg_losses)
+    with tf.variable_scope("regularisation"):
+        # Add the regularisation terms
+        reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        loss_op += loss_op + sum(reg_losses)
 
-    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    tf.summary.scalar('Testing Accuracy', accuracy)
+    with tf.variable_scope("accuracy"):
+        correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
+        accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        acc_op = tf.summary.scalar('Testing Accuracy', accuracy_op, collections=['test'])
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
@@ -116,15 +120,19 @@ if __name__ == '__main__':
     config = tf.ConfigProto(
         # device_count={'GPU': 0},  # If want to run on CPU only
         gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
-        
+
     )
     sess = tf.InteractiveSession(config=config)  # Session, Interactive session catches errors better
     sess.run(init_op)
 
     # Tensorboard
-    merged = tf.summary.merge_all()
+    train_summary = tf.summary.merge_all('train')
+    test_summary = tf.summary.merge_all('test')
+
     log_dir = f"{conf.log_dir}/{args.dataset_name}/{args.architecture}"
-    train_writer = tf.summary.FileWriter(log_dir, sess.graph)
+    write_op = tf.summary.FileWriter(log_dir, sess.graph)
+    # test_writer = tf.summary.FileWriter(log_dir + "/test", sess.graph)
+
     print("Run: tensorboard --logdir=\"{}\"".format(log_dir))
 
     num_params = 0
@@ -165,12 +173,12 @@ if __name__ == '__main__':
                     is_training: True
                 }
 
-                fetches = [global_step, train_op, loss_op, merged]
+                fetches = [global_step, train_op, loss_op, train_summary]
                 step, _, loss, summary = sess.run(fetches, feed_dict)
 
                 num_batch += 1
                 if step % 100 == 0:
-                    train_writer.add_summary(summary, step)
+                    write_op.add_summary(summary, step)
 
                     # Standard description
                     pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
@@ -186,9 +194,9 @@ if __name__ == '__main__':
         if epoch % args.num_epochs_decay == 0 and epoch != 0:
             lr = lr * args.learning_rate_decay
 
-        if epoch % args.test_every == 0 and epoch != 0:
+        if epoch % args.test_every == 0:
 
-            # Test step
+            # ----- Test step -----
             sess.run(test_iterator.initializer)
             # acc2 = []
             while True:
@@ -207,11 +215,10 @@ if __name__ == '__main__':
                         is_training: False
                     }
 
-                    fetches = [accuracy, merged]
-                    acc, summary = sess.run(fetches, feed_dict)
-                    # train_writer.add_summary(summary, step)
+                    fetches = test_summary
+                    summary = sess.run(fetches, feed_dict)
+                    write_op.add_summary(summary, step)
 
-                    # TODO: PLEASE FIX THIS, WHY NOT COMPATABLE WITH TENSORBOARD SCALAR PLOT
                     # print("Test accuracy = {}".format(acc))
                     # acc2.append(acc)
                 except tf.errors.OutOfRangeError:

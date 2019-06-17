@@ -20,7 +20,7 @@ def depthwise_convolution(cur_layer, layer_idx):
                              regularizer=cur_layer.kernel_regularizer,
                              trainable=True)
 
-    tf.summary.histogram(f"dwconv_{layer_idx}", kernel)
+    tf.summary.histogram(f"dwconv_{layer_idx}", kernel, collections=['train'])
 
     bias = None
     if cur_layer.using_bias():
@@ -50,7 +50,7 @@ def fully_connected(cur_layer, layer_idx):
                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                trainable=True)
 
-        tf.summary.histogram(f"dwconv_bias_{layer_idx}", bias)
+        tf.summary.histogram(f"dwconv_bias_{layer_idx}", bias, collections=['train'])
 
     return Weights.FullyConnected(kernel, bias)
 
