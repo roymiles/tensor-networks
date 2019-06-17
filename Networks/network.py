@@ -111,7 +111,8 @@ class Network:
             elif isinstance(cur_layer, BatchNormalisationLayer):
                 return cur_layer(x, is_training=is_training, switch_idx=switch_idx)
 
-            elif isinstance(cur_layer, ReLU):
+            elif isinstance(cur_layer, ReLU): # issubclass(cur_layer, NonLinearityLayer):
+                """ Any nonlinearity, ReLU, HSwitch etc have the same interface """
                 act = cur_layer(x)
                 return act
 
@@ -130,7 +131,8 @@ class Network:
                 assert isinstance(w, Weights.PointwiseDot), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, c=w.c, g=w.g, n=w.n, bias1=w.bias1, bias2=w.bias2, bias3=w.bias3)
+                return cur_layer(x, c=w.c, g=w.g, n=w.n, bias1=w.bias1, bias2=w.bias2, bias3=w.bias3,
+                                 is_training=is_training)
 
             else:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")

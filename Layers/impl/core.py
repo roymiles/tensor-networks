@@ -222,20 +222,25 @@ class DropoutLayer(ILayer):
 
 class BatchNormalisationLayer(ILayer):
     def __init__(self, affine=True):
-
         """ If affine is False, the scale and offset parameters won't be used
             When affine=False the output of BatchNorm is equivalent to considering gamma=1 and beta=0 as constants. """
         super().__init__()
         self._affine = affine
 
-    def __call__(self, input, is_training, switch_idx):
+    def __call__(self, input, is_training, switch_idx, affine=True):
         # Independant batch normalisation (for each switch)
         with tf.variable_scope(f"switch_{switch_idx}"):
-            net = tf.contrib.layers.batch_norm(input, is_training=is_training)
+            # tf.contrib.layers.batch_norm
+            net = tf.layers.batch_normalization(input, training=is_training)
             return net
 
 
-class ReLU(ILayer):
+class NonLinearityLayer(ILayer):
+    def __init__(self):
+        super().__init__()
+
+
+class ReLU(NonLinearityLayer):
     def __init__(self):
         super().__init__()
 
@@ -243,7 +248,7 @@ class ReLU(ILayer):
         return tf.nn.relu(input)
 
 
-class ReLU6(ILayer):
+class ReLU6(NonLinearityLayer):
     def __init__(self):
         super().__init__()
 
@@ -251,7 +256,7 @@ class ReLU6(ILayer):
         return tf.nn.relu6(input)
 
 
-class HSwish(ILayer):
+class HSwish(NonLinearityLayer):
     def __init__(self):
         super().__init__()
 
@@ -303,21 +308,24 @@ class MobileNetV2BottleNeck(ILayer):
     def create_weights(self):
         return self._build_method.mobilenetv2_bottleneck
 
-    def __call__(self, input, expansion_kernel, depthwise_kernel, projection_kernel):
+    def __call__(self, input, expansion_kernel, depthwise_kernel, projection_kernel, switch_idx=0):
 
         # Expansion layer
         net = tf.nn.conv2d(input, expansion_kernel, strides=[1, 1, 1, 1], padding="SAME")
-        net = tf.layers.batch_normalization(net)
+        with tf.variable_scope(f"bn1_switch_{switch_idx}"):
+            net = tf.layers.batch_normalization(net)
         net = tf.nn.relu(net)
 
         # Depthwise layer
         net = tf.nn.depthwise_conv2d(net, depthwise_kernel, strides=self._strides, padding="SAME")
-        net = tf.layers.batch_normalization(net)
+        with tf.variable_scope(f"bn2_switch_{switch_idx}"):
+            net = tf.layers.batch_normalization(net)
         net = tf.nn.relu(net)
 
         # Projection layer (linear)
         net = tf.nn.conv2d(net, projection_kernel, strides=[1, 1, 1, 1], padding="SAME")
-        net = tf.layers.batch_normalization(net)
+        with tf.variable_scope(f"bn3_switch_{switch_idx}"):
+            net = tf.layers.batch_normalization(net)
 
         # Only residual add when strides is 1
         is_residual = True if self._strides == [1, 1, 1, 1] else False
@@ -331,7 +339,10 @@ class MobileNetV2BottleNeck(ILayer):
                 x = tf.layers.conv2d(input, net.get_shape().as_list()[3], (1, 1), use_bias=False,
                                      kernel_initializer=tf.keras.initializers.glorot_normal(),
                                      name="fix-channel-mismatch")
-                x = tf.layers.batch_normalization(x)
+
+                with tf.variable_scope(f"switch_{switch_idx}"):
+                    x = tf.layers.batch_normalization(x)
+
                 return net + x
             else:
                 return net + input
@@ -379,7 +390,7 @@ class PointwiseDot(ILayer):
     def using_bias(self):
         return self._use_bias
 
-    def __call__(self, input, c, g, n, bias1=None, bias2=None, bias3=None):
+    def __call__(self, input, c, g, n, bias1=None, bias2=None, bias3=None, is_training=True, switch_idx=0):
         # input : B x w x h x c
         # c     : c x r1
         # g     : r1 x r2
@@ -387,20 +398,26 @@ class PointwiseDot(ILayer):
         net = tf.tensordot(input, c, axes=[3, 0])
         if bias1:
             net = tf.nn.bias_add(net, bias1)
-        net = tf.layers.batch_normalization(net)
+
+        with tf.variable_scope(f"bn1_switch_{switch_idx}"):
+            net = tf.layers.batch_normalization(net, training=is_training)
 
         # B x w x h x r1
         net = tf.tensordot(net, g, axes=[3, 0])
         if bias2:
             net = tf.nn.bias_add(net, bias2)
-        net = tf.layers.batch_normalization(net)
+
+        with tf.variable_scope(f"bn2_switch_{switch_idx}"):
+            net = tf.layers.batch_normalization(net, training=is_training)
         net = tf.nn.relu(net)
 
         # B x w x h x r2
         net = tf.tensordot(net, n, axes=[3, 0])
         if bias3:
             net = tf.nn.bias_add(net, bias3)
-        net = tf.layers.batch_normalization(net)
+
+        with tf.variable_scope(f"bn3_switch_{switch_idx}"):
+            net = tf.layers.batch_normalization(net, training=is_training)
         net = tf.nn.relu(net)
 
         # B x w x h x n

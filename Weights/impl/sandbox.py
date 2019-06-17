@@ -26,6 +26,7 @@ def convolution(cur_layer, layer_idx):
                         collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
         # Auxiliary indices
+        # NOTE: Must specify shared at start
         kernel.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
         kernel.add_edge("C", "G", name="r1", length=ranks[1])
         kernel.add_edge("N", "G", name="r2", length=ranks[2])
@@ -34,16 +35,16 @@ def convolution(cur_layer, layer_idx):
         kernel.compile()
         kernel.set_output_shape(["W", "H", "C", "N"])
 
-        g = tf.reshape(kernel.get_node("G"), shape=(1, 24, 24, 1))
+        g = tf.reshape(kernel.get_node("G"), shape=(1, 128, 128, 1))
         tf.summary.image(f"Core tensor, Pointwise - {layer_idx}", g)
 
         bias = None
         if cur_layer.using_bias():
-            # TODO: Do not need to use graph for everything...
-            bias = Graph("bias_{}".format(layer_idx))  # W x H x C x *N*
-            bias.add_node("B", shape=[shape[3]], names=["B"], initializer=tf.zeros_initializer(),
-                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])
-            bias.compile()
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[3]],  # W x H x C x *N*
+                                   initializer=cur_layer.bias_initializer,
+                                   regularizer=cur_layer.bias_regularizer,
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
 
         return Weights.Convolution(kernel, bias)
 
@@ -72,11 +73,10 @@ def depthwise_convolution(cur_layer, layer_idx, ranks):
 
         bias = None
         if cur_layer.using_bias():
-            bias = Graph("bias_{}".format(layer_idx))  # W x H x C x M
-            bias.add_node("B", shape=[shape[2] * shape[3]], names=["B"],
-                          initializer=tf.zeros_initializer(),
-                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"])  # Output channels is C x M
-            bias.compile()
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[2] * shape[3]],  # W x H x C x *M*
+                                   initializer=tf.zeros_initializer(),
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)  # Output channels is C x M
 
         return Weights.DepthwiseConvolution(kernel, bias)
 
@@ -105,9 +105,10 @@ def fully_connected(cur_layer, layer_idx, ranks):
 
         bias = None
         if cur_layer.using_bias():
-            bias = Graph("bias_{}".format(layer_idx))  # I x O
-            bias.add_node("B", shape=[shape[1]], names=["B"], initializer=tf.zeros_initializer(),
-                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, "bias"]).compile()
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[1]],  # I x O
+                                   initializer=tf.zeros_initializer(),
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
 
         return Weights.FullyConnected(kernel, bias)
 

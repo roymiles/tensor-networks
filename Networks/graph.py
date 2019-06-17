@@ -340,7 +340,7 @@ class Graph:
         return self._graph.nodes[node]["tfvar"]
 
     @staticmethod
-    def multiway_tensor_slice(tensor, axis, widths):
+    def multiway_tensor_slice(tensor, axis, widths, switch=1):
         """
         Slice tensor along multiple axis to specified widths
         Effectively a switch like in Slimmable networks
@@ -348,6 +348,7 @@ class Graph:
         :param tensor: The tf.Tensor
         :param axis: List of indexes that are sliced
         :param widths: List of widths for each axis
+        :param switch: (0, 1] % of the widths to use. This enables some form of compression
         :return: Sliced tf.Tensor
         """
 
@@ -370,7 +371,7 @@ class Graph:
         # Perform the multi-way slice
         return tensor[slice_ind]
 
-    def combine_factors(self, u_data, v_data, switch=1.0):
+    def combine_factors(self, u_data, v_data, switch=1):
         """ Attempts to combine two tensors using tensor contraction over shared indices
 
             :param
@@ -384,7 +385,7 @@ class Graph:
         if not self._is_compiled:
             raise Exception("Graph must be compiled before you can combine factors.")
 
-        # assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
+        assert 0 < switch <= 1, "Switch must be in the range (0, 1]"
 
         # Get index/key of shared (auxiliary indices)
         u_axis = []
@@ -413,15 +414,15 @@ class Graph:
             widths.append(d)
 
         # Extract appropriate width slices along the shared axis
-        u = Graph.multiway_tensor_slice(u_data['tfvar'], u_axis, widths)
-        v = Graph.multiway_tensor_slice(v_data['tfvar'], v_axis, widths)
+        u = Graph.multiway_tensor_slice(u_data['tfvar'], u_axis, widths, switch)
+        v = Graph.multiway_tensor_slice(v_data['tfvar'], v_axis, widths, switch)
 
         c = tf.tensordot(u, v, axes=[u_axis, v_axis])
         return c  # The dimensions are the open edges
 
     def num_parameters(self):
         """ Return the total number of parameters across all (non-dummy) nodes """
-        # TODO: This function should take in a switch parameters. Also consider independent BN params rip kill me
+        # TODO: This function should take in a switch parameters.
         assert self._is_compiled, "Must be compiled first"
 
         num_params = 0

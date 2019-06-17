@@ -28,7 +28,7 @@ class Weights:
     def set_weights(self, layer_idx, tf_weights):
         self._weights[layer_idx] = tf_weights
 
-    def get_layer_weights(self, layer_idx):
+    def get_layer_weights(self, layer_idx, switch=1.0):
         """
             Return the weights for a given layer
             Loops through all members in the weight namedtuple and combines them if of Graph type
@@ -42,7 +42,7 @@ class Weights:
         # Convert each Graph member to tf.Variable by combining (contracting all the nodes)
         for name, value in d.items():
             if isinstance(value, Graph):
-                d[name] = value.combine()
+                d[name] = value.combine(switch)
 
         # Return the same namedtuple type, but with the updated(?) values
         return type(w)(*list(d.values()))

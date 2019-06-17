@@ -65,7 +65,7 @@ if __name__ == '__main__':
          }
     ).shuffle(args.batch_size * 50).batch(args.batch_size)
 
-    ds_test = ds_test.shuffle(args.batch_size * 50).batch(10000)
+    ds_test = ds_test.shuffle(args.batch_size * 50).batch(args.batch_size)
 
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
@@ -77,8 +77,10 @@ if __name__ == '__main__':
         x = tf.placeholder(tf.float32, shape=[None, ds_args.img_width, ds_args.img_height, ds_args.num_channels])
         y = tf.placeholder(tf.float32, shape=[None, ds_args.num_classes])
         is_training = tf.placeholder(tf.bool, shape=[])
+        switch_idx = tf.placeholder(tf.int32, shape=[])
 
-    model = MyNetwork(architecture=architecture, switches=[0.5, 1.0])
+    switch_list = [1.0]
+    model = MyNetwork(architecture=architecture, switches=switch_list)
     model.build("MyNetwork")
 
     logits_op = model(x, is_training=is_training)
@@ -100,7 +102,7 @@ if __name__ == '__main__':
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    # This update op ensures the moving averages for bn are updatedbut
+    # This update op ensures the moving averages for BN
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         opt, learning_rate = get_optimizer(args)
@@ -137,6 +139,11 @@ if __name__ == '__main__':
     # Add ops to save and restore all the variables.
     saver = tf.train.Saver()
 
+    # Make checkpoint save path if does not exist
+    checkpoint_dir = f"{conf.ckpt_dir}/{args.dataset_name}/{args.architecture}"
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+
     lr = args.learning_rate
     pbar = tqdm(range(args.num_epochs))
     for epoch in pbar:
@@ -162,7 +169,8 @@ if __name__ == '__main__':
                     x: images,
                     y: labels,
                     learning_rate: lr,
-                    is_training: True
+                    is_training: True,
+                    switch_idx: random.randrange(len(switch_list))
                 }
 
                 fetches = [global_step, train_op, loss_op, train_summary, logits_op]
@@ -177,7 +185,7 @@ if __name__ == '__main__':
                     # pbar.set_description(f"Epoch: {epoch}, Step {step}, Logits: {logits}")
 
                     # Save the variables to disk.
-                    save_path = saver.save(sess, f"{conf.ckpt_dir}/{args.dataset_name}_{args.architecture}_{step}.ckpt")
+                    save_path = saver.save(sess, f"{checkpoint_dir}/{step}.ckpt")
 
             except tf.errors.OutOfRangeError:
                 # print(f"Batch num = {num_batch}, Num images seen = {num_batch * args.batch_size}")
@@ -191,30 +199,33 @@ if __name__ == '__main__':
         if epoch % args.test_every == 0:
 
             sess.run(test_iterator.initializer)
-            while True:
-                try:
-                    batch = sess.run(next_test_element)
-                    images, labels = batch['image'], batch['label']
+            # Check results on all switches
+            for idx in range(len(switch_list)):
+                while True:
+                    try:
+                        batch = sess.run(next_test_element)
+                        images, labels = batch['image'], batch['label']
 
-                    images = images / 255.0
+                        images = images / 255.0
 
-                    # One hot encode
-                    labels = np.eye(ds_args.num_classes)[labels]
+                        # One hot encode
+                        labels = np.eye(ds_args.num_classes)[labels]
 
-                    feed_dict = {
-                        x: images,
-                        y: labels,
-                        is_training: False
-                    }
+                        feed_dict = {
+                            x: images,
+                            y: labels,
+                            is_training: False,
+                            switch_idx: idx
+                        }
 
-                    fetches = [accuracy_op, loss_op, test_summary, logits_op]
-                    _, _, summary, logits = sess.run(fetches, feed_dict)
-                    write_op.add_summary(summary, step)
-                    # print(f"Testing Logits: {logits}")
+                        fetches = [accuracy_op, loss_op, test_summary, logits_op]
+                        _, _, summary, logits = sess.run(fetches, feed_dict)
+                        write_op.add_summary(summary, step)
+                        # print(f"Testing Logits: {logits}")
 
-                    # print("Test accuracy = {}".format(acc))
-                except tf.errors.OutOfRangeError:
-                    break
+                        # print("Test accuracy = {}".format(acc))
+                    except tf.errors.OutOfRangeError:
+                        break
 
     # Export standard model
     save_path = f"{conf.save_dir}/{args.dataset_name}_{args.architecture}.pbtxt"
