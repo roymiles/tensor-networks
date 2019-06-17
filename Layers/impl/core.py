@@ -230,8 +230,8 @@ class BatchNormalisationLayer(ILayer):
 
     def __call__(self, input, is_training, switch_idx):
         # Independant batch normalisation (for each switch)
-        with tf.variable_scope(f"switch_{switch_idx}", reuse=tf.AUTO_REUSE):
-            net = tf.layers.batch_normalization(input, training=is_training)
+        with tf.variable_scope(f"switch_{switch_idx}"):
+            net = tf.contrib.layers.batch_norm(input, is_training=is_training)
             return net
 
 

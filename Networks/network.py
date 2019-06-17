@@ -136,7 +136,7 @@ class Network:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")
                 return cur_layer(x)
 
-    def __call__(self, x, is_training=True, switch_idx=0):
+    def __call__(self, x, is_training, switch_idx=0):
         """ Complete forward pass for the entire network
 
             :param x: The input to the network e.g. a batch of images
@@ -145,7 +145,7 @@ class Network:
             :param is_training: bool, is training or testing mode
         """
 
-        tf.summary.image("Input data", x, collections=['train', 'test'])
+        tf.summary.image("Input data", x, collections=['test'])
 
         # Loop through all the layers
         net = x

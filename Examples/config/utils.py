@@ -76,7 +76,9 @@ def get_optimizer(args):
         raise Exception("Unknown optimizer")
 
 
-def get_data_augmentation_fn(ds_args):
+def preprocess_images_fn(ds_args):
+    """ Data augmentation """
     return lambda x: tf.image.resize_image_with_crop_or_pad(tf.image.random_flip_left_right(x),
                                                             target_width=ds_args.img_width,
                                                             target_height=ds_args.img_height)
+

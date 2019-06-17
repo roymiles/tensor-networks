@@ -15,7 +15,7 @@ from tqdm import tqdm
 import config as conf
 from base import *
 from tflite import *
-from Examples.config.utils import load_config, get_architecture, get_optimizer, get_data_augmentation_fn
+from Examples.config.utils import load_config, get_architecture, get_optimizer, preprocess_images_fn
 
 from Networks.network import Network as MyNetwork
 from transforms import random_horizontal_flip, normalize
@@ -57,26 +57,15 @@ if __name__ == '__main__':
     ds_train, ds_test = datasets['train'], datasets['test']  # Uses "test" on CIFAR, MNIST
 
     # Build your input pipeline
-    # See: https://stackoverflow.com/questions/55141076/how-to-apply-data-augmentation-in-tensorflow-2-0-after-tfds-load
-    # ds_train.map(
-    #     lambda image, label: (tf.image.random_flip_left_right(image), label)
-    # )
     ds_train = ds_train.map(
          lambda x: {
-             "image": get_data_augmentation_fn(ds_args)(x['image']),
+             "image": preprocess_images_fn(ds_args)(x['image']),
              "label": x['label'],
              # "file_name": x['file_name']
          }
     ).shuffle(args.batch_size * 50).batch(args.batch_size)
 
-    ds_test = ds_test.map(
-        lambda x: {
-            "image": tf.image.resize_image_with_crop_or_pad(x['image'], target_width=ds_args.img_width,
-                                                            target_height=ds_args.img_height),
-            "label": x['label'],
-            # "file_name": x['file_name']
-        }
-    ).shuffle(args.batch_size * 50).batch(10000)
+    ds_test = ds_test.shuffle(args.batch_size * 50).batch(10000)
 
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
@@ -107,12 +96,15 @@ if __name__ == '__main__':
     with tf.variable_scope("accuracy"):
         correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        acc_op = tf.summary.scalar('Testing Accuracy', accuracy_op, collections=['test'])
+        tf.summary.scalar('Testing Accuracy', accuracy_op, collections=['test'])
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    opt, learning_rate = get_optimizer(args)
-    train_op = opt.minimize(loss_op, global_step=global_step)
+    # This update op ensures the moving averages for bn are updatedbut
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(update_ops):
+        opt, learning_rate = get_optimizer(args)
+        train_op = opt.minimize(loss_op, global_step=global_step)
 
     init_op = tf.global_variables_initializer()
 
@@ -149,7 +141,7 @@ if __name__ == '__main__':
     pbar = tqdm(range(args.num_epochs))
     for epoch in pbar:
 
-        # Training
+        # ---------------- TRAINING ---------------- #
         sess.run(train_iterator.initializer)
         num_batch = 0
         while True:
@@ -173,8 +165,8 @@ if __name__ == '__main__':
                     is_training: True
                 }
 
-                fetches = [global_step, train_op, loss_op, train_summary]
-                step, _, loss, summary = sess.run(fetches, feed_dict)
+                fetches = [global_step, train_op, loss_op, train_summary, logits_op]
+                step, _, loss, summary, logits = sess.run(fetches, feed_dict)
 
                 num_batch += 1
                 if step % 100 == 0:
@@ -182,23 +174,23 @@ if __name__ == '__main__':
 
                     # Standard description
                     pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
+                    # pbar.set_description(f"Epoch: {epoch}, Step {step}, Logits: {logits}")
 
                     # Save the variables to disk.
                     save_path = saver.save(sess, f"{conf.ckpt_dir}/{args.dataset_name}_{args.architecture}_{step}.ckpt")
 
             except tf.errors.OutOfRangeError:
-                # print(f"Batch num = {num_batch}")
+                # print(f"Batch num = {num_batch}, Num images seen = {num_batch * args.batch_size}")
                 break
 
         # Decay learning rate every n epochs
         if epoch % args.num_epochs_decay == 0 and epoch != 0:
             lr = lr * args.learning_rate_decay
 
+        # ---------------- TESTING ---------------- #
         if epoch % args.test_every == 0:
 
-            # ----- Test step -----
             sess.run(test_iterator.initializer)
-            # acc2 = []
             while True:
                 try:
                     batch = sess.run(next_test_element)
@@ -215,16 +207,14 @@ if __name__ == '__main__':
                         is_training: False
                     }
 
-                    fetches = test_summary
-                    summary = sess.run(fetches, feed_dict)
+                    fetches = [accuracy_op, loss_op, test_summary, logits_op]
+                    _, _, summary, logits = sess.run(fetches, feed_dict)
                     write_op.add_summary(summary, step)
+                    # print(f"Testing Logits: {logits}")
 
                     # print("Test accuracy = {}".format(acc))
-                    # acc2.append(acc)
                 except tf.errors.OutOfRangeError:
                     break
-
-            # print(f"Test accuracy {np.mean(acc2)}")
 
     # Export standard model
     save_path = f"{conf.save_dir}/{args.dataset_name}_{args.architecture}.pbtxt"
