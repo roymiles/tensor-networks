@@ -1,6 +1,8 @@
 import tensorflow as tf
 import json
 import os
+import yaml
+import io
 from collections import namedtuple
 from Architectures.impl.MobileNetV1 import MobileNetV1
 from Architectures.impl.MobileNetV2 import MobileNetV2
@@ -9,24 +11,43 @@ from Architectures.impl.MNISTExample import MNISTExample
 from Architectures.impl.AlexNet import AlexNet
 
 
-def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
+def _dict_object_hook(d): return namedtuple('X', d.keys())(*d.values())
 
 
 # Convert json file to object
-def json2obj(data): return json.loads(data, object_hook=_json_object_hook)
+def json2obj(data): return json.loads(data, object_hook=_dict_object_hook)
 
 
-def load_config(name, as_obj=True):
+_JSON = 0
+_YAML = 1
+
+
+def load_config(name, mode=_JSON, as_obj=True):
     """ Load training configuration """
-    with open(f"{os.getcwd()}/config/{name}") as json_file:
-        if as_obj:
-            # As object
-            d = json_file.read()
-            x = json2obj(d)
-            return x
-        else:
-            # As dictionary
-            return json.load(json_file)
+    if mode == _JSON:
+        """ Load .json format """
+        with open(f"{os.getcwd()}/config/{name}") as json_file:
+            if as_obj:
+                # As object
+                d = json_file.read()
+                x = json2obj(d)
+                return x
+            else:
+                # As dictionary
+                return json.load(json_file)
+    elif mode == _YAML:
+        """ Load .yaml format """
+        with open(f"{os.getcwd()}/config/{name}", 'r') as yaml_file:
+            d = yaml_file.safe_load()
+            if as_obj:
+                # As object
+                x = _dict_object_hook(d)
+                return x
+            else:
+                # As dictionary
+                return d
+    else:
+        raise Exception("Unknown file type")
 
 
 def get_architecture(args, ds_args):
@@ -40,7 +61,7 @@ def get_architecture(args, ds_args):
 
     name = args.architecture
     if name == "MobileNetV1":
-        return MobileNetV1(num_classes=ds_args.num_classes, channels=ds_args.num_channels)
+        return MobileNetV1(num_classes=ds_args.num_classes, channels=ds_args.num_channels, switch_list=args.switch_list)
     elif name == "MobileNetV2":
         return MobileNetV2(num_classes=ds_args.num_classes, channels=ds_args.num_channels)
     elif name == "CIFARExample":

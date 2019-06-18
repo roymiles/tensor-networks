@@ -7,13 +7,12 @@ import tensorflow as tf
 
 class Network:
 
-    def __init__(self, architecture, switches):
+    def __init__(self, architecture):
         assert isinstance(architecture, IArchitecture), "architecture argument must be of type IArchitecture"
         self._architecture = architecture
         self._num_layers = architecture.num_layers()
 
         self._weights = None
-        self._switches = switches
 
     def set_weights(self, weights):
 
@@ -68,7 +67,7 @@ class Network:
                     tf_weights = create_op()(cur_layer, layer_idx)
                     self._weights.set_weights(layer_idx, tf_weights)
 
-    def run_layer(self, x, layer_idx, name, is_training=True, switch_idx=0):
+    def run_layer(self, x, layer_idx, name, is_training=True, switch_idx=0, switch=1.0):
         """ Pass input through a single layer
             Operation is dependant on the layer type
 
@@ -76,8 +75,9 @@ class Network:
         :param layer_idx : Layer number
         :param name : For variable scoping
         :param is_training: bool, is training or testing mode
-        :param switch_idx: Index for switch_list, controls the compression of the network
-                       (default, just call first switch)
+        :param switch_idx: Associated switch index from the switch list
+        :param switch: Switch in range 0-1
+                       (default, use full network)
 
         """
 
@@ -111,7 +111,7 @@ class Network:
             elif isinstance(cur_layer, BatchNormalisationLayer):
                 return cur_layer(x, is_training=is_training, switch_idx=switch_idx)
 
-            elif isinstance(cur_layer, ReLU): # issubclass(cur_layer, NonLinearityLayer):
+            elif isinstance(cur_layer, ReLU):  # issubclass(cur_layer, NonLinearityLayer):
                 """ Any nonlinearity, ReLU, HSwitch etc have the same interface """
                 act = cur_layer(x)
                 return act
@@ -138,12 +138,12 @@ class Network:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")
                 return cur_layer(x)
 
-    def __call__(self, x, is_training, switch_idx=0):
+    def __call__(self, x, is_training, switch_idx=0, switch=1.0):
         """ Complete forward pass for the entire network
 
             :param x: The input to the network e.g. a batch of images
-            :param switch_idx: Index for switch_list, controls the compression of the network
-                               (default, just call first switch)
+            :param switch_idx: Associated switch index from the switch list
+            :param switch: Current switch in range 0, 1
             :param is_training: bool, is training or testing mode
         """
 
@@ -153,6 +153,6 @@ class Network:
         net = x
         for n in range(self.get_num_layers()):
             net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
-                                 is_training=is_training, switch_idx=switch_idx)
+                                 is_training=is_training, switch_idx=switch_idx, switch=switch)
 
         return net

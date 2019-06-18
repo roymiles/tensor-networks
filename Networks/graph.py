@@ -90,8 +90,9 @@ class Graph:
                                  regularizer=None, shared=None, collections=None)
 
         if not self._graph.has_node(v_of_edge):
+            # Can specify if v is shared or part of a collection
             self._graph.add_node(v_of_edge, dummy_node=False, initializer=initializer,
-                                 regularizer=regularizer, shared=shared, collections=collections)
+                                 regularizer=regularizer, shared=shared, collections=collections, test=True)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
@@ -122,10 +123,26 @@ class Graph:
                 reg = self._graph.nodes[node]['regularizer']
                 collections = self._graph.nodes[node]['collections']
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
-                    self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
-                                                                       initializer=init, regularizer=reg,
-                                                                       collections=collections,
-                                                                       trainable=True)
+
+                    if "test" in self._graph.nodes[node]:
+                        # Create a constant sine ting
+                        import numpy as np
+                        c = np.zeros(dims, dtype=np.float32)
+
+                        ns = np.arange(dims[1])
+                        one_cycle = 2 * np.pi * ns / dims[1]
+                        for k in range(dims[2]):
+                            t_k = k * one_cycle
+                            c[0, k, :] = np.cos(t_k)
+
+                        self._graph.nodes[node]["tfvar"] = tf.constant(value=c, name="{}{}".format(scope_name, node),
+                                                                       dtype=tf.float32)
+
+                    else:
+                        self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
+                                                                           initializer=init, regularizer=reg,
+                                                                           collections=collections,
+                                                                           trainable=True)
 
             self._graph.nodes[node]["edge_names"] = edge_names
 
@@ -340,7 +357,7 @@ class Graph:
         return self._graph.nodes[node]["tfvar"]
 
     @staticmethod
-    def multiway_tensor_slice(tensor, axis, widths, switch=1):
+    def multiway_tensor_slice(tensor, axis, widths):
         """
         Slice tensor along multiple axis to specified widths
         Effectively a switch like in Slimmable networks
@@ -348,7 +365,6 @@ class Graph:
         :param tensor: The tf.Tensor
         :param axis: List of indexes that are sliced
         :param widths: List of widths for each axis
-        :param switch: (0, 1] % of the widths to use. This enables some form of compression
         :return: Sliced tf.Tensor
         """
 
@@ -414,8 +430,8 @@ class Graph:
             widths.append(d)
 
         # Extract appropriate width slices along the shared axis
-        u = Graph.multiway_tensor_slice(u_data['tfvar'], u_axis, widths, switch)
-        v = Graph.multiway_tensor_slice(v_data['tfvar'], v_axis, widths, switch)
+        u = Graph.multiway_tensor_slice(u_data['tfvar'], u_axis, widths)
+        v = Graph.multiway_tensor_slice(v_data['tfvar'], v_axis, widths)
 
         c = tf.tensordot(u, v, axes=[u_axis, v_axis])
         return c  # The dimensions are the open edges

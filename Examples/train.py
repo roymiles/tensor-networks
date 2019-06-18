@@ -44,8 +44,6 @@ if __name__ == '__main__':
     tf.random.set_random_seed(seed)
     np.random.seed(seed)
 
-    architecture = get_architecture(args, ds_args)
-
     # See available datasets
     print(tfds.list_builders())
 
@@ -65,7 +63,7 @@ if __name__ == '__main__':
          }
     ).shuffle(args.batch_size * 50).batch(args.batch_size)
 
-    ds_test = ds_test.shuffle(args.batch_size * 50).batch(args.batch_size)
+    ds_test = ds_test.shuffle(args.batch_size * 50).batch(10000)
 
     train_iterator = ds_train.make_initializable_iterator()
     next_train_element = train_iterator.get_next()
@@ -78,12 +76,13 @@ if __name__ == '__main__':
         y = tf.placeholder(tf.float32, shape=[None, ds_args.num_classes])
         is_training = tf.placeholder(tf.bool, shape=[])
         switch_idx = tf.placeholder(tf.int32, shape=[])
+        switch = tf.placeholder(tf.float32, shape=[])
 
-    switch_list = [1.0]
-    model = MyNetwork(architecture=architecture, switches=switch_list)
+    architecture = get_architecture(args, ds_args)
+    model = MyNetwork(architecture=architecture)
     model.build("MyNetwork")
 
-    logits_op = model(x, is_training=is_training)
+    logits_op = model(x, is_training=is_training, switch_idx=switch_idx, switch=switch)
 
     with tf.variable_scope("loss"):
         loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
@@ -165,12 +164,14 @@ if __name__ == '__main__':
                 # One hot encode
                 labels = np.eye(ds_args.num_classes)[labels]
 
+                sw_idx, sw = random.choice(list(enumerate(args.switch_list)))
                 feed_dict = {
                     x: images,
                     y: labels,
                     learning_rate: lr,
                     is_training: True,
-                    switch_idx: random.randrange(len(switch_list))
+                    switch_idx: sw_idx,
+                    switch: sw
                 }
 
                 fetches = [global_step, train_op, loss_op, train_summary, logits_op]
@@ -200,7 +201,7 @@ if __name__ == '__main__':
 
             sess.run(test_iterator.initializer)
             # Check results on all switches
-            for idx in range(len(switch_list)):
+            for sw_idx, sw in enumerate(args.switch_list):
                 while True:
                     try:
                         batch = sess.run(next_test_element)
@@ -215,7 +216,8 @@ if __name__ == '__main__':
                             x: images,
                             y: labels,
                             is_training: False,
-                            switch_idx: idx
+                            switch_idx: sw_idx,
+                            switch: sw
                         }
 
                         fetches = [accuracy_op, loss_op, test_summary, logits_op]

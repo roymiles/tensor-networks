@@ -35,8 +35,10 @@ def convolution(cur_layer, layer_idx):
         kernel.compile()
         kernel.set_output_shape(["W", "H", "C", "N"])
 
-        g = tf.reshape(kernel.get_node("G"), shape=(1, 128, 128, 1))
-        tf.summary.image(f"Core tensor, Pointwise - {layer_idx}", g)
+        g = kernel.get_node("G")
+        g_shape = g.get_shape().as_list()
+        g = tf.reshape(kernel.get_node("G"), shape=(g_shape[0], g_shape[1], g_shape[2], 1))
+        tf.summary.image(f"Core tensor, Pointwise - {layer_idx}", g, collections=['train'])
 
         bias = None
         if cur_layer.using_bias():
@@ -226,7 +228,7 @@ def pointwise_dot(cur_layer, layer_idx):
                             regularizer=cur_layer.kernel_regularizer,
                             trainable=True)
 
-        tf.summary.histogram(f"c_{layer_idx}", c)
+        tf.summary.histogram(f"c_{layer_idx}", c, collections=['train'])
 
         # REMEMBER: f"g_{layer_idx}" if not reusing
         g = tf.get_variable(f"g", shape=[shape[1], shape[2]],
@@ -236,8 +238,8 @@ def pointwise_dot(cur_layer, layer_idx):
                             trainable=True)
 
         g2 = tf.reshape(g, shape=(1, 128, 128, 1))
-        tf.summary.image("g", g2)
-        tf.summary.histogram(f"g", g)
+        tf.summary.image("g", g2, collections=['train'])
+        tf.summary.histogram(f"g", g, collections=['train'])
 
         n = tf.get_variable(f"n_{layer_idx}", shape=[shape[2], shape[3]],
                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
@@ -245,7 +247,7 @@ def pointwise_dot(cur_layer, layer_idx):
                             regularizer=cur_layer.kernel_regularizer,
                             trainable=True)
 
-        tf.summary.histogram(f"n_{layer_idx}", n)
+        tf.summary.histogram(f"n_{layer_idx}", n, collections=['train'])
 
         bias1 = None
         bias2 = None

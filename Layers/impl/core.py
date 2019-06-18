@@ -2,6 +2,8 @@ import tensorflow as tf
 from Layers.layer import ILayer
 import Weights.impl.core
 import Weights.impl.sandbox
+import math
+import numpy as np
 
 
 class ConvLayer(ILayer):
@@ -221,18 +223,36 @@ class DropoutLayer(ILayer):
 
 
 class BatchNormalisationLayer(ILayer):
-    def __init__(self, affine=True):
-        """ If affine is False, the scale and offset parameters won't be used
+    def __init__(self, switch_list=[1.0], affine=True):
+        """ Implements switchable batch normalisation
+            If affine is False, the scale and offset parameters won't be used
             When affine=False the output of BatchNorm is equivalent to considering gamma=1 and beta=0 as constants. """
         super().__init__()
         self._affine = affine
+        self._switch_list = switch_list
+
+        self.switchable_fns = []
+
+    def get_switches(self, input, is_training, switch_idx):
+        pred_fn_pairs = []
+        for sw_idx, sw in enumerate(self._switch_list):
+            with tf.variable_scope(f"switch_{sw}"):
+                pred_fn_pairs.append((tf.equal(switch_idx, sw_idx),
+                                      lambda: tf.layers.batch_normalization(input, training=is_training)))
+
+        return pred_fn_pairs
 
     def __call__(self, input, is_training, switch_idx, affine=True):
+
+        #net = tf.case(self.get_switches(input, is_training, switch_idx),
+        #              default=lambda: tf.layers.batch_normalization(input, training=is_training),
+        #              exclusive=True)
+        #return net
+
         # Independant batch normalisation (for each switch)
-        with tf.variable_scope(f"switch_{switch_idx}"):
-            # tf.contrib.layers.batch_norm
-            net = tf.layers.batch_normalization(input, training=is_training)
-            return net
+        # with tf.variable_scope(f"switch"):
+        net = tf.layers.batch_normalization(input, training=is_training)
+        return net
 
 
 class NonLinearityLayer(ILayer):
