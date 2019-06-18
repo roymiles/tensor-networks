@@ -10,7 +10,7 @@ learning_rate_decay: 0.2
 num_epochs_decay: 60
 num_epochs: 200
 weight_decay: 5e-4
-switch_list: [1.0, 0.5]
+switch_list: [1.0]
 
 test_every: 1
 seed: 42

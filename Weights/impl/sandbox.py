@@ -35,10 +35,21 @@ def convolution(cur_layer, layer_idx):
         kernel.compile()
         kernel.set_output_shape(["W", "H", "C", "N"])
 
+        # Some plots for Tensorboard
+        c = kernel.get_node("C")
+        c_shape = c.get_shape().as_list()
+        c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
+        tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
+
+        n = kernel.get_node("N")
+        n_shape = n.get_shape().as_list()
+        n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
+        tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
+
         g = kernel.get_node("G")
         g_shape = g.get_shape().as_list()
-        g = tf.reshape(kernel.get_node("G"), shape=(g_shape[0], g_shape[1], g_shape[2], 1))
-        tf.summary.image(f"Core tensor, Pointwise - {layer_idx}", g, collections=['train'])
+        g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
+        tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
 
         bias = None
         if cur_layer.using_bias():
@@ -229,6 +240,9 @@ def pointwise_dot(cur_layer, layer_idx):
                             trainable=True)
 
         tf.summary.histogram(f"c_{layer_idx}", c, collections=['train'])
+        _c = tf.reshape(c, shape=(1, shape[0], shape[1], 1))
+        tf.summary.image("c", _c, collections=['train'])
+        tf.summary.histogram(f"c", _c, collections=['train'])
 
         # REMEMBER: f"g_{layer_idx}" if not reusing
         g = tf.get_variable(f"g", shape=[shape[1], shape[2]],
@@ -237,15 +251,31 @@ def pointwise_dot(cur_layer, layer_idx):
                             regularizer=cur_layer.kernel_regularizer,
                             trainable=True)
 
-        g2 = tf.reshape(g, shape=(1, 128, 128, 1))
-        tf.summary.image("g", g2, collections=['train'])
-        tf.summary.histogram(f"g", g, collections=['train'])
+        # Create a constant sine ting
+        """import numpy as np
+        c = np.zeros((1, shape[1], shape[2]), dtype=np.float32)
+
+        ns = np.arange(shape[1])
+        one_cycle = 2 * np.pi * ns / shape[1]
+        for k in range(shape[2]):
+            t_k = k * one_cycle
+            c[0, k, :] = np.cos(t_k)
+
+        g = tf.constant(value=c, name=f"g", dtype=tf.float32)"""
+
+        _g = tf.reshape(g, shape=(1, shape[1], shape[2], 1))
+        tf.summary.image("g", _g, collections=['train'])
+        tf.summary.histogram(f"g", _g, collections=['train'])
 
         n = tf.get_variable(f"n_{layer_idx}", shape=[shape[2], shape[3]],
                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                             initializer=cur_layer.kernel_initializer,
                             regularizer=cur_layer.kernel_regularizer,
                             trainable=True)
+
+        _n = tf.reshape(n, shape=(1, shape[2], shape[3], 1))
+        tf.summary.image("n", _n, collections=['train'])
+        tf.summary.histogram(f"n", _n, collections=['train'])
 
         tf.summary.histogram(f"n_{layer_idx}", n, collections=['train'])
 

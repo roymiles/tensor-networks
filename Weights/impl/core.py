@@ -3,6 +3,7 @@
 """
 import tensorflow as tf
 from Weights.weights import Weights
+from Networks.graph import Graph
 
 
 def depthwise_convolution(cur_layer, layer_idx):
@@ -63,6 +64,9 @@ def convolution(cur_layer, layer_idx):
                              initializer=cur_layer.kernel_initializer,
                              regularizer=cur_layer.kernel_regularizer,
                              trainable=True)
+
+    k = tf.reshape(kernel, shape=(shape[0], shape[2], shape[3], shape[1]))
+    tf.summary.image(f"k_{layer_idx}", k, collections=['train'])
 
     # tf.summary.histogram(f"conv_{layer_idx}", kernel)
 
