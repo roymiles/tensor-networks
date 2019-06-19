@@ -103,3 +103,17 @@ def preprocess_images_fn(ds_args):
                                                             target_width=ds_args.img_width,
                                                             target_height=ds_args.img_height)
 
+
+def is_epoch_decay(epoch, args):
+    """ Can decay depending on list or every n epochs """
+    if epoch == 0:
+        return False
+
+    if hasattr(args, 'num_epochs_decay'):
+        if epoch % args.num_epochs_decay == 0:
+            return True
+    elif hasattr(args, 'epoch_decay_boundaries'):
+        if epoch in args.epoch_decay_boundaries:
+            return True
+
+    return False

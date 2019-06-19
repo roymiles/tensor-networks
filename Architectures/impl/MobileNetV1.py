@@ -15,16 +15,23 @@ class MobileNetV1(IArchitecture):
         # depth_multiplier = 1
 
         # By default, don't regularise depthwise filters
+        """
         sequential = [
             DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
             BatchNormalisationLayer(self._switch_list),
             ReLU(),
             # Pointwise
             ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                      build_method=Weights.impl.sandbox, ranks=[1, 96, 96],
+                      # build_method=Weights.impl.sandbox, ranks=[1, 96, 96],
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
             #PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
             # Not managed to integrate moving average decay
+            BatchNormalisationLayer(self._switch_list),
+            ReLU()
+        ]
+        """
+        sequential = [
+            CustomBottleneck(shape=[w, h, c, depth], strides=(stride, stride), ranks=[1, 96, 96]),
             BatchNormalisationLayer(self._switch_list),
             ReLU()
         ]

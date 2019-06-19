@@ -15,38 +15,50 @@ def convolution(cur_layer, layer_idx):
         ranks = cur_layer.ranks
         assert len(ranks) == 3, "Must specified r0, r1, r2"
 
-        kernel = Graph("conv_{}".format(layer_idx))
+        k1 = Graph("conv_{}".format(layer_idx))
+
+        # Ratio R that is compressed
+        R = 0.8
+        s1 = int(shape[3] * R)
+        s2 = shape[3] - s1
 
         # Add the nodes w/ exposed indices
-        kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+        k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
                         collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-        kernel.add_node("C", shape=[shape[2]], names=["C"],
+        k1.add_node("C", shape=[shape[2]], names=["C"],
                         collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-        kernel.add_node("N", shape=[shape[3]], names=["N"],
+        k1.add_node("N", shape=[s1], names=["N"],
                         collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
         # Auxiliary indices
         # NOTE: Must specify shared at start
-        kernel.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
-        kernel.add_edge("C", "G", name="r1", length=ranks[1])
-        kernel.add_edge("N", "G", name="r2", length=ranks[2])
+        k1.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
+        k1.add_edge("C", "G", name="r1", length=ranks[1])
+        k1.add_edge("N", "G", name="r2", length=ranks[2])
 
         # Compile/generate the tf.Variables and add to the set of weights
-        kernel.compile()
-        kernel.set_output_shape(["W", "H", "C", "N"])
+        k1.compile()
+        k1.set_output_shape(["W", "H", "C", "N"])
+
+        # Extra bit
+        k2 = tf.get_variable(f"k2_{layer_idx}", shape=[shape[0], shape[1], shape[2], s2],
+                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                             initializer=cur_layer.kernel_initializer,
+                             regularizer=cur_layer.kernel_regularizer,
+                             trainable=True)
 
         # Some plots for Tensorboard
-        c = kernel.get_node("C")
+        c = k1.get_node("C")
         c_shape = c.get_shape().as_list()
         c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
         tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
 
-        n = kernel.get_node("N")
+        n = k1.get_node("N")
         n_shape = n.get_shape().as_list()
         n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
         tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
 
-        g = kernel.get_node("G")
+        g = k1.get_node("G")
         g_shape = g.get_shape().as_list()
         g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
         tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
@@ -59,7 +71,8 @@ def convolution(cur_layer, layer_idx):
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                    trainable=True)
 
-        return Weights.Convolution(kernel, bias)
+        return Weights.ConvolutionTest(k1, k2, bias)
+        #return Weights.Convolution(k1, bias)
 
 
 def depthwise_convolution(cur_layer, layer_idx, ranks):
@@ -308,3 +321,104 @@ def pointwise_dot(cur_layer, layer_idx):
             tf.summary.histogram(f"bias3_{layer_idx}", bias3)
 
     return Weights.PointwiseDot(c, g, n, bias1, bias2, bias3)
+
+
+def CustomBottleneck(cur_layer, layer_idx):
+    # W x H x C x N
+    shape = cur_layer.get_shape()
+
+    # Two partition variables.
+    # pt1: Indicates % used for depthwise and standard convolution (concatenated at the end)
+    # pt2: Indicates % used for factored pointwise convolution and standard pointwise convolution
+    # The value % is how much is compressed (larger = more compressed)
+    pt1 = 0.99
+    pt2 = 0.99
+
+    with tf.variable_scope("CustomBottleneck", reuse=tf.AUTO_REUSE):
+
+        # Size of partition for first stage
+        # Compressed across in-channels C
+        s1 = int(shape[2] * pt1)  # Depthwise
+        s2 = shape[2] - s1        # Standard convolution
+        print(f"Depthwise: {s1}, Standard: {s2}")
+
+        # Depthwise kernel
+        kdw = tf.get_variable(f"kernel_depthwise_{layer_idx}", shape=[shape[0], shape[1], s1, 1],
+                              collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                              trainable=True)
+
+        # Standard kernel
+        k = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], s2, s2],
+                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                            trainable=True)
+
+        # The size of auxilliary indices
+        ranks = cur_layer.ranks
+        assert len(ranks) == 3, "Must specified r0, r1, r2"
+
+        k1 = Graph("conv_{}".format(layer_idx))
+
+        # Size of partition for second stage
+        # Compressed across out-channels (kernels) N
+        s1 = int(shape[3] * pt2)  # Compressed
+        s2 = shape[3] - s1        # Standard pointwise
+        print(f"Factored PW: {s1}, Standard: {s2}")
+
+        # Add the nodes w/ exposed indices
+        k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+        k1.add_node("C", shape=[shape[2]], names=["C"],
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+        k1.add_node("N", shape=[s1], names=["N"],
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+
+        # Auxiliary indices
+        # NOTE: Must specify shared at start
+        k1.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
+        k1.add_edge("C", "G", name="r1", length=ranks[1])
+        k1.add_edge("N", "G", name="r2", length=ranks[2])
+
+        # Compile/generate the tf.Variables and add to the set of weights
+        k1.compile()
+        k1.set_output_shape(["W", "H", "C", "N"])
+
+        # Standard pointwise kernel
+        k2 = tf.get_variable(f"k2_{layer_idx}", shape=[shape[0], shape[1], shape[2], s2],
+                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                             initializer=cur_layer.kernel_initializer,
+                             regularizer=cur_layer.kernel_regularizer,
+                             trainable=True)
+
+        # Some plots for Tensorboard
+        c = k1.get_node("C")
+        c_shape = c.get_shape().as_list()
+        c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
+        tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
+
+        n = k1.get_node("N")
+        n_shape = n.get_shape().as_list()
+        n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
+        tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
+
+        g = k1.get_node("G")
+        g_shape = g.get_shape().as_list()
+        g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
+        tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
+
+        k2_shape = k2.get_shape().as_list()
+        _k2 = tf.reshape(k2, shape=(s2, k2_shape[1], k2_shape[2], shape[0]))
+        tf.summary.image(f"k2_{layer_idx}", _k2, collections=['train'])
+
+        # Histograms
+        tf.summary.histogram(f"k_{layer_idx}", k)
+        tf.summary.histogram(f"kdw_{layer_idx}", kdw)
+
+        bias = None
+        if cur_layer.using_bias():
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[3]],  # W x H x C x *N*
+                                   initializer=cur_layer.bias_initializer,
+                                   regularizer=cur_layer.bias_regularizer,
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
+
+        return Weights.CustomBottleneck(k, kdw, k1, k2, bias)

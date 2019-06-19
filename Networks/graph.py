@@ -6,6 +6,8 @@ import tensorflow as tf
 import networkx as nx
 from base import *
 from base import random_string
+from Weights.utils import sine2D
+import numpy as np
 
 
 class Graph:
@@ -125,16 +127,7 @@ class Graph:
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
 
                     if "test" in self._graph.nodes[node]:
-                        # Create a constant sine ting
-                        import numpy as np
-                        c = np.zeros(dims, dtype=np.float32)
-
-                        ns = np.arange(dims[1])
-                        one_cycle = 2 * np.pi * ns / dims[1]
-                        for k in range(dims[2]):
-                            t_k = k * one_cycle
-                            c[0, k, :] = np.cos(t_k)
-
+                        c = np.array([sine2D(dims[1], dims[2])])
                         self._graph.nodes[node]["tfvar"] = tf.constant(value=c, name="{}{}".format(scope_name, node),
                                                                        dtype=tf.float32)
 

@@ -87,10 +87,19 @@ class Network:
             if isinstance(cur_layer, ConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
+
                 assert isinstance(w, Weights.Convolution), \
                     "The layer weights don't match up with the layer type"
 
                 return cur_layer(x, kernel=w.kernel, bias=w.bias)
+
+            elif isinstance(cur_layer, CustomBottleneck):
+                w = self._weights.get_layer_weights(layer_idx)
+
+                assert isinstance(w, Weights.CustomBottleneck), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, k=w.k, kdw=w.kdw, k1=w.k1, k2=w.k2, bias=w.bias)
 
             elif isinstance(cur_layer, DepthwiseConvLayer):
 

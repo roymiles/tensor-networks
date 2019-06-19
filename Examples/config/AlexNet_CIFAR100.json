@@ -8,6 +8,7 @@
   "learning_rate_decay": 0.5,
   "num_epochs_decay": 75,
   "num_epochs": 200,
+  "switch_list": [1.0],
 
   "test_every": 1,
   "seed": 42

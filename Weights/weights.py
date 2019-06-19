@@ -23,6 +23,8 @@ class Weights:
                                                                  "projection_kernel"])
     PointwiseDot = namedtuple('PointwiseDot', ["c", "g", "n", "bias1", "bias2", "bias3"])
 
+    CustomBottleneck = namedtuple('CustomBottleneck', ["k", "kdw", "k1", "k2", "bias"])
+
     def __init__(self):
         pass
 

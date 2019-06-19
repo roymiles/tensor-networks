@@ -10,6 +10,7 @@ def depthwise_convolution(cur_layer, layer_idx):
     """
         Implements standard depthwise convolution using a tensor network
         with a single node (aka no factorisation)
+        W x H x C x M, Where M is the channel multiplier
     """
 
     # Very similar to standard convolution

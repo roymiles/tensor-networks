@@ -15,7 +15,7 @@ from tqdm import tqdm
 import config as conf
 from base import *
 from tflite import *
-from Examples.config.utils import load_config, get_architecture, get_optimizer, preprocess_images_fn
+from Examples.config.utils import *
 
 from Networks.network import Network as MyNetwork
 from transforms import random_horizontal_flip, normalize
@@ -37,9 +37,9 @@ if __name__ == '__main__':
     if hasattr(args, 'seed'):
         seed = args.seed
     else:
-        seed = 1234
+        seed = 345
 
-    # set random seeds
+    # Set random seeds
     random.seed(seed)
     tf.random.set_random_seed(seed)
     np.random.seed(seed)
@@ -86,8 +86,8 @@ if __name__ == '__main__':
 
     with tf.variable_scope("loss"):
         loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
-        tf.summary.scalar('training_loss', loss_op, collections=['train'])
-        tf.summary.scalar('testing_loss', loss_op, collections=['test'])
+        # tf.summary.scalar('training_loss', loss_op, collections=['train'])
+        # tf.summary.scalar('testing_loss', loss_op, collections=['test'])
 
     with tf.variable_scope("regularisation"):
         # Add the regularisation terms
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     with tf.variable_scope("accuracy"):
         correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        tf.summary.scalar('Testing Accuracy', accuracy_op, collections=['test'])
+        # tf.summary.scalar('Testing Accuracy', accuracy_op, collections=['test'])
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
@@ -107,26 +107,9 @@ if __name__ == '__main__':
         opt, learning_rate = get_optimizer(args)
         train_op = opt.minimize(loss_op, global_step=global_step)
 
-    init_op = tf.global_variables_initializer()
-
-    # Create session and initialize weights
-    config = tf.ConfigProto(
-        # device_count={'GPU': 0},  # If want to run on CPU only
-        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
-
-    )
-    sess = tf.InteractiveSession(config=config)  # Session, Interactive session catches errors better
-    sess.run(init_op)
-
     # Tensorboard
     train_summary = tf.summary.merge_all('train')
     test_summary = tf.summary.merge_all('test')
-
-    log_dir = f"{conf.log_dir}/{args.dataset_name}/{args.architecture}"
-    write_op = tf.summary.FileWriter(log_dir, sess.graph)
-    # test_writer = tf.summary.FileWriter(log_dir + "/test", sess.graph)
-
-    print("Run: tensorboard --logdir=\"{}\"".format(log_dir))
 
     num_params = 0
     for v in tf.trainable_variables():
@@ -143,6 +126,23 @@ if __name__ == '__main__':
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
+    # Create the session and initialize the weights
+    init_op = tf.global_variables_initializer()
+    config = tf.ConfigProto(
+        # device_count={'GPU': 0},  # If want to run on CPU only
+        gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
+
+    )
+    sess = tf.Session(config=config)  # Session, Interactive session catches errors better
+    # (InteractiveSession)
+    sess.run(init_op)
+
+    # Tensorboard file writers
+    log_dir = f"{conf.log_dir}/{args.dataset_name}/{args.architecture}"
+    write_op = tf.summary.FileWriter(log_dir, sess.graph)
+    # test_writer = tf.summary.FileWriter(log_dir + "/test", sess.graph)
+    print("Run: tensorboard --logdir=\"{}\"".format(log_dir))
+
     lr = args.learning_rate
     pbar = tqdm(range(args.num_epochs))
     for epoch in pbar:
@@ -151,6 +151,7 @@ if __name__ == '__main__':
         sess.run(train_iterator.initializer)
         num_batch = 0
         while True:
+            train_loss = []
             try:
                 batch = sess.run(next_train_element)
                 images, labels = batch['image'], batch['label']
@@ -176,10 +177,16 @@ if __name__ == '__main__':
 
                 fetches = [global_step, train_op, loss_op, train_summary, logits_op]
                 step, _, loss, summary, logits = sess.run(fetches, feed_dict)
+                train_loss.append(loss)
 
                 num_batch += 1
                 if step % 100 == 0:
-                    write_op.add_summary(summary, step)
+                    avg_loss = np.mean(np.array(train_loss))
+                    train_loss = []  # Reset
+                    loss_summary = tf.Summary(value=[tf.Summary.Value(tag='train_loss', simple_value=avg_loss)])
+                    write_op.add_summary(loss_summary, global_step=step)
+                    write_op.add_summary(summary, global_step=step)
+                    write_op.flush()
 
                     # Standard description
                     pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
@@ -193,7 +200,7 @@ if __name__ == '__main__':
                 break
 
         # Decay learning rate every n epochs
-        if epoch % args.num_epochs_decay == 0 and epoch != 0:
+        if is_epoch_decay(epoch, args):
             lr = lr * args.learning_rate_decay
 
         # ---------------- TESTING ---------------- #
@@ -202,6 +209,8 @@ if __name__ == '__main__':
             sess.run(test_iterator.initializer)
             # Check results on all switches
             for sw_idx, sw in enumerate(args.switch_list):
+                test_loss = []
+                test_acc = []
                 while True:
                     try:
                         batch = sess.run(next_test_element)
@@ -221,13 +230,24 @@ if __name__ == '__main__':
                         }
 
                         fetches = [accuracy_op, loss_op, test_summary, logits_op]
-                        _, _, summary, logits = sess.run(fetches, feed_dict)
-                        write_op.add_summary(summary, step)
+                        acc_, loss_, summary, logits = sess.run(fetches, feed_dict)
+
+                        test_acc.append(acc_)
+                        test_loss.append(loss_)
                         # print(f"Testing Logits: {logits}")
 
                         # print("Test accuracy = {}".format(acc))
                     except tf.errors.OutOfRangeError:
                         break
+
+                avg_loss = np.mean(np.array(test_loss))
+                avg_acc = np.mean(np.array(test_acc))
+
+                summary = tf.Summary(value=[tf.Summary.Value(tag='test_loss', simple_value=avg_loss),
+                                            tf.Summary.Value(tag='test_accuracy', simple_value=avg_acc)])
+
+                write_op.add_summary(summary, global_step=epoch)
+                write_op.flush()
 
     # Export standard model
     save_path = f"{conf.save_dir}/{args.dataset_name}_{args.architecture}.pbtxt"

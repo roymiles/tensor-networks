@@ -442,3 +442,70 @@ class PointwiseDot(ILayer):
 
         # B x w x h x n
         return net
+
+
+class CustomBottleneck(ILayer):
+    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",
+                 kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
+                 kernel_regularizer=None, bias_regularizer=None, ranks=None):
+        super().__init__()
+
+        px = strides[0]
+        py = strides[1]
+        self._strides = [1, px, py, 1]
+
+        self._shape = shape
+        self._padding = padding
+        self._use_bias = use_bias
+
+        # Can't be bothered to make getters for these, just make them public
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
+
+        # Rank for the core tensor G
+        self.ranks = ranks
+
+    def create_weights(self):
+        return Weights.impl.sandbox.CustomBottleneck
+
+    def get_shape(self):
+        return self._shape
+
+    def using_bias(self):
+        return self._use_bias
+
+    def get_strides(self):
+        return self._strides
+
+    def __call__(self, input, k, kdw, k1, k2, bias=None):
+        s1 = k.get_shape().as_list()[2]
+
+        # Standard convolution
+        net1 = tf.nn.conv2d(input[:, :, :, 0:s1], k, strides=self._strides, padding=self._padding)
+
+        # Depthwise separable stage
+        net2 = tf.nn.depthwise_conv2d(input[:, :, :, s1:], kdw, strides=self._strides, padding=self._padding)
+
+        # Combine depthwise + standard results
+        net = tf.concat([net1, net2], axis=3)
+
+        # BN + RELU
+        net = tf.layers.batch_normalization(net)
+        net = tf.nn.relu(net)
+
+        # Pointwise
+        net3 = tf.nn.conv2d(net, k1, strides=self._strides, padding=self._padding)
+
+        # Factored pointwise
+        net4 = tf.nn.conv2d(net, k2, strides=self._strides, padding=self._padding)
+
+        # Combine pointwise results
+        net = tf.concat([net3, net4], axis=3)
+
+        if bias:
+            net = tf.nn.bias_add(net, bias)
+
+        return net
+
