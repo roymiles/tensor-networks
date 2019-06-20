@@ -7,7 +7,7 @@ working_dir = "/media/roy/New Volume/"
 tfds_dir = working_dir + "tensorflow-datasets"
 
 # Where tensorboard logs are stored
-log_dir = working_dir + "Tensorboard"
+log_tb_dir = working_dir + "Tensorboard"
 
 # Where checkpoints are saved (.ckpt)
 ckpt_dir = working_dir + "Checkpoints"
@@ -20,3 +20,6 @@ save_dir = working_dir + "Models"
 
 # Where the class labels are stored
 labels_dir = working_dir + "Labels"
+
+# Logging dir
+log_txt_dir = working_dir + "Logs"

@@ -3,7 +3,7 @@
     The configuration is specified by the arguments
 """
 
-import numpy as np
+import logging
 
 # temporary fudge, so can call script from terminal
 import sys
@@ -33,6 +33,17 @@ if __name__ == '__main__':
     # Change if want to test different model/dataset
     args = load_config("MobileNetV1_CIFAR100.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
+
+    # This is needed, else the logging file is not made (in PyCharm)
+    # https://stackoverflow.com/questions/30861524/logging-basicconfig-not-creating-log-file-when-i-run-in-pycharm
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    log_txt_name = f"{args.architecture}_{args.dataset_name}_{args.optimizer}"
+    logging.basicConfig(filename=f'{conf.log_txt_dir}/{log_txt_name}.log',
+                        filemode='a',  # Append rather than overwrite
+                        level=logging.NOTSET,  # Minimum level
+                        format='%(levelname)s: %(message)s')
 
     if hasattr(args, 'seed'):
         seed = args.seed
@@ -116,7 +127,7 @@ if __name__ == '__main__':
         # print(v)
         num_params += tfvar_size(v)
 
-    print("Number of parameters = {}".format(num_params))
+    logging.info(f"Number of parameters = {num_params}")
 
     # Add ops to save and restore all the variables.
     saver = tf.train.Saver()
@@ -138,10 +149,10 @@ if __name__ == '__main__':
     sess.run(init_op)
 
     # Tensorboard file writers
-    log_dir = f"{conf.log_dir}/{args.dataset_name}/{args.architecture}"
-    write_op = tf.summary.FileWriter(log_dir, sess.graph)
+    log_tb_dir = f"{conf.log_tb_dir}/{args.dataset_name}/{args.architecture}"
+    write_op = tf.summary.FileWriter(log_tb_dir, sess.graph)
     # test_writer = tf.summary.FileWriter(log_dir + "/test", sess.graph)
-    print("Run: tensorboard --logdir=\"{}\"".format(log_dir))
+    print("Run: tensorboard --logdir=\"{}\"".format(log_tb_dir))
 
     lr = args.learning_rate
     pbar = tqdm(range(args.num_epochs))
@@ -150,8 +161,9 @@ if __name__ == '__main__':
         # ---------------- TRAINING ---------------- #
         sess.run(train_iterator.initializer)
         num_batch = 0
+        train_loss = []
+        train_acc = []
         while True:
-            train_loss = []
             try:
                 batch = sess.run(next_train_element)
                 images, labels = batch['image'], batch['label']
@@ -175,25 +187,37 @@ if __name__ == '__main__':
                     switch: sw
                 }
 
-                fetches = [global_step, train_op, loss_op, train_summary, logits_op]
-                step, _, loss, summary, logits = sess.run(fetches, feed_dict)
-                train_loss.append(loss)
+                fetches = [global_step, train_op, accuracy_op, loss_op, train_summary, logits_op]
+                step, _, acc_, loss_, summary, logits = sess.run(fetches, feed_dict)
+
+                train_acc.append(acc_)
+                train_loss.append(loss_)
 
                 num_batch += 1
                 if step % 100 == 0:
+
+                    # Training loss and accuracy logged every n steps (as opposed to every epoch)
                     avg_loss = np.mean(np.array(train_loss))
-                    train_loss = []  # Reset
-                    loss_summary = tf.Summary(value=[tf.Summary.Value(tag='train_loss', simple_value=avg_loss)])
+                    avg_acc = np.mean(np.array(train_loss))
+                    # Reset loss and accuracy
+                    train_loss = []
+                    train_acc = []
+                    loss_summary = tf.Summary(value=[tf.Summary.Value(tag='train_loss', simple_value=avg_loss),
+                                                     tf.Summary.Value(tag='train_accuracy', simple_value=avg_acc)])
                     write_op.add_summary(loss_summary, global_step=step)
                     write_op.add_summary(summary, global_step=step)
                     write_op.flush()
 
                     # Standard description
-                    pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {loss}, Learning rate: {lr}")
+                    pbar.set_description(f"Epoch: {epoch}, Step {step}, Loss: {avg_loss}, Learning rate: {lr}")
                     # pbar.set_description(f"Epoch: {epoch}, Step {step}, Logits: {logits}")
 
                     # Save the variables to disk.
                     save_path = saver.save(sess, f"{checkpoint_dir}/{step}.ckpt")
+
+                    # Log to file
+                    logging.info(f"TRAIN epoch: {epoch}/{args.num_epochs}, step {step}, train_loss: {avg_loss}, "
+                                 f"train_acc: {avg_acc}, lr: {lr}")
 
             except tf.errors.OutOfRangeError:
                 # print(f"Batch num = {num_batch}, Num images seen = {num_batch * args.batch_size}")
@@ -245,6 +269,9 @@ if __name__ == '__main__':
 
                 summary = tf.Summary(value=[tf.Summary.Value(tag='test_loss', simple_value=avg_loss),
                                             tf.Summary.Value(tag='test_accuracy', simple_value=avg_acc)])
+
+                # Log to file
+                logging.info(f"TEST epoch: {epoch}/{args.num_epochs}, test_loss: {avg_loss}, test_acc: {avg_acc}")
 
                 write_op.add_summary(summary, global_step=epoch)
                 write_op.flush()

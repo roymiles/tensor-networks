@@ -1,6 +1,7 @@
 import tensorflow as tf
 from Weights.weights import Weights
 from Networks.graph import Graph
+import logging
 
 
 def convolution(cur_layer, layer_idx):
@@ -335,12 +336,13 @@ def CustomBottleneck(cur_layer, layer_idx):
     pt2 = 0.99
 
     with tf.variable_scope("CustomBottleneck", reuse=tf.AUTO_REUSE):
+        logging.info(f"CustomBottleneck Layer {layer_idx}")
 
         # Size of partition for first stage
         # Compressed across in-channels C
         s1 = int(shape[2] * pt1)  # Depthwise
         s2 = shape[2] - s1        # Standard convolution
-        print(f"Depthwise: {s1}, Standard: {s2}")
+        logging.info(f"Depthwise: {s1}, Standard: {s2}")
 
         # Depthwise kernel
         kdw = tf.get_variable(f"kernel_depthwise_{layer_idx}", shape=[shape[0], shape[1], s1, 1],
@@ -362,7 +364,7 @@ def CustomBottleneck(cur_layer, layer_idx):
         # Compressed across out-channels (kernels) N
         s1 = int(shape[3] * pt2)  # Compressed
         s2 = shape[3] - s1        # Standard pointwise
-        print(f"Factored PW: {s1}, Standard: {s2}")
+        logging.info(f"Factored PW: {s1}, Standard: {s2}\n")
 
         # Add the nodes w/ exposed indices
         k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
