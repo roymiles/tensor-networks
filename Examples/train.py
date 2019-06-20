@@ -20,6 +20,7 @@ from Examples.config.utils import *
 from Networks.network import Network as MyNetwork
 from transforms import random_horizontal_flip, normalize
 import numpy as np
+from tensorflow.python.client import timeline
 
 
 # The info messages are getting tedious now
@@ -39,8 +40,8 @@ if __name__ == '__main__':
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    log_txt_name = f"{args.architecture}_{args.dataset_name}_{args.optimizer}"
-    logging.basicConfig(filename=f'{conf.log_txt_dir}/{log_txt_name}.log',
+    unique_name = f"{args.architecture}_{args.dataset_name}_{args.optimizer}"
+    logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
                         filemode='a',  # Append rather than overwrite
                         level=logging.NOTSET,  # Minimum level
                         format='%(levelname)s: %(message)s')
@@ -135,7 +136,7 @@ if __name__ == '__main__':
     saver = tf.train.Saver()
 
     # Make checkpoint save path if does not exist
-    checkpoint_dir = f"{conf.ckpt_dir}/{args.dataset_name}/{args.architecture}"
+    checkpoint_dir = f"{conf.checkpoint_dir}/{args.dataset_name}/{args.architecture}"
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
@@ -146,18 +147,22 @@ if __name__ == '__main__':
         gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
 
     )
-    sess = tf.Session(config=config)  # Session, Interactive session catches errors better
-    # (InteractiveSession)
+    # Add additional options to trace the session execution
+    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    run_metadata = tf.RunMetadata()
+    # Session, Interactive session (InteractiveSession)) catches errors better
+    sess = tf.Session(config=config)
     sess.run(init_op)
 
     # Tensorboard file writers
-    log_tb_dir = f"{conf.log_tb_dir}/{args.dataset_name}/{args.architecture}"
-    write_op = tf.summary.FileWriter(log_tb_dir, sess.graph)
+    log_dir = f"{conf.tensorboard_dir}/{args.dataset_name}/{args.architecture}"
+    write_op = tf.summary.FileWriter(log_dir, sess.graph)
     # test_writer = tf.summary.FileWriter(log_dir + "/test", sess.graph)
-    print("Run: tensorboard --logdir=\"{}\"".format(log_tb_dir))
+    print(f"Run: tensorboard --logdir=\"{log_dir}\"")
 
     lr = args.learning_rate
     pbar = tqdm(range(args.num_epochs))
+    is_profiling = True
     for epoch in pbar:
 
         # ---------------- TRAINING ---------------- #
@@ -167,7 +172,11 @@ if __name__ == '__main__':
         train_acc = []
         while True:
             try:
-                batch = sess.run(next_train_element)
+                if is_profiling:
+                    batch = sess.run(next_train_element)
+                else:
+                    batch = sess.run(next_train_element, options=run_options, run_metadata=run_metadata)
+
                 images, labels = batch['image'], batch['label']
 
                 images = images / 255.0
@@ -220,6 +229,16 @@ if __name__ == '__main__':
                     # Log to file
                     logging.info(f"TRAIN epoch: {epoch}/{args.num_epochs}, step {step}, train_loss: {avg_loss}, "
                                  f"train_acc: {avg_acc}, lr: {lr}")
+
+                    if is_profiling:
+                        # Create the Timeline object, and write it to a json file
+                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                        with open(f'{conf.profiling_dir}/{unique_name}.json', 'w') as f:
+                            f.write(chrome_trace)
+                            # Only profile once
+                            is_profiling = False
+                            print(f"Profile at chrome://tracing/")
 
             except tf.errors.OutOfRangeError:
                 # print(f"Batch num = {num_batch}, Num images seen = {num_batch * args.batch_size}")
