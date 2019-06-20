@@ -7,7 +7,7 @@ import logging
 
 # temporary fudge, so can call script from terminal
 import sys
-sys.path.append('/home/roy/PycharmProjects/TensorNetworks/')
+sys.path.append('..')
 
 import tensorflow_datasets as tfds
 import os
@@ -31,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("MobileNetV1_CIFAR100.json")
+    args = load_config("MobileNetV1_ImageNet2012.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     # This is needed, else the logging file is not made (in PyCharm)
@@ -63,7 +63,8 @@ if __name__ == '__main__':
     info = tfds.builder(args.dataset_name.lower()).info
     label_names = info.features['label'].names
 
-    ds_train, ds_test = datasets['train'], datasets['test']  # Uses "test" on CIFAR, MNIST
+    # Uses "test" on CIFAR, MNIST, "validation" on ImageNet
+    ds_train, ds_test = datasets['train'], datasets['validation']
 
     # Build your input pipeline
     ds_train = ds_train.map(
@@ -73,6 +74,7 @@ if __name__ == '__main__':
              # "file_name": x['file_name']
          }
     ).shuffle(args.batch_size * 50).batch(args.batch_size)
+    # steps_per_epoch = ds_args.size / args.batch_size
 
     ds_test = ds_test.shuffle(args.batch_size * 50).batch(10000)
 
@@ -198,7 +200,7 @@ if __name__ == '__main__':
 
                     # Training loss and accuracy logged every n steps (as opposed to every epoch)
                     avg_loss = np.mean(np.array(train_loss))
-                    avg_acc = np.mean(np.array(train_loss))
+                    avg_acc = np.mean(np.array(train_acc))
                     # Reset loss and accuracy
                     train_loss = []
                     train_acc = []
@@ -292,5 +294,5 @@ if __name__ == '__main__':
     export_tflite_from_frozen_graph(frozen_graph, input_nodes=[x], output_nodes=[logits_op],
                                     dataset_name=args.dataset_name, architecture_name=args.architecture)
 
-    print("Finished")
+    logging.info("Finished")
 
