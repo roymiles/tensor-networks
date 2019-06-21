@@ -16,5 +16,7 @@
   "switch_list": [1.0],
 
   "test_every": 1,
-  "seed": 1232
+  "seed": 1232,
+
+  "method": "standard"
 }

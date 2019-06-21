@@ -18,7 +18,6 @@ from tflite import *
 from Examples.config.utils import *
 
 from Networks.network import Network as MyNetwork
-from transforms import random_horizontal_flip, normalize
 import numpy as np
 from tensorflow.python.client import timeline
 
@@ -32,7 +31,7 @@ print(tf.__version__)
 if __name__ == '__main__':
 
     # Change if want to test different model/dataset
-    args = load_config("MobileNetV1_ImageNet2012.json")
+    args = load_config("MobileNetV1_CIFAR100.json")
     ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
     # This is needed, else the logging file is not made (in PyCharm)
@@ -40,16 +39,20 @@ if __name__ == '__main__':
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    unique_name = f"{args.architecture}_{args.dataset_name}_{args.optimizer}"
-    logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
-                        filemode='a',  # Append rather than overwrite
-                        level=logging.NOTSET,  # Minimum level
-                        format='%(levelname)s: %(message)s')
-
     if hasattr(args, 'seed'):
         seed = args.seed
     else:
         seed = 345
+
+    # Unique name for this model and training method
+    unique_name = f"arch_{args.architecture}_ds_{args.dataset_name}_opt_{args.optimizer}_seed_{seed}"
+    if hasattr(args, 'method'):
+        unique_name += f"_method_{args.method}"
+
+    logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
+                        filemode='a',  # Append rather than overwrite
+                        level=logging.NOTSET,  # Minimum level
+                        format='%(levelname)s: %(message)s')
 
     # Set random seeds
     random.seed(seed)
@@ -65,15 +68,14 @@ if __name__ == '__main__':
     label_names = info.features['label'].names
 
     # Uses "test" on CIFAR, MNIST, "validation" on ImageNet
-    ds_train, ds_test = datasets['train'], datasets['validation']
+    ds_train, ds_test = datasets['train'], datasets['test']
 
     # Build your input pipeline
     ds_train = ds_train.map(
-         lambda x: {
-             "image": preprocess_images_fn(ds_args)(x['image']),
-             "label": x['label'],
-             # "file_name": x['file_name']
-         }
+        lambda x: {
+            "image": preprocess_images_fn(ds_args)(x['image']),
+            "label": x['label'],
+        }
     ).shuffle(args.batch_size * 50).batch(args.batch_size)
     # steps_per_epoch = ds_args.size / args.batch_size
 
@@ -100,8 +102,6 @@ if __name__ == '__main__':
 
     with tf.variable_scope("loss"):
         loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
-        # tf.summary.scalar('training_loss', loss_op, collections=['train'])
-        # tf.summary.scalar('testing_loss', loss_op, collections=['test'])
 
     with tf.variable_scope("regularisation"):
         # Add the regularisation terms
@@ -111,7 +111,6 @@ if __name__ == '__main__':
     with tf.variable_scope("accuracy"):
         correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(logits_op, 1))
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        # tf.summary.scalar('Testing Accuracy', accuracy_op, collections=['test'])
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
@@ -136,7 +135,7 @@ if __name__ == '__main__':
     saver = tf.train.Saver()
 
     # Make checkpoint save path if does not exist
-    checkpoint_dir = f"{conf.checkpoint_dir}/{args.dataset_name}/{args.architecture}"
+    checkpoint_dir = f"{conf.checkpoint_dir}/{unique_name}"
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
@@ -145,24 +144,21 @@ if __name__ == '__main__':
     config = tf.ConfigProto(
         # device_count={'GPU': 0},  # If want to run on CPU only
         gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
-
     )
-    # Add additional options to trace the session execution
-    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    run_metadata = tf.RunMetadata()
     # Session, Interactive session (InteractiveSession)) catches errors better
     sess = tf.Session(config=config)
     sess.run(init_op)
 
     # Tensorboard file writers
-    log_dir = f"{conf.tensorboard_dir}/{args.dataset_name}/{args.architecture}"
+    log_dir = f"{conf.tensorboard_dir}/{unique_name}"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     write_op = tf.summary.FileWriter(log_dir, sess.graph)
-    # test_writer = tf.summary.FileWriter(log_dir + "/test", sess.graph)
     print(f"Run: tensorboard --logdir=\"{log_dir}\"")
 
     lr = args.learning_rate
     pbar = tqdm(range(args.num_epochs))
-    is_profiling = True
+    step = 0
     for epoch in pbar:
 
         # ---------------- TRAINING ---------------- #
@@ -172,10 +168,7 @@ if __name__ == '__main__':
         train_acc = []
         while True:
             try:
-                if is_profiling:
-                    batch = sess.run(next_train_element)
-                else:
-                    batch = sess.run(next_train_element, options=run_options, run_metadata=run_metadata)
+                batch = sess.run(next_train_element)
 
                 images, labels = batch['image'], batch['label']
 
@@ -230,19 +223,12 @@ if __name__ == '__main__':
                     logging.info(f"TRAIN epoch: {epoch}/{args.num_epochs}, step {step}, train_loss: {avg_loss}, "
                                  f"train_acc: {avg_acc}, lr: {lr}")
 
-                    if is_profiling:
-                        # Create the Timeline object, and write it to a json file
-                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                        with open(f'{conf.profiling_dir}/{unique_name}.json', 'w') as f:
-                            f.write(chrome_trace)
-                            # Only profile once
-                            is_profiling = False
-                            print(f"Profile at chrome://tracing/")
-
             except tf.errors.OutOfRangeError:
                 # print(f"Batch num = {num_batch}, Num images seen = {num_batch * args.batch_size}")
                 break
+
+        # Auto detect problems and generate advice.
+        # profiler.advise(options=opts)
 
         # Decay learning rate every n epochs
         if is_epoch_decay(epoch, args):
@@ -256,8 +242,10 @@ if __name__ == '__main__':
             for sw_idx, sw in enumerate(args.switch_list):
                 test_loss = []
                 test_acc = []
+                i = 0
                 while True:
                     try:
+                        # Do profiling during test stage
                         batch = sess.run(next_test_element)
                         images, labels = batch['image'], batch['label']
 
@@ -275,13 +263,22 @@ if __name__ == '__main__':
                         }
 
                         fetches = [accuracy_op, loss_op, test_summary, logits_op]
-                        acc_, loss_, summary, logits = sess.run(fetches, feed_dict)
+                        if epoch == 0:
+                            # Only do the profiling once
+                            options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                            run_metadata = tf.RunMetadata()
+                            acc_, loss_, summary, logits = sess.run(fetches, feed_dict, options=options,
+                                                                    run_metadata=run_metadata)
+                        else:
+                            acc_, loss_, summary, logits = sess.run(fetches, feed_dict)
 
                         test_acc.append(acc_)
                         test_loss.append(loss_)
                         # print(f"Testing Logits: {logits}")
 
                         # print("Test accuracy = {}".format(acc))
+                        i += 1
+
                     except tf.errors.OutOfRangeError:
                         break
 
@@ -297,9 +294,18 @@ if __name__ == '__main__':
                 write_op.add_summary(summary, global_step=epoch)
                 write_op.flush()
 
+                # Create the Timeline object, and write it to a json file
+                if epoch == 0:
+                    fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                    chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                    with open(f'{conf.profiling_dir}/{unique_name}.json', 'w') as f:
+                        f.write(chrome_trace)
+
     # Export standard model
-    save_path = f"{conf.save_dir}/{args.dataset_name}_{args.architecture}.pbtxt"
-    tf.train.write_graph(sess.graph.as_graph_def(), '.', save_path, as_text=True)
+    save_path = f"{conf.save_dir}/{unique_name}"
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    tf.train.write_graph(sess.graph.as_graph_def(), '.', f"{save_path}/model.pbtxt", as_text=True)
 
     # Save the labels
     with open(f"{conf.labels_dir}/{args.dataset_name}.txt", 'w') as f:
@@ -307,11 +313,11 @@ if __name__ == '__main__':
             f.write("%s\n" % item)
 
     # Freeze the graph
+    # TODO: Remove hardcoded node name
     frozen_graph = freeze_graph(sess, ["layer_82/BiasAdd"])  # logits_op.name
 
     # Export model tflite
-    export_tflite_from_frozen_graph(frozen_graph, input_nodes=[x], output_nodes=[logits_op],
-                                    dataset_name=args.dataset_name, architecture_name=args.architecture)
+    export_tflite_from_frozen_graph(frozen_graph, input_nodes=[x], output_nodes=[logits_op], unique_name=unique_name)
 
     logging.info("Finished")
 

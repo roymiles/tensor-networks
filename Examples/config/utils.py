@@ -61,7 +61,8 @@ def get_architecture(args, ds_args):
 
     name = args.architecture
     if name == "MobileNetV1":
-        return MobileNetV1(num_classes=ds_args.num_classes, channels=ds_args.num_channels, switch_list=args.switch_list)
+        return MobileNetV1(num_classes=ds_args.num_classes, channels=ds_args.num_channels,
+                           switch_list=args.switch_list, method=args.method)
     elif name == "MobileNetV2":
         return MobileNetV2(num_classes=ds_args.num_classes, channels=ds_args.num_channels)
     elif name == "CIFARExample":

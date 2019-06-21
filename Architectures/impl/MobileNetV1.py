@@ -8,6 +8,16 @@ class MobileNetV1(IArchitecture):
         Of course, the convolutional layers are replaced with depthwise separable layers """
 
     def DepthSepConv(self, shape, stride, depth, depth_multiplier=1):
+        """
+        Depthwise convolution followed by a pointwise convolution (with BN and ReLU in-between)
+
+        :param shape:
+        :param stride:
+        :param depth:
+        :param depth_multiplier:
+        :return:
+        """
+
         # Depth is pretty much shape[3] (if included)
         w = shape[0]
         h = shape[1]
@@ -15,34 +25,47 @@ class MobileNetV1(IArchitecture):
         # depth_multiplier = 1
 
         # By default, don't regularise depthwise filters
-        """
-        sequential = [
-            DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
-            BatchNormalisationLayer(self._switch_list),
-            ReLU(),
-            # Pointwise
-            ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                      # build_method=Weights.impl.sandbox, ranks=[1, 96, 96],
-                      kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
-            #PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
-            # Not managed to integrate moving average decay
-            BatchNormalisationLayer(self._switch_list),
-            ReLU()
-        ]
-        """
-        sequential = [
-            CustomBottleneck(shape=[w, h, c, depth], strides=(stride, stride), ranks=[1, 96, 96]),
-            BatchNormalisationLayer(self._switch_list),
-            ReLU()
-        ]
+        if self._method == "standard":
+            sequential = [
+                DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
+                BatchNormalisationLayer(self._switch_list),
+                ReLU(),
+                # Pointwise
+                ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
+                          kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
+                # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
+                # Not managed to integrate moving average decay
+                BatchNormalisationLayer(self._switch_list),
+                ReLU()
+            ]
+        elif self._method == "factored-pw-kernel":
+            sequential = [
+                DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
+                BatchNormalisationLayer(self._switch_list),
+                ReLU(),
+                # Pointwise
+                ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
+                          build_method=Weights.impl.sandbox, ranks=[1, 96, 96],
+                          kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
+                # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
+                # Not managed to integrate moving average decay
+                BatchNormalisationLayer(self._switch_list),
+                ReLU()
+            ]
+        elif self._method == "custom-bottleneck":
+            sequential = [
+                CustomBottleneck(shape=[w, h, c, depth], strides=(stride, stride), ranks=[1, 96, 96]),
+                BatchNormalisationLayer(self._switch_list),
+                ReLU()
+            ]
 
         return sequential
 
-    def __init__(self, num_classes, channels, switch_list=[1.0], weight_decay=5e-4):
+    def __init__(self, num_classes, channels, switch_list=[1.0], weight_decay=5e-4, method="standard"):
         self._switch_list = switch_list
         self._weight_decay = weight_decay
+        self._method = method
         network = [
-            # NOTE: Comments are for input size
             ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2),
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
             ReLU(),
