@@ -2,6 +2,7 @@ import tensorflow as tf
 from Weights.weights import Weights
 from Networks.graph import Graph
 import logging
+from base import clamp
 
 
 def convolution(cur_layer, layer_idx):
@@ -265,18 +266,6 @@ def pointwise_dot(cur_layer, layer_idx):
                             regularizer=cur_layer.kernel_regularizer,
                             trainable=True)
 
-        # Create a constant sine ting
-        """import numpy as np
-        c = np.zeros((1, shape[1], shape[2]), dtype=np.float32)
-
-        ns = np.arange(shape[1])
-        one_cycle = 2 * np.pi * ns / shape[1]
-        for k in range(shape[2]):
-            t_k = k * one_cycle
-            c[0, k, :] = np.cos(t_k)
-
-        g = tf.constant(value=c, name=f"g", dtype=tf.float32)"""
-
         _g = tf.reshape(g, shape=(1, shape[1], shape[2], 1))
         tf.summary.image("g", _g, collections=['train'])
         tf.summary.histogram(f"g", _g, collections=['train'])
@@ -328,70 +317,84 @@ def CustomBottleneck(cur_layer, layer_idx):
     # W x H x C x N
     shape = cur_layer.get_shape()
 
-    # Two partition variables.
-    # pt1: Indicates % used for depthwise and standard convolution (concatenated at the end)
-    # pt2: Indicates % used for factored pointwise convolution and standard pointwise convolution
-    # The value % is how much is compressed (larger = more compressed)
-    pt1 = 0.99
-    pt2 = 0.99
+    # Two partition variables: cur_layer.partitions[0]
+    # 0: Indicates % used for depthwise and standard convolution (concatenated at the end)
+    # 1: Indicates % used for factored pointwise convolution and standard pointwise convolution
+    # Compression ratio. Smaller = More compression
 
     with tf.variable_scope("CustomBottleneck", reuse=tf.AUTO_REUSE):
         logging.info(f"CustomBottleneck Layer {layer_idx}")
 
         # Size of partition for first stage
         # Compressed across in-channels C
-        s1 = int(shape[2] * pt1)  # Depthwise
-        s2 = shape[2] - s1        # Standard convolution
-        logging.info(f"Depthwise: {s1}, Standard: {s2}")
+
+        # If the dimensions are large, we want to compress more (as this can mega inflate the number of parameters)
+        # We do this by raising to the power of N, so domain kept to [0, 1]
+        # Division by constant just makes it not blow up a lot (get reduced very very small)
+        partitions = [cur_layer.partitions[0] ** (shape[2]/256),
+                      cur_layer.partitions[1] ** (shape[3]/256)]
+
+        conv_size = clamp(int(shape[2] * partitions[0]), 0, shape[2])  # Standard convolution
+        depthwise_size = shape[2] - conv_size      # Depthwise
+        logging.info(f"Depthwise: {depthwise_size}, Standard: {conv_size}")
 
         # Depthwise kernel
-        kdw = tf.get_variable(f"kernel_depthwise_{layer_idx}", shape=[shape[0], shape[1], s1, 1],
-                              collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                              trainable=True)
+        kdw = None
+        if depthwise_size != 0:
+            kdw = tf.get_variable(f"kernel_depthwise_{layer_idx}", shape=[shape[0], shape[1], depthwise_size, 1],
+                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                  trainable=True)
 
         # Standard kernel
-        k = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], s2, s2],
-                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                            trainable=True)
-
-        # The size of auxilliary indices
-        ranks = cur_layer.ranks
-        assert len(ranks) == 3, "Must specified r0, r1, r2"
-
-        k1 = Graph("conv_{}".format(layer_idx))
+        k = None
+        if conv_size != 0:
+            k = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], conv_size, conv_size],
+                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                trainable=True)
 
         # Size of partition for second stage
         # Compressed across out-channels (kernels) N
-        s1 = int(shape[3] * pt2)  # Compressed
-        s2 = shape[3] - s1        # Standard pointwise
-        logging.info(f"Factored PW: {s1}, Standard: {s2}\n")
+        pointwise_size = clamp(int(shape[3] * partitions[1]), 0, shape[3])  # Standard pointwise
+        factored_size = shape[3] - pointwise_size       # Factored pointwise (compressed)
+        logging.info(f"Factored PW: {factored_size}, Standard: {pointwise_size}\n")
 
-        # Add the nodes w/ exposed indices
-        k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-        k1.add_node("C", shape=[shape[2]], names=["C"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-        k1.add_node("N", shape=[s1], names=["N"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+        k1 = None
+        if factored_size != 0:
+            # The size of auxilliary indices
+            ranks = cur_layer.ranks
+            assert len(ranks) == 3, "Must specified r0, r1, r2"
 
-        # Auxiliary indices
-        # NOTE: Must specify shared at start
-        k1.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
-        k1.add_edge("C", "G", name="r1", length=ranks[1])
-        k1.add_edge("N", "G", name="r2", length=ranks[2])
+            k1 = Graph("conv_{}".format(layer_idx))
 
-        # Compile/generate the tf.Variables and add to the set of weights
-        k1.compile()
-        k1.set_output_shape(["W", "H", "C", "N"])
+            # Add the nodes w/ exposed indices
+            k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            k1.add_node("C", shape=[shape[2]], names=["C"],
+                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            k1.add_node("N", shape=[factored_size], names=["N"],
+                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
-        # Standard pointwise kernel
-        k2 = tf.get_variable(f"k2_{layer_idx}", shape=[shape[0], shape[1], shape[2], s2],
-                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                             initializer=cur_layer.kernel_initializer,
-                             regularizer=cur_layer.kernel_regularizer,
-                             trainable=True)
+            # Auxiliary indices
+            # NOTE: Must specify shared at start
+            k1.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
+            k1.add_edge("C", "G", name="r1", length=ranks[1])
+            k1.add_edge("N", "G", name="r2", length=ranks[2])
+
+            # Compile/generate the tf.Variables and add to the set of weights
+            k1.compile()
+            k1.set_output_shape(["W", "H", "C", "N"])
+
+        k2 = None
+        if pointwise_size != 0:
+            # Standard pointwise kernel
+            k2 = tf.get_variable(f"k2_{layer_idx}", shape=[1, 1, shape[2], pointwise_size],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                 initializer=cur_layer.kernel_initializer,
+                                 regularizer=cur_layer.kernel_regularizer,
+                                 trainable=True)
 
         # Some plots for Tensorboard
+        """
         c = k1.get_node("C")
         c_shape = c.get_shape().as_list()
         c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
@@ -414,6 +417,7 @@ def CustomBottleneck(cur_layer, layer_idx):
         # Histograms
         tf.summary.histogram(f"k_{layer_idx}", k)
         tf.summary.histogram(f"kdw_{layer_idx}", kdw)
+        """
 
         bias = None
         if cur_layer.using_bias():

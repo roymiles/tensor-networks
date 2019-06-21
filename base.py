@@ -85,3 +85,7 @@ def visualise_volume_slices(volume):
             finish = True
 
 
+def clamp(n, smallest, largest):
+    return max(smallest, min(n, largest))
+
+

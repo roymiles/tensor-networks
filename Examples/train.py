@@ -49,6 +49,14 @@ if __name__ == '__main__':
     if hasattr(args, 'method'):
         unique_name += f"_method_{args.method}"
 
+    if hasattr(args, 'ranks'):
+        unique_name += "_ranks_"
+        unique_name += '_'.join(str(x) for x in args.ranks)
+
+    if hasattr(args, 'partitions'):
+        unique_name += "_partitions_"
+        unique_name += '_'.join(str(x) for x in args.partitions)
+
     logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
                         filemode='a',  # Append rather than overwrite
                         level=logging.NOTSET,  # Minimum level
@@ -126,7 +134,7 @@ if __name__ == '__main__':
 
     num_params = 0
     for v in tf.trainable_variables():
-        # print(v)
+        logging.info(v)
         num_params += tfvar_size(v)
 
     logging.info(f"Number of parameters = {num_params}")

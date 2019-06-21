@@ -158,10 +158,11 @@ class Network:
 
         tf.summary.image("input_data", x, collections=['train', 'test'])
 
-        # Loop through all the layers
-        net = x
-        for n in range(self.get_num_layers()):
-            net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
-                                 is_training=is_training, switch_idx=switch_idx, switch=switch)
+        with tf.variable_scope("network"):
+            # Loop through all the layers
+            net = x
+            for n in range(self.get_num_layers()):
+                net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
+                                     is_training=is_training, switch_idx=switch_idx, switch=switch)
 
-        return net
+            return net

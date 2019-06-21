@@ -43,9 +43,10 @@ class MobileNetV1(IArchitecture):
                 DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU(),
-                # Pointwise
+                # Using core factors for the pointwise kernel
                 ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                          build_method=Weights.impl.sandbox, ranks=[1, 96, 96],
+                          build_method=Weights.impl.sandbox, ranks=[1, self._ranks[0],
+                                                                    self._ranks[1]],
                           kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
                 # Not managed to integrate moving average decay
@@ -53,18 +54,25 @@ class MobileNetV1(IArchitecture):
                 ReLU()
             ]
         elif self._method == "custom-bottleneck":
+            # Custom bottleneck
             sequential = [
-                CustomBottleneck(shape=[w, h, c, depth], strides=(stride, stride), ranks=[1, 96, 96]),
+                CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride), partitions=self._partitions,
+                                 ranks=[1, self._ranks[0], self._ranks[1]]),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU()
             ]
+        else:
+            raise Exception("Unknown method for MobileNetV1 architecture")
 
         return sequential
 
-    def __init__(self, num_classes, channels, switch_list=[1.0], weight_decay=5e-4, method="standard"):
+    def __init__(self, num_classes, channels, switch_list=[1.0], weight_decay=5e-4, method="standard", ranks=[96, 96],
+                 partitions=[0.8, 0.8]):
         self._switch_list = switch_list
         self._weight_decay = weight_decay
         self._method = method
+        self._ranks = ranks
+        self._partitions = partitions
         network = [
             ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2),
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),

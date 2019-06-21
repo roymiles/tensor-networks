@@ -445,7 +445,7 @@ class PointwiseDot(ILayer):
 
 
 class CustomBottleneck(ILayer):
-    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",
+    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME", partitions=[0.8, 0.8],
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None, ranks=None):
         super().__init__()
@@ -453,6 +453,9 @@ class CustomBottleneck(ILayer):
         px = strides[0]
         py = strides[1]
         self._strides = [1, px, py, 1]
+
+        # The two partitions
+        self.partitions = partitions
 
         self._shape = shape
         self._padding = padding
@@ -480,29 +483,49 @@ class CustomBottleneck(ILayer):
         return self._strides
 
     def __call__(self, input, k, kdw, k1, k2, bias=None):
-        s1 = k.get_shape().as_list()[2]
+        if k is not None:
+            # Standard convolution
+            size = k.get_shape().as_list()[2]  # W x H x C x N
+            net1 = tf.nn.conv2d(input[:, :, :, 0:size], k, strides=self._strides, padding=self._padding)
+            offset = size
+        else:
+            offset = 0
 
-        # Standard convolution
-        net1 = tf.nn.conv2d(input[:, :, :, 0:s1], k, strides=self._strides, padding=self._padding)
+        if kdw is not None:
+            # Depthwise separable stage
+            net2 = tf.nn.depthwise_conv2d(input[:, :, :, offset:], kdw, strides=self._strides, padding=self._padding)
 
-        # Depthwise separable stage
-        net2 = tf.nn.depthwise_conv2d(input[:, :, :, s1:], kdw, strides=self._strides, padding=self._padding)
+        if k is not None and kdw is None:
+            net = net1
+        elif kdw and k is None:
+            net = net2
+        elif k is not None and kdw is not None:
+            # Combine depthwise + standard results
+            net = tf.concat([net1, net2], axis=3)
+        else:
+            raise Exception("No standard or depthwise kernels?")
 
-        # Combine depthwise + standard results
-        net = tf.concat([net1, net2], axis=3)
-
-        # BN + RELU
+        # BN + ReLU
         net = tf.layers.batch_normalization(net)
         net = tf.nn.relu(net)
 
         # Pointwise
-        net3 = tf.nn.conv2d(net, k1, strides=self._strides, padding=self._padding)
+        if k1 is not None:
+            net3 = tf.nn.conv2d(net, k1, strides=self._strides, padding=self._padding)
 
         # Factored pointwise
-        net4 = tf.nn.conv2d(net, k2, strides=self._strides, padding=self._padding)
+        if k2 is not None:
+            net4 = tf.nn.conv2d(net, k2, strides=self._strides, padding=self._padding)
 
-        # Combine pointwise results
-        net = tf.concat([net3, net4], axis=3)
+        if k1 is not None and k2 is None:
+            net = net3
+        elif k2 is not None and k1 is None:
+            net = net4
+        elif k1 is not None and k2 is not None:
+            # Combine pointwise results
+            net = tf.concat([net3, net4], axis=3)
+        else:
+            raise Exception("No pointwise or factored pointwise kernels?")
 
         if bias:
             net = tf.nn.bias_add(net, bias)
