@@ -18,7 +18,7 @@
   "test_every": 1,
   "seed": 1232,
 
-  "method": "standard",
+  "method": "custom-bottleneck",
   "ranks": [64, 64],
   "partitions": [0.0, 1.0]
 }

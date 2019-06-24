@@ -45,8 +45,7 @@ class MobileNetV1(IArchitecture):
                 ReLU(),
                 # Using core factors for the pointwise kernel
                 ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
-                          build_method=Weights.impl.sandbox, ranks=[1, self._ranks[0],
-                                                                    self._ranks[1]],
+                          build_method=Weights.impl.sandbox, ranks=[1, self._ranks[0], self._ranks[1]],
                           kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
                 # Not managed to integrate moving average decay
@@ -56,8 +55,8 @@ class MobileNetV1(IArchitecture):
         elif self._method == "custom-bottleneck":
             # Custom bottleneck
             sequential = [
-                CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride), partitions=self._partitions,
-                                 ranks=[1, self._ranks[0], self._ranks[1]]),
+                CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride),
+                                 partitions=self._partitions, ranks=[1, self._ranks[0], self._ranks[1]]),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU()
             ]

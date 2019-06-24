@@ -313,7 +313,7 @@ def pointwise_dot(cur_layer, layer_idx):
     return Weights.PointwiseDot(c, g, n, bias1, bias2, bias3)
 
 
-def CustomBottleneck(cur_layer, layer_idx):
+def custom_bottleneck(cur_layer, layer_idx):
     # W x H x C x N
     shape = cur_layer.get_shape()
 
@@ -339,85 +339,66 @@ def CustomBottleneck(cur_layer, layer_idx):
         logging.info(f"Depthwise: {depthwise_size}, Standard: {conv_size}")
 
         # Depthwise kernel
-        kdw = None
+        depthwise_kernel = None
         if depthwise_size != 0:
-            kdw = tf.get_variable(f"kernel_depthwise_{layer_idx}", shape=[shape[0], shape[1], depthwise_size, 1],
-                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                  trainable=True)
+            depthwise_kernel = tf.get_variable(f"depthwise_kernel_{layer_idx}",
+                                               shape=[shape[0], shape[1], depthwise_size, 1],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                               trainable=True)
+            tf.summary.histogram(f"depthwise_kernel_{layer_idx}", depthwise_kernel, collections=['train'])
 
         # Standard kernel
-        k = None
+        conv_kernel = None
         if conv_size != 0:
-            k = tf.get_variable(f"kernel_{layer_idx}", shape=[shape[0], shape[1], conv_size, conv_size],
-                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                trainable=True)
+            conv_kernel = tf.get_variable(f"conv_kernel_{layer_idx}", shape=[shape[0], shape[1], conv_size, conv_size],
+                                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                          trainable=True)
+            tf.summary.histogram(f"conv_kernel_{layer_idx}", conv_kernel, collections=['train'])
 
         # Size of partition for second stage
         # Compressed across out-channels (kernels) N
         pointwise_size = clamp(int(shape[3] * partitions[1]), 0, shape[3])  # Standard pointwise
-        factored_size = shape[3] - pointwise_size       # Factored pointwise (compressed)
-        logging.info(f"Factored PW: {factored_size}, Standard: {pointwise_size}\n")
+        factored_pointwise_size = shape[3] - pointwise_size       # Factored pointwise (compressed)
+        logging.info(f"Factored PW: {factored_pointwise_size}, Standard: {pointwise_size}\n")
 
-        k1 = None
-        if factored_size != 0:
+        factored_pointwise_kernel = None
+        if factored_pointwise_size != 0:
             # The size of auxilliary indices
             ranks = cur_layer.ranks
             assert len(ranks) == 3, "Must specified r0, r1, r2"
 
-            k1 = Graph("conv_{}".format(layer_idx))
+            factored_pointwise_kernel = Graph("factored_pointwise_kernel_{}".format(layer_idx))
 
             # Add the nodes w/ exposed indices
-            k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
-                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            k1.add_node("C", shape=[shape[2]], names=["C"],
-                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            k1.add_node("N", shape=[factored_size], names=["N"],
-                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            factored_pointwise_kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            factored_pointwise_kernel.add_node("C", shape=[shape[2]], names=["C"],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            factored_pointwise_kernel.add_node("N", shape=[factored_size], names=["N"],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
             # Auxiliary indices
             # NOTE: Must specify shared at start
-            k1.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
-            k1.add_edge("C", "G", name="r1", length=ranks[1])
-            k1.add_edge("N", "G", name="r2", length=ranks[2])
+            factored_pointwise_kernel.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
+            factored_pointwise_kernel.add_edge("C", "G", name="r1", length=ranks[1])
+            factored_pointwise_kernel.add_edge("N", "G", name="r2", length=ranks[2])
 
             # Compile/generate the tf.Variables and add to the set of weights
-            k1.compile()
-            k1.set_output_shape(["W", "H", "C", "N"])
+            factored_pointwise_kernel.compile()
+            factored_pointwise_kernel.set_output_shape(["W", "H", "C", "N"])
 
-        k2 = None
+            # Histograms
+            tf.summary.histogram(f"C_{layer_idx}", factored_pointwise_kernel.get_node("C"), collections=['train'])
+            tf.summary.histogram(f"N_{layer_idx}", factored_pointwise_kernel.get_node("N"), collections=['train'])
+            tf.summary.histogram(f"G_{layer_idx}", factored_pointwise_kernel.get_node("G"), collections=['train'])
+
+        pointwise_kernel = None
         if pointwise_size != 0:
             # Standard pointwise kernel
-            k2 = tf.get_variable(f"k2_{layer_idx}", shape=[1, 1, shape[2], pointwise_size],
-                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                 initializer=cur_layer.kernel_initializer,
-                                 regularizer=cur_layer.kernel_regularizer,
-                                 trainable=True)
-
-        # Some plots for Tensorboard
-        """
-        c = k1.get_node("C")
-        c_shape = c.get_shape().as_list()
-        c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
-        tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
-
-        n = k1.get_node("N")
-        n_shape = n.get_shape().as_list()
-        n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
-        tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
-
-        g = k1.get_node("G")
-        g_shape = g.get_shape().as_list()
-        g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
-        tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
-
-        k2_shape = k2.get_shape().as_list()
-        _k2 = tf.reshape(k2, shape=(s2, k2_shape[1], k2_shape[2], shape[0]))
-        tf.summary.image(f"k2_{layer_idx}", _k2, collections=['train'])
-
-        # Histograms
-        tf.summary.histogram(f"k_{layer_idx}", k)
-        tf.summary.histogram(f"kdw_{layer_idx}", kdw)
-        """
+            pointwise_kernel = tf.get_variable(f"pointwise_kernel_{layer_idx}", shape=[1, 1, shape[2], pointwise_size],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                               trainable=True)
+            tf.summary.histogram(f"pointwise_kernel_{layer_idx}", pointwise_kernel, collections=['train'])
 
         bias = None
         if cur_layer.using_bias():
@@ -427,4 +408,5 @@ def CustomBottleneck(cur_layer, layer_idx):
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                    trainable=True)
 
-        return Weights.CustomBottleneck(k, kdw, k1, k2, bias)
+        return Weights.CustomBottleneck(conv_kernel, depthwise_kernel, pointwise_kernel, factored_pointwise_kernel,
+                                        bias)

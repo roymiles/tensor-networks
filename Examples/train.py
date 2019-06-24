@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
     architecture = get_architecture(args, ds_args)
     model = MyNetwork(architecture=architecture)
-    model.build("MyNetwork")
+    model.build()
 
     logits_op = model(x, is_training=is_training, switch_idx=switch_idx, switch=switch)
 

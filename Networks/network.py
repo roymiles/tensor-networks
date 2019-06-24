@@ -43,7 +43,7 @@ class Network:
             For example, in a Tucker network this will be the sum of all parameters in each core tensor """
         return self._weights.num_parameters()
 
-    def build(self, name):
+    def build(self, name="weights"):
         """
             Build the tf.Variable weights used by the network
 
@@ -99,7 +99,10 @@ class Network:
                 assert isinstance(w, Weights.CustomBottleneck), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, k=w.k, kdw=w.kdw, k1=w.k1, k2=w.k2, bias=w.bias)
+                return cur_layer(x, conv_kernel=w.conv_kernel, depthwise_kernel=w.depthwise_kernel,
+                                 pointwise_kernel=w.pointwise_kernel,
+                                 factored_pointwise_kernel=w.factored_pointwise_kernel,
+                                 is_training=is_training, bias=w.bias)
 
             elif isinstance(cur_layer, DepthwiseConvLayer):
 
