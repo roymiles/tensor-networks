@@ -168,4 +168,6 @@ class Network:
                 net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
                                      is_training=is_training, switch_idx=switch_idx, switch=switch)
 
-            return net
+            # Identity is used so we can give a node name to the output
+            # The operation affectively does nothing
+            return tf.identity(net, "output_node")

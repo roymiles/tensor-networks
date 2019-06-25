@@ -1,18 +1,24 @@
 {
   "architecture": "MobileNetV1",
-  "dataset_name": "CIFAR100",
+  "dataset_name": "CIFAR10",
   "batch_size": 128,
 
   "optimizer": "Momentum",
-  "momentum":0.9,
+  "momentum": 0.9,
   "use_nesterov": false,
   "learning_rate": 0.1,
   "learning_rate_decay": 0.2,
-  "num_epochs_decay": 60,
-  "num_epochs": 200,
+
+  "num_epochs_decay": 40,
+  "num_epochs": 300,
+
   "weight_decay": 5e-4,
   "switch_list": [1.0],
 
   "test_every": 1,
-  "seed": 42
+  "seed": 1232,
+
+  "method": "custom-bottleneck",
+  "ranks": [64, 64],
+  "partitions": [0.2, 0.5]
 }

@@ -1,6 +1,6 @@
 {
   "architecture": "MobileNetV1",
-  "dataset_name": "CIFAR100",
+  "dataset_name": "CIFAR10",
   "batch_size": 128,
 
   "optimizer": "Momentum",
@@ -18,7 +18,7 @@
   "test_every": 1,
   "seed": 1232,
 
-  "method": "standard",
-  "ranks": [128, 128],
-  "partitions": [0.2, 0.5]
+  "method": "custom-bottleneck",
+  "ranks": [64, 64],
+  "partitions": [0.5, 0.5]
 }

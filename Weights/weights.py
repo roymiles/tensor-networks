@@ -16,6 +16,7 @@ class Weights:
     _weights = {}
 
     # All the types of weights
+    # Note: Named tuple is an immutable/constant dictionary with nicer lookup syntax :P
     Convolution = namedtuple('Convolution', ["kernel", "bias"])
     DepthwiseConvolution = namedtuple('DepthwiseConvolution', ["kernel", "bias"])
     FullyConnected = namedtuple('FullyConnected', ["kernel", "bias"])
@@ -41,6 +42,10 @@ class Weights:
                     e.g. w.kernel, w.bias
         """
         w = self._weights[layer_idx]
+        return Weights.extract_tf_weights(w, switch)
+
+    @staticmethod
+    def extract_tf_weights(w, switch=1.0):
         d = w._asdict()
 
         # Convert each Graph member to tf.Variable by combining (contracting all the nodes)

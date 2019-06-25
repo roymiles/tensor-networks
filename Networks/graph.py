@@ -94,7 +94,7 @@ class Graph:
         if not self._graph.has_node(v_of_edge):
             # Can specify if v is shared or part of a collection
             self._graph.add_node(v_of_edge, dummy_node=False, initializer=initializer,
-                                 regularizer=regularizer, shared=shared, collections=collections, handcrafted=True)  # handcrafted=True
+                                 regularizer=regularizer, shared=shared, collections=collections, handcrafted=True)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
@@ -128,11 +128,13 @@ class Graph:
 
                     if "handcrafted" in self._graph.nodes[node]:
                         c = np.array([sine2D(dims[1], dims[2])])
-                        self._graph.nodes[node]["tfvar"] = tf.constant(value=c, name="{}{}".format(scope_name, node),
+                        self._graph.nodes[node]["tfvar"] = tf.constant(value=c,
+                                                                       name="{}{}_handcrafted".format(scope_name, node),
                                                                        dtype=tf.float32)
 
                     else:
-                        self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}".format(scope_name, node), shape=dims,
+                        self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
+                                                                           shape=dims,
                                                                            initializer=init, regularizer=reg,
                                                                            collections=collections,
                                                                            trainable=True)

@@ -24,14 +24,17 @@ class MobileNetV1(IArchitecture):
         c = shape[2]
         # depth_multiplier = 1
 
-        # By default, don't regularise depthwise filters
+        # Paper says to not regularise the depthwise filters but lots of other implementations do...?
         if self._method == "standard":
             sequential = [
-                DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
+                DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False,
+                                   kernel_initializer=tf.keras.initializers.he_normal(),
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU(),
                 # Pointwise
                 ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
+                          kernel_initializer=tf.keras.initializers.he_normal(),
                           kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
                 # Not managed to integrate moving average decay
@@ -40,7 +43,9 @@ class MobileNetV1(IArchitecture):
             ]
         elif self._method == "factored-pw-kernel":
             sequential = [
-                DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False),
+                DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False,
+                                   kernel_initializer=tf.keras.initializers.he_normal(),
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU(),
                 # Using core factors for the pointwise kernel
@@ -56,6 +61,8 @@ class MobileNetV1(IArchitecture):
             # Custom bottleneck
             sequential = [
                 CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride),
+                                 kernel_initializer=tf.keras.initializers.he_normal(),
+                                 kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
                                  partitions=self._partitions, ranks=[1, self._ranks[0], self._ranks[1]]),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU()
@@ -75,6 +82,7 @@ class MobileNetV1(IArchitecture):
         network = [
             ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2),
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
+            BatchNormalisationLayer(self._switch_list),
             ReLU(),
 
             *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),

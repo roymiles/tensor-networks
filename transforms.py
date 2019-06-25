@@ -15,9 +15,8 @@ def random_horizontal_flip(images):
     ])
 
 
-def normalize(images, mean, std):
-    """ Mean and std are for each channel RGB
-        NOTE USED """
+def normalize_images(images, mean, std):
+    """ Mean and std are for each channel RGB """
 
     imgs = np.array(images)
     for i in range(3):

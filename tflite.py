@@ -6,20 +6,16 @@ import config as conf
 import os
 
 
-def _export(converter, unique_name):
+def _export(converter, export_path):
     """
 
     :param converter:
-    :param unique_name: Unique name, includes dataset, architecture etc
+    :param export_path: Where to export the tflite model
     :return:
     """
     tflite_model = converter.convert()
 
-    export_path = f"{conf.tfds_dir}/{unique_name}"
-    if not os.path.exists(export_path):
-        os.makedirs(export_path)
-
-    export_path = f"{export_path}/model.tflite"
+    export_path = f"{export_path}/optimized_model.tflite"
     open(export_path, "wb").write(tflite_model)
     print("Successfully exported to: {}".format(export_path))
 
@@ -57,14 +53,23 @@ def export_tflite_from_session(sess, input_nodes, output_nodes, unique_name, opt
     _export(converter, unique_name)
 
 
-def export_tflite_from_frozen_graph(frozen_graph_def, input_nodes, output_nodes, unique_name, optimizations=None):
-    converter = tf.lite.TFLiteConverter.from_frozen_graph(frozen_graph_def, input_nodes, output_nodes)
+def export_tflite_from_frozen_graph(graph_def_file, input_nodes, output_nodes, export_path, optimizations=None):
+    """
+
+    :param graph_def_file: Full filepath of file containing frozen GraphDef.
+    :param input_nodes: List of input tensors to freeze graph with.
+    :param output_nodes: List of output tensors to freeze graph with.
+    :param export_path: Path to export the tflite model
+    :param optimizations: List of optimizations
+    :return:
+    """
+    converter = tf.lite.TFLiteConverter.from_frozen_graph(graph_def_file, input_nodes, output_nodes)
     converter.allow_custom_ops = True
 
     if optimizations:
         converter.optimizations = optimizations
 
-    _export(converter, unique_name)
+    _export(converter, export_path)
 
 
 def export_tflite_from_saved_model(saved_model_dir, unique_name, optimizations=None):

@@ -58,3 +58,4 @@ def convert_example(model, x, sess, conv_ranks, fc_ranks):
         print("Accuracy (converted) = {}".format(acc))
         convert_writer.add_summary(summary)
     """
+

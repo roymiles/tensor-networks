@@ -1,13 +1,6 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
 
-# These hyperparameters control the compression
-# of the convolutional and fully connected weights
-conv_ranks = {
-}
-fc_ranks = {
-}
-
 
 class TransitionLayer(IArchitecture):
     def __init__(self, k0):
@@ -58,4 +51,30 @@ class DenseBlock(IArchitecture):
 
     def get_output_dim(self):
         return self._c
+
+
+class DenseNet(IArchitecture):
+    def __init__(self, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.0, dropout_rate=0.0,
+                 weight_decay=1e-4, classes=1000, weights_path=None):
+        """ Instantiate the DenseNet architecture,
+            # Arguments
+                nb_dense_block: number of dense blocks to add to end
+                growth_rate: number of filters to add per dense block
+                nb_filter: initial number of filters
+                reduction: reduction factor of transition blocks.
+                dropout_rate: dropout rate
+                weight_decay: weight decay factor
+                classes: optional number of classes to classify images
+                weights_path: path to pre-trained weights
+            # Returns
+                A Keras model instance.
+        """
+        eps = 1.1e-5
+
+        # compute compression factor
+        compression = 1.0 - reduction
+
+        # From architecture for ImageNet (Table 1 in the paper)
+        nb_filter = 64
+        nb_layers = [6, 12, 32, 32]  # For DenseNet-169
 

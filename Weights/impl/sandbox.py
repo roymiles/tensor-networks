@@ -26,11 +26,11 @@ def convolution(cur_layer, layer_idx):
 
         # Add the nodes w/ exposed indices
         k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
-                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
         k1.add_node("C", shape=[shape[2]], names=["C"],
-                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
         k1.add_node("N", shape=[s1], names=["N"],
-                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
         # Auxiliary indices
         # NOTE: Must specify shared at start
@@ -73,6 +73,7 @@ def convolution(cur_layer, layer_idx):
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                    trainable=True)
 
+        raise Exception("Not implemented yet")
         return Weights.ConvolutionTest(k1, k2, bias)
         #return Weights.Convolution(k1, bias)
 
@@ -247,7 +248,7 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
 def pointwise_dot(cur_layer, layer_idx):
     shape = cur_layer.get_shape()
 
-    with tf.variable_scope("PointwiseDot", reuse=tf.AUTO_REUSE):
+    with tf.variable_scope("PointwiseDot"):
         c = tf.get_variable(f"c_{layer_idx}", shape=[shape[0], shape[1]],
                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                             initializer=cur_layer.kernel_initializer,
@@ -322,7 +323,7 @@ def custom_bottleneck(cur_layer, layer_idx):
     # 1: Indicates % used for factored pointwise convolution and standard pointwise convolution
     # Compression ratio. Smaller = More compression
 
-    with tf.variable_scope("CustomBottleneck", reuse=tf.AUTO_REUSE):
+    with tf.variable_scope("CustomBottleneck"):
         logging.info(f"CustomBottleneck Layer {layer_idx}")
 
         # Size of partition for first stage
@@ -374,7 +375,7 @@ def custom_bottleneck(cur_layer, layer_idx):
                                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
             factored_pointwise_kernel.add_node("C", shape=[shape[2]], names=["C"],
                                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            factored_pointwise_kernel.add_node("N", shape=[factored_size], names=["N"],
+            factored_pointwise_kernel.add_node("N", shape=[factored_pointwise_size], names=["N"],
                                                collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
             # Auxiliary indices

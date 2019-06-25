@@ -494,8 +494,7 @@ class CustomBottleneck(ILayer):
 
         if depthwise_kernel is not None:
             # Depthwise separable stage
-            # input[:, :, :, offset:]
-            dw_out = tf.nn.depthwise_conv2d(input, depthwise_kernel, strides=self._strides,
+            dw_out = tf.nn.depthwise_conv2d(input[:, :, :, offset:], depthwise_kernel, strides=self._strides,
                                             padding=self._padding)
 
         if conv_kernel is not None and depthwise_kernel is None:
