@@ -5,62 +5,50 @@ import logging
 from base import clamp
 
 
-def convolution(cur_layer, layer_idx):
+def convolution(cur_layer, layer_idx, name="Convolution"):
     """
         WH, C, and N each individually share an auxilliary index with a core tensor g
         This core tensor, g, is a 3-way tensor of shape [r1, r2, r3] (as specified in ranks)
     """
-    with tf.variable_scope("Convolution"):
+    with tf.variable_scope(name):
         shape = cur_layer.get_shape()
 
         # The size of auxilliary indices
         ranks = cur_layer.ranks
         assert len(ranks) == 3, "Must specified r0, r1, r2"
 
-        k1 = Graph("conv_{}".format(layer_idx))
-
-        # Ratio R that is compressed
-        R = 0.8
-        s1 = int(shape[3] * R)
-        s2 = shape[3] - s1
+        kernel = Graph("graph_{}".format(layer_idx))
 
         # Add the nodes w/ exposed indices
-        k1.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-        k1.add_node("C", shape=[shape[2]], names=["C"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-        k1.add_node("N", shape=[s1], names=["N"],
-                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+        kernel.add_node("WH", shape=[shape[0], shape[1]], names=["W", "H"],
+                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+        kernel.add_node("C", shape=[shape[2]], names=["C"],
+                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+        kernel.add_node("N", shape=[shape[3]], names=["N"],
+                        collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
         # Auxiliary indices
         # NOTE: Must specify shared at start
-        k1.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
-        k1.add_edge("C", "G", name="r1", length=ranks[1])
-        k1.add_edge("N", "G", name="r2", length=ranks[2])
+        kernel.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
+        kernel.add_edge("C", "G", name="r1", length=ranks[1])
+        kernel.add_edge("N", "G", name="r2", length=ranks[2])
 
         # Compile/generate the tf.Variables and add to the set of weights
-        k1.compile()
-        k1.set_output_shape(["W", "H", "C", "N"])
-
-        # Extra bit
-        k2 = tf.get_variable(f"k2_{layer_idx}", shape=[shape[0], shape[1], shape[2], s2],
-                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                             initializer=cur_layer.kernel_initializer,
-                             regularizer=cur_layer.kernel_regularizer,
-                             trainable=True)
+        kernel.compile()
+        kernel.set_output_shape(["W", "H", "C", "N"])
 
         # Some plots for Tensorboard
-        c = k1.get_node("C")
+        c = kernel.get_node("C")
         c_shape = c.get_shape().as_list()
         c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
         tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
 
-        n = k1.get_node("N")
+        n = kernel.get_node("N")
         n_shape = n.get_shape().as_list()
         n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
         tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
 
-        g = k1.get_node("G")
+        g = kernel.get_node("G")
         g_shape = g.get_shape().as_list()
         g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
         tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
@@ -73,9 +61,7 @@ def convolution(cur_layer, layer_idx):
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                    trainable=True)
 
-        raise Exception("Not implemented yet")
-        return Weights.ConvolutionTest(k1, k2, bias)
-        #return Weights.Convolution(k1, bias)
+        return Weights.Convolution(kernel, bias)
 
 
 def depthwise_convolution(cur_layer, layer_idx, ranks):
@@ -411,3 +397,67 @@ def custom_bottleneck(cur_layer, layer_idx):
 
         return Weights.CustomBottleneck(conv_kernel, depthwise_kernel, pointwise_kernel, factored_pointwise_kernel,
                                         bias)
+
+
+def dense_block(cur_layer, layer_idx):
+    kernels = []
+    with tf.variable_scope(f"DenseBlock_{layer_idx}"):
+        in_channels = cur_layer.in_channels
+        for i in range(cur_layer.N):
+            """kernels.append(tf.get_variable(f"kernel_{layer_idx}_{i}", shape=[3, 3, in_channels, cur_layer.growth_rate],
+                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                           initializer=cur_layer.kernel_initializer,
+                                           regularizer=cur_layer.kernel_regularizer,
+                                           
+                                           trainable=True))"""
+            kernel = Graph(f"graph_{i}")
+
+            # Add the nodes w/ exposed indices
+            kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
+                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            kernel.add_node("C", shape=[in_channels], names=["C"],
+                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"],
+                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+
+            # Auxiliary indices
+            # NOTE: Must specify shared at start
+            kernel.add_edge("WH", "G", name="r0", length=20)
+            kernel.add_edge("C", "G", name="r1", length=56)
+            kernel.add_edge("N", "G", name="r2", length=56)
+
+            # Compile/generate the tf.Variables and add to the set of weights
+            kernel.compile()
+            kernel.set_output_shape(["W", "H", "C", "N"])
+
+            # Was having some issues
+            # Graph.debug(kernel.get_graph(), f"debug_{i}")
+
+            # Some plots for Tensorboard
+            c = kernel.get_node("C")
+            c_shape = c.get_shape().as_list()
+            c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
+            tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
+
+            n = kernel.get_node("N")
+            n_shape = n.get_shape().as_list()
+            n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
+            tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
+
+            g = kernel.get_node("G")
+            g_shape = g.get_shape().as_list()
+            g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
+            tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
+
+            # Add it to the list of kernels
+            kernels.append(kernel)
+
+            # Next layer is concatenation of input and output of previous layer
+            in_channels += cur_layer.growth_rate
+
+    # Tensorboard
+    # for i, k in enumerate(kernels):
+    #    tf.summary.histogram(f"dense_block_kernel_{layer_idx}_{i}", k, collections=['train'])
+
+    # Reuse this interface but each element is a list for each subsequent bottleneck
+    return Weights.JustKernels(kernels)

@@ -84,7 +84,7 @@ class Network:
 
         with tf.variable_scope(name):
             cur_layer = self.get_architecture().get_layer(layer_idx)
-
+            # TODO: Lots of duplicate code but no obvious way to make it tidier
             if isinstance(cur_layer, ConvLayer):
 
                 w = self._weights.get_layer_weights(layer_idx)
@@ -122,7 +122,7 @@ class Network:
                 return cur_layer(x, is_training=is_training)
 
             elif isinstance(cur_layer, ReLU):  # issubclass(cur_layer, NonLinearityLayer):
-                """ Any nonlinearity, ReLU, HSwitch etc have the same interface """
+                """ Any non-linearity, ReLU, HSwitch etc have the same interface """
                 act = cur_layer(x)
                 return act
 
@@ -142,6 +142,13 @@ class Network:
 
                 return cur_layer(x, w, is_training=is_training)
 
+            elif isinstance(cur_layer, contrib.DenseBlock):
+
+                w = self._weights.get_layer_weights(layer_idx)
+                assert isinstance(w, Weights.JustKernels), \
+                    "The layer weights don't match up with the layer type"
+
+                return cur_layer(x, w, is_training=is_training)
             else:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")
                 return cur_layer(x)

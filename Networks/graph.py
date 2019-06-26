@@ -49,7 +49,7 @@ class Graph:
         if not self._graph.has_node(u_of_edge):
             # TODO: How can we integrate shared property (share weights across layers)
             self._graph.add_node(u_of_edge, dummy_node=False, initializer=initializer, regularizer=regularizer,
-                                 shared=shared, collections=collections)
+                                 shared=None, collections=collections)  # Make it possible to share (shared=shared)
 
         # Create a dummy node for each of the exposed indices
         dummy_node_names = []
@@ -415,7 +415,7 @@ class Graph:
         widths = []
         for i, j in zip(u_axis, v_axis):
             assert u_shape[i] == v_shape[j], \
-                "Dimension size mismatch for contraction"
+                f"Dimension size mismatch for contraction {u_shape[i]} and {v_shape[i]}"
 
             # Compress the factors using switch, effectively only use a percentage across this index
             # The size of the dimension after compression (just multiply by switch)

@@ -75,6 +75,10 @@ if __name__ == '__main__':
                 unique_name += '_'.join(str(x) for x in args.partitions)
         """
 
+        switch_list = [1.0]
+        if hasattr(args, 'switch_list'):
+           switch_list = args.switch_list
+
         logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
                             filemode='a',  # Append rather than overwrite
                             level=logging.NOTSET,  # Minimum level
@@ -211,7 +215,7 @@ if __name__ == '__main__':
                         # One hot encode
                         labels = np.eye(ds_args.num_classes)[labels]
 
-                        sw_idx, sw = random.choice(list(enumerate(args.switch_list)))
+                        sw_idx, sw = random.choice(list(enumerate(switch_list)))
                         feed_dict = {
                             x: images,
                             y: labels,
@@ -274,7 +278,7 @@ if __name__ == '__main__':
 
                     sess.run(test_iterator.initializer)
                     # Check results on all switches
-                    for sw_idx, sw in enumerate(args.switch_list):
+                    for sw_idx, sw in enumerate(switch_list):
                         test_loss = []
                         test_acc = []
                         i = 0

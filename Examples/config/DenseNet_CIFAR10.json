@@ -13,8 +13,7 @@
   "num_epochs": 300,
 
   "weight_decay": 1e-4,
-  "switch_list": [1.0],
-
   "test_every": 1,
-  "seed": 1232
+  "seed": 1232,
+  "ranks": [96, 96]
 }

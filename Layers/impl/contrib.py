@@ -272,7 +272,8 @@ class CustomBottleneck(ILayer):
 
 
 class DenseBlock(ILayer):
-    def __init__(self, name, N, growth_rate):
+    def __init__(self, name, in_channels, N, growth_rate, kernel_initializer=tf.glorot_normal_initializer(),
+                 bias_initializer=tf.zeros_initializer(), kernel_regularizer=None, bias_regularizer=None):
         """
 
         :param name: Variable scope
@@ -281,22 +282,33 @@ class DenseBlock(ILayer):
 
         super().__init__()
         self.name = name
+        self.in_channels = in_channels
         self.N = N
         self.growth_rate = growth_rate
 
-    def add_layer(self, name, input):
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
+
+    def create_weights(self):
+        return Weights.impl.sandbox.dense_block
+
+    def add_layer(self, name, input, kernel, is_training):
         with tf.variable_scope(name):
-            net = tf.layers.batch_normalization(input)
+            net = tf.layers.batch_normalization(input, training=is_training)
             net = tf.nn.relu(net)
-            net = tf.layers.conv2d(net, self.growth_rate, kernel_size=(3, 3), use_bias=False, padding="SAME")
+            # net = tf.layers.conv2d(net, self.growth_rate, kernel_size=(3, 3), use_bias=False, padding="SAME")
+            net = tf.nn.conv2d(net, kernel, strides=[1, 1, 1, 1], padding="SAME")
             net = tf.concat([input, net], axis=3)
             return net
 
-    def __call__(self, input):
+    def __call__(self, input, weights, is_training):
+        """ weights is just the set of conv weights """
         with tf.variable_scope(self.name):
             net = input
             for i in range(self.N):
-                net = self.add_layer(f"layer_{i}", net)
+                net = self.add_layer(f"composite_layer_{i}", net, weights.kernel[i], is_training)
                 # output channels = input channels + growth rate
 
         return net

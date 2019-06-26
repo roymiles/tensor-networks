@@ -27,6 +27,9 @@ class Weights:
     CustomBottleneck = namedtuple('CustomBottleneck', ["conv_kernel", "depthwise_kernel", "pointwise_kernel",
                                                        "factored_pointwise_kernel", "bias"])
 
+    # If we just want a (list?) of kernels
+    JustKernels = namedtuple('JustKernels', ["kernel"])
+
     def __init__(self):
         pass
 
@@ -50,8 +53,17 @@ class Weights:
 
         # Convert each Graph member to tf.Variable by combining (contracting all the nodes)
         for name, value in d.items():
-            if isinstance(value, Graph):
+            # If it is a list, go through each element
+            if isinstance(value, list):
+                for i, v in enumerate(value):
+                    if isinstance(v, Graph):
+                        d[name][i] = v.combine(switch)
+
+            # If just single Graph element, convert it
+            elif isinstance(value, Graph):
                 d[name] = value.combine(switch)
+
+            # If a tf.Variable, it is already in the correct format, so leave it.
 
         # Return the same namedtuple type, but with the updated(?) values
         return type(w)(*list(d.values()))

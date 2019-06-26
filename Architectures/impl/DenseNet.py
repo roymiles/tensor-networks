@@ -1,11 +1,11 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
+import Layers.impl.contrib as contrib
 from math import floor
 
 
 class DenseNet(IArchitecture):
-    @staticmethod
-    def transition_layer(name, in_channel):
+    def transition_layer(self, name, in_channel):
         """
         Change feature-map sizes via convolution and pooling
 
@@ -18,7 +18,9 @@ class DenseNet(IArchitecture):
             network = [
                 BatchNormalisationLayer(),
                 ReLU(),
-                ConvLayer(shape=[1, 1, in_channel, out_channels], use_bias=False),
+                ConvLayer(shape=[1, 1, in_channel, out_channels], use_bias=False,
+                          build_method=Weights.impl.sandbox, ranks=[1, self.args.ranks[0], self.args.ranks[1]],
+                          kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self.args.weight_decay)),
                 ReLU(),
                 AveragePoolingLayer(pool_size=(2, 2))
             ]
@@ -34,25 +36,32 @@ class DenseNet(IArchitecture):
         """
         N = int((args.depth - 4) / 3)
         growth_rate = 12
+
+        self.args = args
+        self.ds_args = ds_args
+
         if args.dataset_name == 'CIFAR10' or args.dataset_name == 'CIFAR100':
             network = [
                 # Initial convolution layer
                 ConvLayer(shape=(3, 3, ds_args.num_channels, 32), use_bias=False),
-                DenseBlock("DenseBlock1", N, growth_rate),
+                contrib.DenseBlock("DenseBlock1", in_channels=32, N=N, growth_rate=growth_rate,
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 # Hard coded in channels makes everything much easier, else DenseBlock and TransitionLayer
                 # would need to be merged into a single class layer, which is ugly.
                 *self.transition_layer("TransitionLayer1", in_channel=176),
 
-                DenseBlock("DenseBlock2", N, growth_rate),
+                contrib.DenseBlock("DenseBlock2", in_channels=88, N=N, growth_rate=growth_rate,
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 *self.transition_layer("TransitionLayer2", in_channel=232),
 
-                DenseBlock("DenseBlock3", N, growth_rate),
+                contrib.DenseBlock("DenseBlock3", in_channels=116, N=N, growth_rate=growth_rate,
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 *self.transition_layer("TransitionLayer3", in_channel=260),
 
                 BatchNormalisationLayer(),
                 ReLU(),
                 GlobalAveragePooling(keep_dims=False),
-                FullyConnectedLayer(shape=(130, args.num_classes))
+                FullyConnectedLayer(shape=(130, ds_args.num_classes))
             ]
         elif args.dataset_name == 'ImageNet2012':
             if args.depth == 121:
@@ -74,25 +83,29 @@ class DenseNet(IArchitecture):
                 MaxPoolingLayer(pool_size=(2, 2)),
 
                 # Dense - Block 1 and transition(56x56)
-                DenseBlock("DenseBlock1", growth_rate=stages[0]),
+                contrib.DenseBlock("DenseBlock1", in_channels=1, growth_rate=stages[0],
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 *self.transition_layer("TransitionLayer1", in_channels=1),
 
                 # Dense-Block 2 and transition (28x28)
-                DenseBlock("DenseBlock2", growth_rate=stages[1]),
+                contrib.DenseBlock("DenseBlock2", in_channels=1, growth_rate=stages[1],
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 *self.transition_layer("TransitionLayer2", in_channels=1),
 
                 # Dense-Block 3 and transition (14x14)
-                DenseBlock("DenseBlock3", growth_rate=stages[2]),
+                contrib.DenseBlock("DenseBlock3", in_channels=1, growth_rate=stages[2],
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 *self.transition_layer("TransitionLayer3", in_channels=1),
 
                 # Dense-Block 4 and transition (7x7)
-                DenseBlock("DenseBlock4", growth_rate=stages[3]),
+                contrib.DenseBlock("DenseBlock4", in_channels=1, growth_rate=stages[3],
+                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
                 *self.transition_layer("TransitionLayer4", in_channels=1),
 
                 BatchNormalisationLayer(),
                 ReLU(),
                 GlobalAveragePooling(keep_dims=False),
-                FullyConnectedLayer(shape=(130, args.num_classes))
+                FullyConnectedLayer(shape=(130, ds_args.num_classes))
             ]
 
         super().__init__(network)
