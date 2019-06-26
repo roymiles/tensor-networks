@@ -32,13 +32,14 @@ print(tf.__version__)
 
 # Run on multiple models/architectures/learning methods
 pipeline = [
-    "pipeline/Baseline.json",
+    "DenseNet_CIFAR10.json"
+    #"pipeline/Baseline.json",
     #"pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
-    "pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
-    "pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
-    "pipeline/CustomBottleNeck_64x64_0.8_0.5.json",
-    "pipeline/CustomBottleNeck_128x128_0.2_0.5.json",
-    "pipeline/CustomBottleNeck_128x128_0.2_0.8.json",
+    #"pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
+    #"pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
+    #"pipeline/CustomBottleNeck_64x64_0.8_0.5.json",
+    #"pipeline/CustomBottleNeck_128x128_0.2_0.5.json",
+    #"pipeline/CustomBottleNeck_128x128_0.2_0.8.json",
 ]
 
 if __name__ == '__main__':
@@ -62,6 +63,8 @@ if __name__ == '__main__':
         if hasattr(args, 'method'):
             unique_name += f"_method_{args.method}"
 
+        # TODO: Make unique_names easier to make
+        """
         if args.method == "custom-bottleneck":
             if hasattr(args, 'ranks'):
                 unique_name += "_ranks_"
@@ -70,6 +73,7 @@ if __name__ == '__main__':
             if hasattr(args, 'partitions'):
                 unique_name += "_partitions_"
                 unique_name += '_'.join(str(x) for x in args.partitions)
+        """
 
         logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
                             filemode='a',  # Append rather than overwrite
@@ -101,7 +105,7 @@ if __name__ == '__main__':
         ).shuffle(args.batch_size * 50).batch(args.batch_size)
         # steps_per_epoch = ds_args.size / args.batch_size
 
-        ds_test = ds_test.shuffle(args.batch_size * 50).batch(10000)
+        ds_test = ds_test.shuffle(args.batch_size * 50).batch(1000)
 
         train_iterator = ds_train.make_initializable_iterator()
         next_train_element = train_iterator.get_next()
@@ -343,6 +347,7 @@ if __name__ == '__main__':
                                 f.write(chrome_trace)
 
             # ---------------- EXPORTING MODEL ---------------- #
+            # region ExportModel
             print(f"Before map {sess.graph.get_tensor_by_name('input/is_training:0')}")
             # Export the graph
             save_graph_path = f"{conf.save_dir}/{unique_name}"
@@ -372,9 +377,9 @@ if __name__ == '__main__':
                 gd.ParseFromString(f.read())
 
             # Make constant False value (name does not need to match)
-            is_training_const = tf.constant(False, dtype=tf.bool, name="input/is_training")
+            is_training_const = tf.constant(False, dtype=tf.bool)
             # Load graph mapping placeholder to constant
-            tf.import_graph_def(gd, input_map={"input/is_training": is_training_const})
+            tf.import_graph_def(gd, input_map={"input/is_training:0": is_training_const})
             print(f"After map {sess_eval.graph.get_tensor_by_name('input/is_training:0')}")
 
             # Save graph again but with is_training fixed to false
@@ -386,14 +391,14 @@ if __name__ == '__main__':
                                       output_node_names="network/output_node",
                                       restore_op_name="save/restore_all",
                                       filename_tensor_name="save/Const:0",
-                                      output_graph=f"{save_graph_path}/frozen_graph_eval.pb",
+                                      output_graph=f"{save_graph_path}/frozen_model_eval.pb",
                                       clear_devices=True,
                                       initializer_nodes="")
 
             # Export model tflite
-            export_tflite_from_frozen_graph(f"{save_graph_path}/frozen_graph_eval.pb",
+            export_tflite_from_frozen_graph(f"{save_graph_path}/frozen_model_eval.pb",
                                             input_nodes=["input/input_node"], output_nodes=["network/output_node"],
                                             export_path=save_graph_path)
-
+            # endregion
             logging.info("Finished")
 

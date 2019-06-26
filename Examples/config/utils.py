@@ -9,6 +9,7 @@ from Architectures.impl.MobileNetV2 import MobileNetV2
 from Architectures.impl.CIFARExample import CIFARExample
 from Architectures.impl.MNISTExample import MNISTExample
 from Architectures.impl.AlexNet import AlexNet
+from Architectures.impl.DenseNet import DenseNet
 
 
 def _dict_object_hook(d): return namedtuple('X', d.keys())(*d.values())
@@ -61,16 +62,17 @@ def get_architecture(args, ds_args):
 
     name = args.architecture
     if name == "MobileNetV1":
-        return MobileNetV1(num_classes=ds_args.num_classes, channels=ds_args.num_channels,
-                           switch_list=args.switch_list, method=args.method, partitions=args.partitions)
+        return MobileNetV1(args, ds_args)
     elif name == "MobileNetV2":
-        return MobileNetV2(num_classes=ds_args.num_classes, channels=ds_args.num_channels)
+        return MobileNetV2(args, ds_args)
     elif name == "CIFARExample":
-        return CIFARExample(num_classes=ds_args.num_classes)
+        return CIFARExample(args, ds_args)
     elif name == "MNISTExample":
         return MNISTExample()
     elif name == "AlexNet":
-        return AlexNet(num_classes=ds_args.num_classes)
+        return AlexNet(args, ds_args)
+    elif name == "DenseNet":
+        return DenseNet(args, ds_args)
     else:
         raise Exception("Unknown architecture")
 

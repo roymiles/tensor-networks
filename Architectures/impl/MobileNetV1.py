@@ -72,15 +72,19 @@ class MobileNetV1(IArchitecture):
 
         return sequential
 
-    def __init__(self, num_classes, channels, switch_list=[1.0], weight_decay=5e-4, method="standard", ranks=[96, 96],
-                 partitions=[0.8, 0.8]):
-        self._switch_list = switch_list
-        self._weight_decay = weight_decay
-        self._method = method
-        self._ranks = ranks
-        self._partitions = partitions
+    def __init__(self, args, ds_args):
+        """
+
+        :param args: Model training parameters
+        :param ds_args: Dataset parameters
+        """
+        self._switch_list = args.switch_list
+        self._weight_decay = args.weight_decay
+        self._method = args.method
+        self._ranks = args.ranks
+        self._partitions = args.partitions
         network = [
-            ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2),
+            ConvLayer(shape=[3, 3, ds_args.num_channels, 32], strides=(2, 2),
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
             BatchNormalisationLayer(self._switch_list),
             ReLU(),
@@ -102,7 +106,7 @@ class MobileNetV1(IArchitecture):
             # ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
             GlobalAveragePooling(keep_dims=False),
             Flatten(),
-            FullyConnectedLayer(shape=[1024, num_classes],
+            FullyConnectedLayer(shape=[1024, ds_args.num_classes],
                                 kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay))
         ]
 

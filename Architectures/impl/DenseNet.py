@@ -1,80 +1,96 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
-
-
-class TransitionLayer(IArchitecture):
-    def __init__(self, k0):
-        """
-        Change feature-map sizes via convolution and pooling
-
-        :param k0: Number of input channels
-        """
-        print("k0 = {}".format(k0))
-        network = [
-            BatchNormalisationLayer(k0),
-            ReLU(),
-            ConvLayer(shape=[1, 1, k0, 1]),
-            AveragePoolingLayer(pool_size=(2, 2))
-        ]
-
-        super().__init__(network)
-
-
-class DenseBlock(IArchitecture):
-    def __init__(self, n, k0, k):
-        """
-
-        :param n: Number of 1x1 then 3x3 layers
-        :param k0: Input channels
-        :param k: Growth rate (is also the input channel dim k0)
-        """
-
-        c = k0
-        network = []
-        for _ in range(n):
-            print("c = {}".format(c))
-            _net = [
-                BatchNormalisationLayer(c),
-                ReLU(),
-                ConvLayer(shape=[1, 1, c, k])
-            ]
-
-            network = network + _net
-
-            # Growth rate
-            c += k
-
-        # Output channels
-        self._c = c
-
-        super().__init__(network)
-
-    def get_output_dim(self):
-        return self._c
+from math import floor
 
 
 class DenseNet(IArchitecture):
-    def __init__(self, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.0, dropout_rate=0.0,
-                 weight_decay=1e-4, classes=1000, weights_path=None):
-        """ Instantiate the DenseNet architecture,
-            # Arguments
-                nb_dense_block: number of dense blocks to add to end
-                growth_rate: number of filters to add per dense block
-                nb_filter: initial number of filters
-                reduction: reduction factor of transition blocks.
-                dropout_rate: dropout rate
-                weight_decay: weight decay factor
-                classes: optional number of classes to classify images
-                weights_path: path to pre-trained weights
-            # Returns
-                A Keras model instance.
+    @staticmethod
+    def transition_layer(name, in_channel):
         """
-        eps = 1.1e-5
+        Change feature-map sizes via convolution and pooling
 
-        # compute compression factor
-        compression = 1.0 - reduction
+        :param name: Scope name
+        :param in_channel: Number of input channels
+        """
+        reduction = 0.5
+        out_channels = math.floor(in_channel * reduction)
+        with tf.variable_scope(name):
+            network = [
+                BatchNormalisationLayer(),
+                ReLU(),
+                ConvLayer(shape=[1, 1, in_channel, out_channels], use_bias=False),
+                ReLU(),
+                AveragePoolingLayer(pool_size=(2, 2))
+            ]
 
-        # From architecture for ImageNet (Table 1 in the paper)
-        nb_filter = 64
-        nb_layers = [6, 12, 32, 32]  # For DenseNet-169
+        return network
 
+    def __init__(self, args, ds_args):
+        """
+        Instantiate the DenseNet architecture
+
+        :param args: Model training parameters
+        :param ds_args: Dataset parameters
+        """
+        N = int((args.depth - 4) / 3)
+        growth_rate = 12
+        if args.dataset_name == 'CIFAR10' or args.dataset_name == 'CIFAR100':
+            network = [
+                ConvLayer(shape=(3, 3, ds_args.num_channels, 32), use_bias=False),
+                DenseBlock("DenseBlock1", N, growth_rate),
+                # Hard coded in channels makes everything much easier, else DenseBlock and TransitionLayer
+                # would need to be merged into a single class layer, which is ugly.
+                *self.transition_layer("TransitionLayer1", in_channel=176),
+
+                DenseBlock("DenseBlock2", N, growth_rate),
+                *self.transition_layer("TransitionLayer2", in_channel=232),
+
+                DenseBlock("DenseBlock3", N, growth_rate),
+                *self.transition_layer("TransitionLayer3", in_channel=260),
+
+                BatchNormalisationLayer(),
+                ReLU(),
+                GlobalAveragePooling(keep_dims=False),
+                FullyConnectedLayer(shape=(130, args.num_classes))
+            ]
+        elif args.dataset_name == 'ImageNet2012':
+            if args.depth == 121:
+                stages = [6, 12, 24, 16]
+            elif args.depth == 169:
+                stages = [6, 12, 32, 32]
+            elif args.depth == 201:
+                stages = [6, 12, 48, 32]
+            elif args.depth == 161:
+                stages = [6, 12, 36, 24]
+            else:
+                stages = [args.d1, args.d2, args.d3, args.d4]
+
+            network = [
+                ConvLayer(shape=(3, 3, ds_args.num_channels, 32), use_bias=False),
+                BatchNormalisationLayer(),
+                ReLU(),
+                MaxPoolingLayer(pool_size=(2, 2)),
+
+                # Dense - Block 1 and transition(56x56)
+                DenseBlock("DenseBlock1", growth_rate=stages[0]),
+                *self.transition_layer("TransitionLayer1", in_channels=1),
+
+                # Dense-Block 2 and transition (28x28)
+                DenseBlock("DenseBlock2", growth_rate=stages[1]),
+                *self.transition_layer("TransitionLayer2", in_channels=1),
+
+                # Dense-Block 3 and transition (14x14)
+                DenseBlock("DenseBlock3", growth_rate=stages[2]),
+                *self.transition_layer("TransitionLayer3", in_channels=1),
+
+                # Dense-Block 4 and transition (7x7)
+                DenseBlock("DenseBlock4", growth_rate=stages[3]),
+                *self.transition_layer("TransitionLayer4", in_channels=1),
+
+                BatchNormalisationLayer(),
+                ReLU(),
+                GlobalAveragePooling(keep_dims=False),
+                FullyConnectedLayer(shape=(130, args.num_classes))
+            ]
+
+        super().__init__(network)

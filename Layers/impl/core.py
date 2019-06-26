@@ -244,10 +244,11 @@ class BatchNormalisationLayer(ILayer):
 
     def __call__(self, input, is_training, switch_idx, affine=True):
 
-        #net = tf.case(self.get_switches(input, is_training, switch_idx),
+        # TODO: Implement switchable batch norm
+        # net = tf.case(self.get_switches(input, is_training, switch_idx),
         #              default=lambda: tf.layers.batch_normalization(input, training=is_training),
         #              exclusive=True)
-        #return net
+        # return net
 
         # Independant batch normalisation (for each switch)
         # with tf.variable_scope(f"switch"):
@@ -531,6 +532,37 @@ class CustomBottleneck(ILayer):
 
         if bias:
             net = tf.nn.bias_add(net, bias)
+
+        return net
+
+
+class DenseBlock(ILayer):
+    def __init__(self, name, N, growth_rate):
+        """
+
+        :param name: Variable scope
+        :param N: How many layers
+        """
+
+        super().__init__()
+        self.name = name
+        self.N = N
+        self.growth_rate = growth_rate
+
+    def add_layer(self, name, input):
+        with tf.variable_scope(name):
+            net = tf.layers.batch_normalization(input)
+            net = tf.nn.relu(net)
+            net = tf.layers.conv2d(net, self.growth_rate, kernel_size=(3, 3), use_bias=False, padding="SAME")
+            net = tf.concat([input, net], axis=3)
+            return net
+
+    def __call__(self, input):
+        with tf.variable_scope(self.name):
+            net = input
+            for i in range(self.N):
+                net = self.add_layer(f"layer_{i}", net)
+                # output channels = input channels + growth rate
 
         return net
 
