@@ -36,6 +36,7 @@ class DenseNet(IArchitecture):
         growth_rate = 12
         if args.dataset_name == 'CIFAR10' or args.dataset_name == 'CIFAR100':
             network = [
+                # Initial convolution layer
                 ConvLayer(shape=(3, 3, ds_args.num_channels, 32), use_bias=False),
                 DenseBlock("DenseBlock1", N, growth_rate),
                 # Hard coded in channels makes everything much easier, else DenseBlock and TransitionLayer
@@ -66,6 +67,7 @@ class DenseNet(IArchitecture):
                 stages = [args.d1, args.d2, args.d3, args.d4]
 
             network = [
+                # Initial convolution layer
                 ConvLayer(shape=(3, 3, ds_args.num_channels, 32), use_bias=False),
                 BatchNormalisationLayer(),
                 ReLU(),

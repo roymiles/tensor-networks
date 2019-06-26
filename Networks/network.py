@@ -1,5 +1,6 @@
 """ Define interfaces for a network and the weights inside the network """
 from Layers.impl.core import *
+import Layers.impl.contrib as contrib
 from Architectures.architectures import IArchitecture
 from Weights.weights import Weights
 import tensorflow as tf
@@ -93,16 +94,13 @@ class Network:
 
                 return cur_layer(x, kernel=w.kernel, bias=w.bias)
 
-            elif isinstance(cur_layer, CustomBottleneck):
+            elif isinstance(cur_layer, contrib.CustomBottleneck):
                 w = self._weights.get_layer_weights(layer_idx)
 
                 assert isinstance(w, Weights.CustomBottleneck), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, conv_kernel=w.conv_kernel, depthwise_kernel=w.depthwise_kernel,
-                                 pointwise_kernel=w.pointwise_kernel,
-                                 factored_pointwise_kernel=w.factored_pointwise_kernel,
-                                 is_training=is_training, bias=w.bias)
+                return cur_layer(x, w, is_training=is_training)
 
             elif isinstance(cur_layer, DepthwiseConvLayer):
 
@@ -110,7 +108,7 @@ class Network:
                 assert isinstance(w, Weights.DepthwiseConvolution), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, kernel=w.kernel, bias=w.bias)
+                return cur_layer(x, w)
 
             elif isinstance(cur_layer, FullyConnectedLayer):
 
@@ -118,33 +116,31 @@ class Network:
                 assert isinstance(w, Weights.FullyConnected), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, kernel=w.kernel, bias=w.bias)
+                return cur_layer(x, w)
 
             elif isinstance(cur_layer, BatchNormalisationLayer):
-                return cur_layer(x, is_training=is_training, switch_idx=switch_idx)
+                return cur_layer(x, is_training=is_training)
 
             elif isinstance(cur_layer, ReLU):  # issubclass(cur_layer, NonLinearityLayer):
                 """ Any nonlinearity, ReLU, HSwitch etc have the same interface """
                 act = cur_layer(x)
                 return act
 
-            elif isinstance(cur_layer, MobileNetV2BottleNeck):
+            elif isinstance(cur_layer, contrib.MobileNetV2BottleNeck):
 
                 w = self._weights.get_layer_weights(layer_idx)
                 assert isinstance(w, Weights.Mobilenetv2Bottleneck), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, expansion_kernel=w.expansion_kernel, depthwise_kernel=w.depthwise_kernel,
-                                 projection_kernel=w.projection_kernel)
+                return cur_layer(x, w)
 
-            elif isinstance(cur_layer, PointwiseDot):
+            elif isinstance(cur_layer, contrib.PointwiseDot):
 
                 w = self._weights.get_layer_weights(layer_idx)
                 assert isinstance(w, Weights.PointwiseDot), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, c=w.c, g=w.g, n=w.n, bias1=w.bias1, bias2=w.bias2, bias3=w.bias3,
-                                 is_training=is_training)
+                return cur_layer(x, w, is_training=is_training)
 
             else:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")

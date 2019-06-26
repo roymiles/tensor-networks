@@ -3,7 +3,6 @@
 """
 import tensorflow as tf
 from Weights.weights import Weights
-from Networks.graph import Graph
 
 
 def depthwise_convolution(cur_layer, layer_idx):

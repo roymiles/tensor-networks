@@ -1,5 +1,6 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
+import Layers.impl.contrib as contrib
 import Weights.impl.sandbox
 
 
@@ -60,10 +61,10 @@ class MobileNetV1(IArchitecture):
         elif self._method == "custom-bottleneck":
             # Custom bottleneck
             sequential = [
-                CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride),
-                                 kernel_initializer=tf.keras.initializers.he_normal(),
-                                 kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
-                                 partitions=self._partitions, ranks=[1, self._ranks[0], self._ranks[1]]),
+                contrib.CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride),
+                                         kernel_initializer=tf.keras.initializers.he_normal(),
+                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
+                                         partitions=self._partitions, ranks=[1, self._ranks[0], self._ranks[1]]),
                 BatchNormalisationLayer(self._switch_list),
                 ReLU()
             ]
@@ -74,6 +75,7 @@ class MobileNetV1(IArchitecture):
 
     def __init__(self, args, ds_args):
         """
+        Initialise MobileNetV1 architecture
 
         :param args: Model training parameters
         :param ds_args: Dataset parameters

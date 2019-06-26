@@ -1,5 +1,6 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
+import Layers.impl.contrib as contrib
 
 learning_rate = tf.placeholder(tf.float64, shape=[])
 training_params = {
@@ -13,36 +14,42 @@ training_params = {
 class MobileNetV2(IArchitecture):
     """ See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c """
 
-    def __init__(self, num_classes, channels):
+    def __init__(self, args, ds_args):
+        """
+        Initialise MobileNetV1 architecture
+
+        :param args: Model training parameters
+        :param ds_args: Dataset parameters
+        """
         network = [
             # in: 224 x 224 x 3
-            ConvLayer(shape=[3, 3, channels, 32], strides=(2, 2)),
+            ConvLayer(shape=[3, 3, ds_args.num_channels, 32], strides=(2, 2)),
             BatchNormalisationLayer(),
             ReLU(),
 
-            MobileNetV2BottleNeck(k=32, t=1, c=16, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=32, t=1, c=16, strides=(1, 1)),
 
-            MobileNetV2BottleNeck(k=16, t=6, c=24, strides=(2, 2)),
-            MobileNetV2BottleNeck(k=24, t=6, c=24, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=16, t=6, c=24, strides=(2, 2)),
+            contrib.MobileNetV2BottleNeck(k=24, t=6, c=24, strides=(1, 1)),
 
-            MobileNetV2BottleNeck(k=24, t=6, c=32, strides=(2, 2)),
-            MobileNetV2BottleNeck(k=32, t=6, c=32, strides=(1, 1)),
-            MobileNetV2BottleNeck(k=32, t=6, c=32, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=24, t=6, c=32, strides=(2, 2)),
+            contrib.MobileNetV2BottleNeck(k=32, t=6, c=32, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=32, t=6, c=32, strides=(1, 1)),
 
-            MobileNetV2BottleNeck(k=32, t=6, c=64, strides=(2, 2)),
-            MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
-            MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
-            MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=32, t=6, c=64, strides=(2, 2)),
+            contrib.MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=64, t=6, c=64, strides=(1, 1)),
 
-            MobileNetV2BottleNeck(k=64, t=6, c=96, strides=(1, 1)),
-            MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
-            MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=64, t=6, c=96, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=96, t=6, c=96, strides=(1, 1)),
 
-            MobileNetV2BottleNeck(k=96, t=6, c=160, strides=(2, 2)),
-            MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
-            MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=96, t=6, c=160, strides=(2, 2)),
+            contrib.MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=160, t=6, c=160, strides=(1, 1)),
 
-            MobileNetV2BottleNeck(k=160, t=1, c=320, strides=(1, 1)),
+            contrib.MobileNetV2BottleNeck(k=160, t=1, c=320, strides=(1, 1)),
 
             ConvLayer(shape=[1, 1, 320, 1280], strides=(1, 1)),
             BatchNormalisationLayer(),
@@ -50,7 +57,7 @@ class MobileNetV2(IArchitecture):
 
             # Classification part
             GlobalAveragePooling(keep_dims=False),
-            FullyConnectedLayer(shape=[1280, num_classes])
+            FullyConnectedLayer(shape=[1280, ds_args.num_classes])
 
             # DropoutLayer(rate=0.2),
             # ConvLayer(shape=[1, 1, 1280, num_classes]),

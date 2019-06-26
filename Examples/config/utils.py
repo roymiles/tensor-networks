@@ -68,7 +68,7 @@ def get_architecture(args, ds_args):
     elif name == "CIFARExample":
         return CIFARExample(args, ds_args)
     elif name == "MNISTExample":
-        return MNISTExample()
+        return MNISTExample(args, ds_args)
     elif name == "AlexNet":
         return AlexNet(args, ds_args)
     elif name == "DenseNet":
