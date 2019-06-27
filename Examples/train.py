@@ -32,7 +32,8 @@ print(tf.__version__)
 
 # Run on multiple models/architectures/learning methods
 pipeline = [
-    "DenseNet_CIFAR10.json"
+    "DenseNet_ImageNet2012.json"
+    #"DenseNet_CIFAR10.json"
     #"pipeline/Baseline.json",
     #"pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
     #"pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
@@ -60,10 +61,9 @@ if __name__ == '__main__':
 
         # Unique name for this model and training method
         unique_name = f"arch_{args.architecture}_ds_{args.dataset_name}_opt_{args.optimizer}_seed_{seed}"
-        if hasattr(args, 'method'):
-            unique_name += f"_method_{args.method}"
+        if hasattr(args, 'build_method'):
+            unique_name += f"_build_method_{args.build_method}"
 
-        # TODO: Make unique_names easier to make
         """
         if args.method == "custom-bottleneck":
             if hasattr(args, 'ranks'):
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):
-           switch_list = args.switch_list
+            switch_list = args.switch_list
 
         logging.basicConfig(filename=f'{conf.log_dir}/{unique_name}.log',
                             filemode='a',  # Append rather than overwrite
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         label_names = info.features['label'].names
 
         # Uses "test" on CIFAR, MNIST, "validation" on ImageNet
-        ds_train, ds_test = datasets['train'], datasets['test']
+        ds_train, ds_test = datasets['train'], datasets['validation']
 
         # Build your input pipeline
         ds_train = ds_train.map(
@@ -263,7 +263,8 @@ if __name__ == '__main__':
 
                 # Decay learning rate every n epochs
                 if is_epoch_decay(epoch, args):
-                    # When decaying the learning rate, use the one with the best results (not necessarily most recent ckpt)
+                    # When decaying the learning rate, use the one with the best results
+                    # (not necessarily most recent ckpt)
                     ckpts = os.listdir(checkpoint_dir)
                     best_ckpts = sorted([name for name in ckpts if 'best' in name])
                     if best_ckpts:

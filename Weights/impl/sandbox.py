@@ -404,12 +404,6 @@ def dense_block(cur_layer, layer_idx):
     with tf.variable_scope(f"DenseBlock_{layer_idx}"):
         in_channels = cur_layer.in_channels
         for i in range(cur_layer.N):
-            """kernels.append(tf.get_variable(f"kernel_{layer_idx}_{i}", shape=[3, 3, in_channels, cur_layer.growth_rate],
-                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                           initializer=cur_layer.kernel_initializer,
-                                           regularizer=cur_layer.kernel_regularizer,
-                                           
-                                           trainable=True))"""
             kernel = Graph(f"graph_{i}")
 
             # Add the nodes w/ exposed indices
@@ -431,7 +425,7 @@ def dense_block(cur_layer, layer_idx):
             kernel.set_output_shape(["W", "H", "C", "N"])
 
             # Was having some issues
-            # Graph.debug(kernel.get_graph(), f"debug_{i}")
+            Graph.debug(kernel.get_graph(), f"debug_{i}")
 
             # Some plots for Tensorboard
             c = kernel.get_node("C")
@@ -454,10 +448,6 @@ def dense_block(cur_layer, layer_idx):
 
             # Next layer is concatenation of input and output of previous layer
             in_channels += cur_layer.growth_rate
-
-    # Tensorboard
-    # for i, k in enumerate(kernels):
-    #    tf.summary.histogram(f"dense_block_kernel_{layer_idx}_{i}", k, collections=['train'])
 
     # Reuse this interface but each element is a list for each subsequent bottleneck
     return Weights.JustKernels(kernels)

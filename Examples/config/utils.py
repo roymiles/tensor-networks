@@ -10,6 +10,7 @@ from Architectures.impl.CIFARExample import CIFARExample
 from Architectures.impl.MNISTExample import MNISTExample
 from Architectures.impl.AlexNet import AlexNet
 from Architectures.impl.DenseNet import DenseNet
+from transforms import aspect_preserving_resize
 
 
 def _dict_object_hook(d): return namedtuple('X', d.keys())(*d.values())
@@ -102,8 +103,10 @@ def get_optimizer(args):
 
 def preprocess_images_fn(ds_args):
     """ Data augmentation """
-    return lambda x: tf.image.random_crop(tf.image.random_flip_left_right(x),
-                                          size=[ds_args.img_height, ds_args.img_width, 3])
+    return lambda x: tf.compat.v1.image.resize(tf.image.random_flip_left_right(x),
+                                               [ds_args.img_height, ds_args.img_width],
+                                               method=tf.image.ResizeMethod.BILINEAR,
+                                               align_corners=False)
 
 
 def is_epoch_decay(epoch, args):

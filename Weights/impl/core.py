@@ -115,3 +115,27 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
         tf.summary.histogram("projection_kernel", projection_kernel)
 
         return Weights.Mobilenetv2Bottleneck(expansion_kernel, depthwise_kernel, projection_kernel)
+
+
+def dense_block(cur_layer, layer_idx):
+    kernels = []
+    with tf.variable_scope(f"DenseBlock_{layer_idx}"):
+        in_channels = cur_layer.in_channels
+        for i in range(cur_layer.num_layers):
+            kernel = tf.get_variable(f"kernel_{layer_idx}_{i}", shape=[3, 3, in_channels, cur_layer.growth_rate],
+                                     collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                     initializer=cur_layer.kernel_initializer,
+                                     regularizer=cur_layer.kernel_regularizer,
+                                     trainable=True)
+            # Add it to the list of kernels
+            kernels.append(kernel)
+
+            # Next layer is concatenation of input and output of previous layer
+            in_channels += cur_layer.growth_rate
+
+    # Tensorboard
+    for i, k in enumerate(kernels):
+        tf.summary.histogram(f"dense_block_kernel_{layer_idx}_{i}", k, collections=['train'])
+
+    # Reuse this interface but each element is a list for each subsequent bottleneck
+    return Weights.JustKernels(kernels)

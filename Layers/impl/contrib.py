@@ -272,8 +272,9 @@ class CustomBottleneck(ILayer):
 
 
 class DenseBlock(ILayer):
-    def __init__(self, name, in_channels, N, growth_rate, kernel_initializer=tf.glorot_normal_initializer(),
-                 bias_initializer=tf.zeros_initializer(), kernel_regularizer=None, bias_regularizer=None):
+    def __init__(self, name, in_channels, num_layers, growth_rate=12, build_method=Weights.impl.sandbox,
+                 kernel_initializer=tf.glorot_normal_initializer(),  bias_initializer=tf.zeros_initializer(),
+                 kernel_regularizer=None, bias_regularizer=None):
         """
 
         :param name: Variable scope
@@ -283,8 +284,9 @@ class DenseBlock(ILayer):
         super().__init__()
         self.name = name
         self.in_channels = in_channels
-        self.N = N
+        self.num_layers = num_layers
         self.growth_rate = growth_rate
+        self.build_method = build_method
 
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
@@ -292,7 +294,7 @@ class DenseBlock(ILayer):
         self.bias_regularizer = bias_regularizer
 
     def create_weights(self):
-        return Weights.impl.sandbox.dense_block
+        return self.build_method.dense_block
 
     def add_layer(self, name, input, kernel, is_training):
         with tf.variable_scope(name):
@@ -307,7 +309,7 @@ class DenseBlock(ILayer):
         """ weights is just the set of conv weights """
         with tf.variable_scope(self.name):
             net = input
-            for i in range(self.N):
+            for i in range(self.num_layers):
                 net = self.add_layer(f"composite_layer_{i}", net, weights.kernel[i], is_training)
                 # output channels = input channels + growth rate
 

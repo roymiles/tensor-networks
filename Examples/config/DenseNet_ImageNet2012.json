@@ -1,20 +1,18 @@
 {
   "architecture": "DenseNet",
-  "dataset_name": "CIFAR10",
-  "depth": 40,
+  "dataset_name": "ImageNet2012",
+  "depth": 169,
 
-  "batch_size": 64,
+  "batch_size": 16,
   "optimizer": "Momentum",
   "momentum": 0.9,
   "use_nesterov": true,
   "learning_rate": 0.1,
-  "learning_rate_decay": 0.1,
-  "epoch_decay_boundaries": [150, 225],
   "num_epochs": 300,
   "build_method": "standard",
 
   "weight_decay": 1e-4,
   "test_every": 1,
-  "seed": 1232,
+  "seed": 0,
   "ranks": [96, 96]
 }

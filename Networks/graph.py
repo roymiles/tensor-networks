@@ -126,14 +126,15 @@ class Graph:
                 collections = self._graph.nodes[node]['collections']
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
 
-                    if "handcrafted" in self._graph.nodes[node]:
-                        c = np.array([sine2D(dims[1], dims[2])])
-                        self._graph.nodes[node]["tfvar"] = tf.constant(value=c,
-                                                                       name="{}{}_handcrafted".format(scope_name, node),
-                                                                       dtype=tf.float32)
+                    # TODO: Note this crashes if node is not 2D!
+                    # if "handcrafted" in self._graph.nodes[node]:
+                    #    c = np.array([sine2D(dims[1], dims[2])])
+                    #    self._graph.nodes[node]["tfvar"] = tf.constant(value=c,
+                    #                                                  name="{}{}_handcrafted".format(scope_name, node),
+                    #                                                   dtype=tf.float32)
 
-                    else:
-                        self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
+                    # else:
+                    self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
                                                                            shape=dims,
                                                                            initializer=init, regularizer=reg,
                                                                            collections=collections,
