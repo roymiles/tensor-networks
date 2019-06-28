@@ -90,19 +90,15 @@ if __name__ == '__main__':
             ds_train, ds_test = datasets['train'], datasets['test']
 
         # Build the input pipeline
-        ds_train = ds_train.map(
-            lambda x: {
-                "image": preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
-                "label": x['label'],
-            }
-        ).shuffle(args.batch_size * 50).batch(args.batch_size)
+        ds_train = ds_train.map(lambda x: {
+            "image": preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
+            "label": x['label'],
+        }).shuffle(args.batch_size * 50).batch(args.batch_size)
 
-        ds_test = ds_test.map(
-            lambda x: {
-                "image": preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
-                "label": x['label'],
-            }
-        ).shuffle(args.batch_size * 50).batch(1000)
+        ds_test = ds_test.map(lambda x: {
+            "image": preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
+            "label": x['label'],
+        }).shuffle(args.batch_size * 50).batch(1000)
 
         train_iterator = ds_train.make_initializable_iterator()
         next_train_element = train_iterator.get_next()

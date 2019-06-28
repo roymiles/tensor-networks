@@ -163,30 +163,27 @@ def generate_unique_name(args, ds_args):
 def anneal_learning_rate(lr, epoch, step, args, sess=None):
     """ Perform learning rate annealing, as defined by the training .json/.yaml config """
     try:
-        if hasattr(args, "basic_lr_annealing"):
+        if hasattr(args, "lr_annealing"):
 
-            # These are basic learning rate annealing strategies
-            if hasattr(args.basic_lr_annealing, "num_epochs_decay"):
+            if args.lr_annealing.name == "num_epochs_decay":
                 # Decay every n epochs
-                if epoch % args.basic_lr_annealing.num_epochs_decay == 0:
-                    return lr * args.basic_lr_annealing.lr_decay
-            elif hasattr(args.basic_lr_annealing, 'epoch_decay_boundaries'):
+                if epoch % args.lr_annealing.num_epochs_decay == 0:
+                    return lr * args.lr_annealing.lr_decay
+            elif args.lr_annealing.name == "epoch_decay_boundaries":
                 # Decay at predefined epoch boundaries
-                if epoch in args.basic_lr_annealing.epoch_decay_boundaries:
-                    return lr * args.basic_lr_annealing.lr_decay
+                if epoch in args.lr_annealing.epoch_decay_boundaries:
+                    return lr * args.lr_annealing.lr_decay
+            elif args.lr_annealing.name == "noisy_linear_cosine_decay":
+                decayed_lr = tf.train.noisy_linear_cosine_decay(lr, step, args.noisy_linear_cosine_decay.decay_steps)
+                return sess.run(decayed_lr)
             else:
                 raise Exception("Unspecified learning rate annealing strategy")
 
-        elif hasattr(args, 'noisy_linear_cosine_decay'):
-            # Cosine annealing learning rate scheduler with periodic restarts.
-            decayed_lr = tf.train.noisy_linear_cosine_decay(lr, step, args.noisy_linear_cosine_decay.decay_steps)
-            return sess.run(decayed_lr)
-
-        else:
-            # Don't perform any learning rate annealing
+            # Not decaying for this epoch
             return lr
 
     except AttributeError:
-        print("Invalid learning rate annealing structure in config")
+        # Not performing any lr annealing
+        return lr
 
 

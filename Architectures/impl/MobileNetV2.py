@@ -32,20 +32,20 @@ class MobileNetV2(IArchitecture):
             contrib.MobileNetV2BottleNeck(in_channels=64, expansion=6, filters=64, strides=(1, 1)),
             contrib.MobileNetV2BottleNeck(in_channels=64, expansion=6, filters=64, strides=(1, 1)),
             contrib.MobileNetV2BottleNeck(in_channels=64, expansion=6, filters=64, strides=(1, 1)),
-            #DropoutLayer(rate=0.25),
+            DropoutLayer(rate=0.25),
 
             contrib.MobileNetV2BottleNeck(in_channels=64, expansion=6, filters=96, strides=(1, 1)),
             contrib.MobileNetV2BottleNeck(in_channels=96, expansion=6, filters=96, strides=(1, 1)),
             contrib.MobileNetV2BottleNeck(in_channels=96, expansion=6, filters=96, strides=(1, 1)),
-            #DropoutLayer(rate=0.25),
+            DropoutLayer(rate=0.25),
 
             contrib.MobileNetV2BottleNeck(in_channels=96, expansion=6, filters=160, strides=(2, 2)),
             contrib.MobileNetV2BottleNeck(in_channels=160, expansion=6, filters=160, strides=(1, 1)),
             contrib.MobileNetV2BottleNeck(in_channels=160, expansion=6, filters=160, strides=(1, 1)),
-            #DropoutLayer(rate=0.25),
+            DropoutLayer(rate=0.25),
 
             contrib.MobileNetV2BottleNeck(in_channels=160, expansion=1, filters=320, strides=(1, 1)),
-            #DropoutLayer(rate=0.25),
+            DropoutLayer(rate=0.25),
 
             ConvLayer(shape=[1, 1, 320, 1280], strides=(1, 1), use_bias=False),
             BatchNormalisationLayer(),
@@ -54,19 +54,6 @@ class MobileNetV2(IArchitecture):
             # Classification part
             GlobalAveragePooling(keep_dims=False),
             FullyConnectedLayer(shape=[1280, ds_args.num_classes], use_bias=True),
-
-
-            # DropoutLayer(rate=0.2),
-            # ConvLayer(shape=[1, 1, 1280, num_classes]),
-            # GlobalAveragePooling(keep_dims=False)
-
-            # FullyConnectedLayer(shape=[1280, num_classes])
-
-            # GlobalAveragePooling(keep_dims=True),
-            # ConvLayer(shape=[1, 1, 1280, num_classes]),
-
-            # Remove spatial dims, so output is ? x 10
-            # GlobalAveragePooling(keep_dims=False)
         ]
 
         super().__init__(network)

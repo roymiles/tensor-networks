@@ -74,7 +74,7 @@ def fully_connected(cur_layer, layer_idx):
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                    trainable=True)
 
-            tf.summary.histogram(f"bias_{layer_idx}", bias, collections=['train'])
+            # tf.summary.histogram(f"bias_{layer_idx}", bias, collections=['train'])
 
         return Weights.FullyConnected(kernel, bias)
 
