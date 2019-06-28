@@ -85,10 +85,10 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
     """
     with tf.variable_scope("MobileNetV2Bottleneck"):
         weight_decay = 0.00004
-        expansion = cur_layer.get_t()  # Expansion
+        expansion = cur_layer.get_expansion()  # Expansion
 
-        output_filters = cur_layer.get_c()  # Number of output channels
-        input_filters = cur_layer.get_k()  # Number of input channels
+        output_filters = cur_layer.get_filters()  # Number of output channels
+        input_filters = cur_layer.get_in_channels()  # Number of input channels
 
         # Standard MobileNet
         expansion_kernel = tf.get_variable(f"expansion_{layer_idx}", shape=[1, 1, input_filters, input_filters*expansion],

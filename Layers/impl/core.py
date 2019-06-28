@@ -219,8 +219,8 @@ class DropoutLayer(ILayer):
         super().__init__()
         self._rate = rate
 
-    def __call__(self, input):
-        return tf.nn.dropout(input, rate=self._rate)
+    def __call__(self, input, is_training):
+        return tf.layers.dropout(input, rate=self._rate, training=is_training)
 
 
 class BatchNormalisationLayer(ILayer):

@@ -42,13 +42,13 @@ class SwitchableBatchNormalisationLayer(ILayer):
 
 
 class MobileNetV2BottleNeck(ILayer):
-    def __init__(self, k, t, c, build_method=Weights.impl.core, strides=(1, 1)):
+    def __init__(self, in_channels, expansion, filters, build_method=Weights.impl.core, strides=(1, 1)):
         """
         See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c
 
-        :param k: Number of input channels
-        :param t: Expansion factor
-        :param c: Number of output channels
+        :param in_channels: Number of input channels
+        :param expansion: Expansion factor
+        :param filters: Number of output channels
         :param strides: Depthwise stride
         """
         super().__init__()
@@ -57,9 +57,9 @@ class MobileNetV2BottleNeck(ILayer):
         py = strides[1]
         self._strides = [1, px, py, 1]
         self._build_method = build_method
-        self._k = k
-        self._t = t
-        self._c = c
+        self._in_channels = in_channels
+        self._expansion = expansion
+        self._filters = filters
 
         super().__init__()
 
@@ -93,30 +93,17 @@ class MobileNetV2BottleNeck(ILayer):
             else:
                 return net
 
-            """if is_conv_res:
-                # See: https://github.com/MG2033/MobileNet-V2/blob/master/layers.py
-                # If not matching channels, place a 1x1 convolution to ensure match
-                x = tf.layers.conv2d(input, net.get_shape().as_list()[3], (1, 1), use_bias=False,
-                                     kernel_initializer=tf.keras.initializers.glorot_normal(),
-                                     name="fix-channel-mismatch")
-
-                with tf.variable_scope(f"switch_{switch_idx}"):
-                    x = tf.layers.batch_normalization(x)
-
-                return net + x
-            else:
-                return net + input"""
         else:
             return net
 
-    def get_k(self):
-        return self._k
+    def get_filters(self):
+        return self._filters
 
-    def get_t(self):
-        return self._t
+    def get_expansion(self):
+        return self._expansion
 
-    def get_c(self):
-        return self._c
+    def get_in_channels(self):
+        return self._in_channels
 
     def get_strides(self):
         return self._strides

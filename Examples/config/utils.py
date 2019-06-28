@@ -83,6 +83,8 @@ def get_optimizer(args):
     with tf.variable_scope("input"):
         learning_rate = tf.placeholder(tf.float64, shape=[])
 
+    tf.summary.scalar("learning_rate", learning_rate, collections=['train'])
+
     opt = args.optimizer
     if opt.name == "Adam":
         return tf.train.AdamOptimizer(learning_rate=learning_rate), learning_rate
@@ -97,7 +99,6 @@ def get_optimizer(args):
 
 def preprocess_images_fn(args, ds_args, is_training=True):
     """ Apply the pre-processing transforms as defined by the config """
-    from transforms import *
 
     # 40 -> 32 for Cifar10/100
     # 256 -> 224 for ImageNet
@@ -111,9 +112,13 @@ def preprocess_images_fn(args, ds_args, is_training=True):
     funcs = []
 
     for name, properties in transforms._asdict().items():
-        if name == "normalize":
-            funcs.append(lambda x, mean=ds_args.mean, std=ds_args.std: normalize_images(x, mean, std))
-        elif name == "random_crop":
+        # if name == "scale":
+        #    # range [0, 1] scale based on maximum value
+        #    funcs.append(lambda x, scale=properties.val: x / scale)
+        # elif name == "normalize":
+        #    # range [-1, 1] normalise with mean and std
+        #    funcs.append(lambda x, mean=ds_args.mean, std=ds_args.std: normalize_images(x, mean, std))
+        if name == "random_crop":
             funcs.append(lambda x, width=properties.width, height=properties.height:
                          tf.image.random_crop(x, size=[width, height, 3]))
         elif name == "random_flip_left_right":
@@ -155,7 +160,7 @@ def generate_unique_name(args, ds_args):
     return unique_name
 
 
-def anneal_learning_rate(lr, epoch, step, args):
+def anneal_learning_rate(lr, epoch, step, args, sess=None):
     """ Perform learning rate annealing, as defined by the training .json/.yaml config """
     try:
         if hasattr(args, "basic_lr_annealing"):
@@ -163,18 +168,19 @@ def anneal_learning_rate(lr, epoch, step, args):
             # These are basic learning rate annealing strategies
             if hasattr(args.basic_lr_annealing, "num_epochs_decay"):
                 # Decay every n epochs
-                if epoch % args.num_epochs_decay == 0:
+                if epoch % args.basic_lr_annealing.num_epochs_decay == 0:
                     return lr * args.basic_lr_annealing.lr_decay
-            elif hasattr(args, 'epoch_decay_boundaries'):
+            elif hasattr(args.basic_lr_annealing, 'epoch_decay_boundaries'):
                 # Decay at predefined epoch boundaries
-                if epoch in args.epoch_decay_boundaries:
+                if epoch in args.basic_lr_annealing.epoch_decay_boundaries:
                     return lr * args.basic_lr_annealing.lr_decay
             else:
                 raise Exception("Unspecified learning rate annealing strategy")
 
-        elif hasattr(args, 'cosine_decay'):
+        elif hasattr(args, 'noisy_linear_cosine_decay'):
             # Cosine annealing learning rate scheduler with periodic restarts.
-            return tf.train.cosine_decay(lr, step, args.cosine_decay.decay_steps)
+            decayed_lr = tf.train.noisy_linear_cosine_decay(lr, step, args.noisy_linear_cosine_decay.decay_steps)
+            return sess.run(decayed_lr)
 
         else:
             # Don't perform any learning rate annealing

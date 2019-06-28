@@ -89,16 +89,20 @@ if __name__ == '__main__':
         else:
             ds_train, ds_test = datasets['train'], datasets['test']
 
-        # Build your input pipeline
+        # Build the input pipeline
         ds_train = ds_train.map(
             lambda x: {
                 "image": preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
                 "label": x['label'],
             }
         ).shuffle(args.batch_size * 50).batch(args.batch_size)
-        # steps_per_epoch = ds_args.size / args.batch_size
 
-        ds_test = ds_test.shuffle(args.batch_size * 50).batch(1000)
+        ds_test = ds_test.map(
+            lambda x: {
+                "image": preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
+                "label": x['label'],
+            }
+        ).shuffle(args.batch_size * 50).batch(1000)
 
         train_iterator = ds_train.make_initializable_iterator()
         next_train_element = train_iterator.get_next()
@@ -229,6 +233,7 @@ if __name__ == '__main__':
                             # Reset loss and accuracy
                             train_loss = []
                             train_acc = []
+
                             loss_summary = tf.Summary(value=[tf.Summary.Value(tag='train_loss', simple_value=avg_loss),
                                                              tf.Summary.Value(tag='train_accuracy', simple_value=avg_acc)])
                             write_op.add_summary(loss_summary, global_step=step)
@@ -251,7 +256,7 @@ if __name__ == '__main__':
                 # profiler.advise(options=opts)
 
                 # Perform learning rate annealing
-                lr = anneal_learning_rate(lr, epoch, step, args)
+                lr = anneal_learning_rate(lr, epoch, step, args, sess)
 
                 # ---------------- TESTING ---------------- #
                 best_acc = 0

@@ -121,6 +121,9 @@ class Network:
             elif isinstance(cur_layer, BatchNormalisationLayer):
                 return cur_layer(x, is_training=is_training)
 
+            elif isinstance(cur_layer, DropoutLayer):
+                return cur_layer(x, is_training=is_training)
+
             elif isinstance(cur_layer, ReLU):  # issubclass(cur_layer, NonLinearityLayer):
                 """ Any non-linearity, ReLU, HSwitch etc have the same interface """
                 act = cur_layer(x)
