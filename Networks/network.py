@@ -145,7 +145,7 @@ class Network:
             elif isinstance(cur_layer, contrib.DenseBlock):
 
                 w = self._weights.get_layer_weights(layer_idx)
-                assert isinstance(w, Weights.JustKernels), \
+                assert isinstance(w, Weights.DenseNetConvBlock), \
                     "The layer weights don't match up with the layer type"
 
                 return cur_layer(x, w, is_training=is_training)

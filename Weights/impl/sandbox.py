@@ -29,7 +29,7 @@ def convolution(cur_layer, layer_idx, name="Convolution"):
 
         # Auxiliary indices
         # NOTE: Must specify shared at start
-        kernel.add_edge("WH", "G", name="r0", length=ranks[0], shared=True)
+        kernel.add_edge("WH", "G", name="r0", length=ranks[0])  # shared=true
         kernel.add_edge("C", "G", name="r1", length=ranks[1])
         kernel.add_edge("N", "G", name="r2", length=ranks[2])
 
@@ -246,8 +246,14 @@ def pointwise_dot(cur_layer, layer_idx):
         tf.summary.image("c", _c, collections=['train'])
         tf.summary.histogram(f"c", _c, collections=['train'])
 
-        # REMEMBER: f"g_{layer_idx}" if not reusing
-        g = tf.get_variable(f"g", shape=[shape[1], shape[2]],
+        # If sharing across layers (must have same shape)
+        share_g = False
+        if share_g:
+            g_name = f"g"
+        else:
+            g_name = f"g_{layer_idx}"
+
+        g = tf.get_variable(g_name, shape=[shape[1], shape[2]],
                             collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                             initializer=cur_layer.kernel_initializer,
                             regularizer=cur_layer.kernel_regularizer,
@@ -269,35 +275,17 @@ def pointwise_dot(cur_layer, layer_idx):
 
         tf.summary.histogram(f"n_{layer_idx}", n, collections=['train'])
 
-        bias1 = None
-        bias2 = None
-        bias3 = None
+        bias = None
         if cur_layer.using_bias():
-            bias1 = tf.get_variable(f"bias1_{layer_idx}", shape=[shape[1]],  # W x H x C x r1
-                                    initializer=cur_layer.bias_initializer,
-                                    regularizer=cur_layer.bias_regularizer,
-                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
-                                    trainable=True)
+            bias = tf.get_variable(f"bias_{layer_idx}", shape=[shape[3]],  # W x H x C x n
+                                   initializer=cur_layer.bias_initializer,
+                                   regularizer=cur_layer.bias_regularizer,
+                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
+                                   trainable=True)
 
-            tf.summary.histogram(f"bias1_{layer_idx}", bias1)
+            tf.summary.histogram(f"bias_{layer_idx}", bias)
 
-            bias2 = tf.get_variable(f"bias2_{layer_idx}", shape=[shape[2]],  # W x H x C x r2
-                                    initializer=cur_layer.bias_initializer,
-                                    regularizer=cur_layer.bias_regularizer,
-                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
-                                    trainable=True)
-
-            tf.summary.histogram(f"bias2_{layer_idx}", bias2)
-
-            bias3 = tf.get_variable(f"bias3_{layer_idx}", shape=[shape[3]],  # W x H x C x n
-                                    initializer=cur_layer.bias_initializer,
-                                    regularizer=cur_layer.bias_regularizer,
-                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
-                                    trainable=True)
-
-            tf.summary.histogram(f"bias3_{layer_idx}", bias3)
-
-    return Weights.PointwiseDot(c, g, n, bias1, bias2, bias3)
+    return Weights.PointwiseDot(c, g, n, bias)
 
 
 def custom_bottleneck(cur_layer, layer_idx):
@@ -400,10 +388,13 @@ def custom_bottleneck(cur_layer, layer_idx):
 
 
 def dense_block(cur_layer, layer_idx):
-    kernels = []
+    pointwise_kernels = []
+    conv_kernels = []
     with tf.variable_scope(f"DenseBlock_{layer_idx}"):
         in_channels = cur_layer.in_channels
-        for i in range(cur_layer.N):
+        for i in range(cur_layer.num_layers):
+            raise Exception("Add pointwise")
+
             kernel = Graph(f"graph_{i}")
 
             # Add the nodes w/ exposed indices
@@ -416,9 +407,10 @@ def dense_block(cur_layer, layer_idx):
 
             # Auxiliary indices
             # NOTE: Must specify shared at start
-            kernel.add_edge("WH", "G", name="r0", length=20)
-            kernel.add_edge("C", "G", name="r1", length=56)
-            kernel.add_edge("N", "G", name="r2", length=56)
+            # Put more emphasis on spatial dimensions here. Transition layer is for depthwise.
+            kernel.add_edge("WH", "G", name="r0", length=16)
+            kernel.add_edge("C", "G", name="r1", length=int(in_channels/16))
+            kernel.add_edge("N", "G", name="r2", length=cur_layer.growth_rate/3)
 
             # Compile/generate the tf.Variables and add to the set of weights
             kernel.compile()
@@ -444,10 +436,10 @@ def dense_block(cur_layer, layer_idx):
             tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
 
             # Add it to the list of kernels
-            kernels.append(kernel)
+            conv_kernels.append(kernel)
 
             # Next layer is concatenation of input and output of previous layer
             in_channels += cur_layer.growth_rate
 
     # Reuse this interface but each element is a list for each subsequent bottleneck
-    return Weights.JustKernels(kernels)
+    return Weights.DenseNetConvBlock(pointwise_kernels, conv_kernels)

@@ -131,7 +131,8 @@ class BiasLayerConstant(ILayer):
 
 
 class FullyConnectedLayer(ILayer):
-    def __init__(self, shape, build_method=Weights.impl.core, use_bias=True, kernel_initializer=tf.glorot_normal_initializer(),
+    def __init__(self, shape, build_method=Weights.impl.core, use_bias=True,
+                 kernel_initializer=tf.glorot_normal_initializer(),
                  bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
 

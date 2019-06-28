@@ -22,10 +22,12 @@ class Weights:
     FullyConnected = namedtuple('FullyConnected', ["kernel", "bias"])
     Mobilenetv2Bottleneck = namedtuple('Mobilenetv2Bottleneck', ["expansion_kernel", "depthwise_kernel",
                                                                  "projection_kernel"])
-    PointwiseDot = namedtuple('PointwiseDot', ["c", "g", "n", "bias1", "bias2", "bias3"])
+    PointwiseDot = namedtuple('PointwiseDot', ["c", "g", "n", "bias"])
 
     CustomBottleneck = namedtuple('CustomBottleneck', ["conv_kernel", "depthwise_kernel", "pointwise_kernel",
                                                        "factored_pointwise_kernel", "bias"])
+
+    DenseNetConvBlock = namedtuple('DenseNetConvBlock', ["pointwise_kernel", "conv_kernel"])
 
     # If we just want a (list?) of kernels
     JustKernels = namedtuple('JustKernels', ["kernel"])
@@ -44,6 +46,11 @@ class Weights:
             :return namedtuple w, where each member is a tf.Variable weight associated with this layer
                     e.g. w.kernel, w.bias
         """
+
+        if layer_idx not in self._weights:
+            # No weights for this layer
+            return None
+
         w = self._weights[layer_idx]
         return Weights.extract_tf_weights(w, switch)
 

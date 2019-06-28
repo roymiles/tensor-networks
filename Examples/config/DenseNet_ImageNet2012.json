@@ -1,18 +1,22 @@
 {
   "architecture": "DenseNet",
   "dataset_name": "ImageNet2012",
-  "depth": 169,
 
-  "batch_size": 16,
+  "batch_size": 8,
   "optimizer": "Momentum",
   "momentum": 0.9,
   "use_nesterov": true,
   "learning_rate": 0.1,
-  "num_epochs": 300,
+  "epoch_decay_boundaries": [30, 60],
+  "num_epochs": 90,
+
+  "growth_rate": 32,
+  "reduction": 0.5,
   "build_method": "standard",
+  "depth": 169,
+  "dropout_rate": 0.2,
 
   "weight_decay": 1e-4,
   "test_every": 1,
-  "seed": 0,
-  "ranks": [96, 96]
+  "seed": 0
 }

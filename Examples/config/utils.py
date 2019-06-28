@@ -103,10 +103,14 @@ def get_optimizer(args):
 
 def preprocess_images_fn(ds_args):
     """ Data augmentation """
-    return lambda x: tf.compat.v1.image.resize(tf.image.random_flip_left_right(x),
-                                               [ds_args.img_height, ds_args.img_width],
-                                               method=tf.image.ResizeMethod.BILINEAR,
-                                               align_corners=False)
+    # TODO: Hard coded sizes
+    # 40 -> 32
+    return lambda x: tf.image.random_crop(tf.compat.v1.image.resize(tf.image.random_flip_left_right(x),
+                                                                    # [ds_args.img_height, ds_args.img_width],
+                                                                    [256, 256],
+                                                                    method=tf.image.ResizeMethod.BILINEAR,
+                                                                    align_corners=False),
+                                          size=[224, 224, 3])
 
 
 def is_epoch_decay(epoch, args):

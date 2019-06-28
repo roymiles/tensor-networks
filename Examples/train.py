@@ -24,6 +24,12 @@ from tensorflow.python.tools import freeze_graph, optimize_for_inference_lib
 from tensorflow.python.platform import gfile
 from transforms import normalize_images
 
+# For knowledge distillation
+from keras.applications.densenet import DenseNet169
+from keras.preprocessing import image
+from keras.applications.resnet50 import preprocess_input, decode_predictions
+#base_model = ResNet50(weights='imagenet')
+
 # The info messages are getting tedious now
 tf.logging.set_verbosity(tf.logging.WARN)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -98,7 +104,10 @@ if __name__ == '__main__':
         label_names = info.features['label'].names
 
         # Uses "test" on CIFAR, MNIST, "validation" on ImageNet
-        ds_train, ds_test = datasets['train'], datasets['validation']
+        if args.dataset_name == "ImageNet2012":
+            ds_train, ds_test = datasets['train'], datasets['validation']
+        else:
+            ds_train, ds_test = datasets['train'], datasets['test']
 
         # Build your input pipeline
         ds_train = ds_train.map(
@@ -174,7 +183,7 @@ if __name__ == '__main__':
         init_op = tf.global_variables_initializer()
         config = tf.ConfigProto(
             # device_count={'GPU': 0},  # If want to run on CPU only
-            gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.333, allow_growth=True)
+            gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.9, allow_growth=True)
         )
 
         # Session, Interactive session (InteractiveSession)) catches errors better

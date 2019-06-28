@@ -6,6 +6,7 @@ import tensorflow as tf
 from Layers.impl.core import ConvLayer, FullyConnectedLayer
 from Layers.layer import ILayer
 from Weights.weights import Weights
+from Networks.network import Network
 
 import tensorly as tl
 # If use tensorflow, it gets confusing with eager execution in parts
@@ -46,7 +47,7 @@ def estimate_ranks(weights):
     return ranks
 
 
-def convert_layers(sess, input_weights, reference_weights, num_iterations=1000, learning_rate=0.001):
+def initialise_layer_with_reference(sess, input_weights, reference_weights, num_iterations=1000, learning_rate=0.001):
     """
 
     :param sess: Current session for the reference weights
@@ -58,8 +59,10 @@ def convert_layers(sess, input_weights, reference_weights, num_iterations=1000, 
     """
 
     # Convert(?) to tfvar format
-    y_hat = Weights.extract_tf_weights(input_weights)
-    y = Weights.extract_tf_weights(reference_weights)
+    # y_hat = Weights.extract_tf_weights(input_weights)
+    # y = Weights.extract_tf_weights(reference_weights)
+    y_hat = input_weights
+    y = reference_weights
 
     # Must be of the same type
     assert(y_hat.fields == y.fields)
@@ -93,6 +96,31 @@ def convert_layers(sess, input_weights, reference_weights, num_iterations=1000, 
     return input_weights, merged
 
 
-if __name__ == '__main__':
-    tf.reset_default_graph()
+def initialise_network_with_reference(sess, input_network, reference_network, num_iterations=1000, learning_rate=0.001):
+    """
+        Accept a network and initialise its weights such that they are similar to the reference network once built
+    :param sess:
+    :param input_network:
+    :param reference_network:
+    :param num_iterations:
+    :param learning_rate:
+    :return:
+    """
+
+    assert isinstance(input_network, Network)
+    assert isinstance(reference_network, Network)
+
+    # Loop through all the layers and make input network layer as close to reference network as possible
+    input_weights = input_network.get_weights()
+    ref_weights = reference_network.get_weights()
+    for layer_idx in range(input_network.get_num_layers()):
+        w_hat = input_weights.get_layer_weights(layer_idx)
+        w = ref_weights.get_layer_weights(layer_idx)
+
+        if w and w_hat:
+            initialise_layer_with_reference(sess, w_hat, w, num_iterations, learning_rate)
+
+    return input_network
+
+
 

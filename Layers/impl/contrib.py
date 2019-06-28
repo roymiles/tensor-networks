@@ -148,30 +148,24 @@ class PointwiseDot(ILayer):
     def using_bias(self):
         return self._use_bias
 
-    def __call__(self, input, weights, is_training=True, switch_idx=0):
+    def __call__(self, input, weights, is_training=True):
         # input : B x w x h x c
         # c     : c x r1
         # g     : r1 x r2
         # n     : r2 x n
         net = tf.tensordot(input, weights.c, axes=[3, 0])
-        if weights.bias1:
-            net = tf.nn.bias_add(net, weights.bias1)
-
         net = tf.layers.batch_normalization(net, training=is_training)
         # No ReLU here?
 
         # B x w x h x r1
         net = tf.tensordot(net, weights.g, axes=[3, 0])
-        if weights.bias2:
-            net = tf.nn.bias_add(net, weights.bias2)
-
         net = tf.layers.batch_normalization(net, training=is_training)
         net = tf.nn.relu(net)
 
         # B x w x h x r2
         net = tf.tensordot(net, weights.n, axes=[3, 0])
-        if weights.bias3:
-            net = tf.nn.bias_add(net, weights.bias3)
+        if weights.bias:
+            net = tf.nn.bias_add(net, weights.bias)
 
         net = tf.layers.batch_normalization(net, training=is_training)
         net = tf.nn.relu(net)
@@ -272,7 +266,7 @@ class CustomBottleneck(ILayer):
 
 
 class DenseBlock(ILayer):
-    def __init__(self, name, in_channels, num_layers, growth_rate=12, build_method=Weights.impl.sandbox,
+    def __init__(self, name, in_channels, num_layers, growth_rate, dropout_rate, build_method=Weights.impl.sandbox,
                  kernel_initializer=tf.glorot_normal_initializer(),  bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         """
@@ -287,6 +281,7 @@ class DenseBlock(ILayer):
         self.num_layers = num_layers
         self.growth_rate = growth_rate
         self.build_method = build_method
+        self.dropout_rate = dropout_rate
 
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
@@ -296,12 +291,19 @@ class DenseBlock(ILayer):
     def create_weights(self):
         return self.build_method.dense_block
 
-    def add_layer(self, name, input, kernel, is_training):
+    def add_layer(self, name, input, pointwise_kernel, conv_kernel, is_training):
         with tf.variable_scope(name):
             net = tf.layers.batch_normalization(input, training=is_training)
             net = tf.nn.relu(net)
-            # net = tf.layers.conv2d(net, self.growth_rate, kernel_size=(3, 3), use_bias=False, padding="SAME")
-            net = tf.nn.conv2d(net, kernel, strides=[1, 1, 1, 1], padding="SAME")
+
+            # 1x1 conv
+            net = tf.nn.conv2d(net, pointwise_kernel, strides=[1, 1, 1, 1], padding="SAME")
+            net = tf.layers.dropout(net, rate=self.dropout_rate, training=is_training)
+            net = tf.layers.batch_normalization(net, training=is_training)
+            net = tf.nn.relu(net)
+
+            net = tf.nn.conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
+            net = tf.layers.dropout(net, rate=self.dropout_rate, training=is_training)
             net = tf.concat([input, net], axis=3)
             return net
 
@@ -310,7 +312,8 @@ class DenseBlock(ILayer):
         with tf.variable_scope(self.name):
             net = input
             for i in range(self.num_layers):
-                net = self.add_layer(f"composite_layer_{i}", net, weights.kernel[i], is_training)
+                net = self.add_layer(f"composite_layer_{i}", net, weights.pointwise_kernel[i], weights.conv_kernel[i],
+                                     is_training)
                 # output channels = input channels + growth rate
 
         return net

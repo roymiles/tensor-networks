@@ -118,24 +118,35 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
 
 
 def dense_block(cur_layer, layer_idx):
-    kernels = []
+    pointwise_kernels = []
+    conv_kernels = []
     with tf.variable_scope(f"DenseBlock_{layer_idx}"):
         in_channels = cur_layer.in_channels
         for i in range(cur_layer.num_layers):
-            kernel = tf.get_variable(f"kernel_{layer_idx}_{i}", shape=[3, 3, in_channels, cur_layer.growth_rate],
-                                     collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                     initializer=cur_layer.kernel_initializer,
-                                     regularizer=cur_layer.kernel_regularizer,
-                                     trainable=True)
+            pointwise_kernel = tf.get_variable(f"pointwise_kernel_{layer_idx}_{i}",
+                                               shape=[1, 1, in_channels, 4 * cur_layer.growth_rate],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                               initializer=cur_layer.kernel_initializer,
+                                               regularizer=cur_layer.kernel_regularizer,
+                                               trainable=True)
+
+            conv_kernel = tf.get_variable(f"conv_kernel_{layer_idx}_{i}",
+                                          shape=[3, 3, 4 * cur_layer.growth_rate, cur_layer.growth_rate],
+                                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                          initializer=cur_layer.kernel_initializer,
+                                          regularizer=cur_layer.kernel_regularizer,
+                                          trainable=True)
             # Add it to the list of kernels
-            kernels.append(kernel)
+            pointwise_kernels.append(pointwise_kernel)
+            conv_kernels.append(conv_kernel)
 
             # Next layer is concatenation of input and output of previous layer
             in_channels += cur_layer.growth_rate
 
     # Tensorboard
-    for i, k in enumerate(kernels):
-        tf.summary.histogram(f"dense_block_kernel_{layer_idx}_{i}", k, collections=['train'])
+    for i, (k1, k2) in enumerate(zip(pointwise_kernels, conv_kernels)):
+        tf.summary.histogram(f"dense_block_pointwise_kernel_{layer_idx}_{i}", k1, collections=['train'])
+        tf.summary.histogram(f"dense_block_conv_kernel_{layer_idx}_{i}", k2, collections=['train'])
 
     # Reuse this interface but each element is a list for each subsequent bottleneck
-    return Weights.JustKernels(kernels)
+    return Weights.DenseNetConvBlock(pointwise_kernels, conv_kernels)
