@@ -132,7 +132,7 @@ class Network:
                 assert isinstance(w, Weights.Mobilenetv2Bottleneck), \
                     "The layer weights don't match up with the layer type"
 
-                return cur_layer(x, w)
+                return cur_layer(x, w, is_training=is_training)
 
             elif isinstance(cur_layer, contrib.PointwiseDot):
 

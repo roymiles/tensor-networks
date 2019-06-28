@@ -27,7 +27,7 @@ class Weights:
     CustomBottleneck = namedtuple('CustomBottleneck', ["conv_kernel", "depthwise_kernel", "pointwise_kernel",
                                                        "factored_pointwise_kernel", "bias"])
 
-    DenseNetConvBlock = namedtuple('DenseNetConvBlock', ["pointwise_kernel", "conv_kernel"])
+    DenseNetConvBlock = namedtuple('DenseNetConvBlock', ["pointwise_kernels", "conv_kernels"])
 
     # If we just want a (list?) of kernels
     JustKernels = namedtuple('JustKernels', ["kernel"])

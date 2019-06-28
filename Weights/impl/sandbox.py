@@ -393,53 +393,59 @@ def dense_block(cur_layer, layer_idx):
     with tf.variable_scope(f"DenseBlock_{layer_idx}"):
         in_channels = cur_layer.in_channels
         for i in range(cur_layer.num_layers):
-            raise Exception("Add pointwise")
+            pointwise_kernel = tf.get_variable(f"pointwise_kernel_{layer_idx}_{i}",
+                                               shape=[1, 1, in_channels, 4 * cur_layer.growth_rate],
+                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                               initializer=cur_layer.kernel_initializer,
+                                               regularizer=cur_layer.kernel_regularizer,
+                                               trainable=True)
 
-            kernel = Graph(f"graph_{i}")
+            conv_kernel = Graph(f"conv_graph_{i}")
 
             # Add the nodes w/ exposed indices
-            kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
-                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            kernel.add_node("C", shape=[in_channels], names=["C"],
-                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"],
-                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            conv_kernel.add_node("C", shape=[in_channels], names=["C"],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+            conv_kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
             # Auxiliary indices
             # NOTE: Must specify shared at start
             # Put more emphasis on spatial dimensions here. Transition layer is for depthwise.
-            kernel.add_edge("WH", "G", name="r0", length=16)
-            kernel.add_edge("C", "G", name="r1", length=int(in_channels/16))
-            kernel.add_edge("N", "G", name="r2", length=cur_layer.growth_rate/3)
+            conv_kernel.add_edge("WH", "G", name="r0", length=16)
+            conv_kernel.add_edge("C", "G", name="r1", length=int(in_channels/16))
+            conv_kernel.add_edge("N", "G", name="r2", length=cur_layer.growth_rate/3)
 
             # Compile/generate the tf.Variables and add to the set of weights
-            kernel.compile()
-            kernel.set_output_shape(["W", "H", "C", "N"])
+            conv_kernel.compile()
+            conv_kernel.set_output_shape(["W", "H", "C", "N"])
 
             # Was having some issues
-            Graph.debug(kernel.get_graph(), f"debug_{i}")
+            # Graph.debug(conv_kernel.get_graph(), f"debug_{i}")
 
             # Some plots for Tensorboard
-            c = kernel.get_node("C")
+            c = conv_kernel.get_node("C")
             c_shape = c.get_shape().as_list()
             c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
             tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
 
-            n = kernel.get_node("N")
+            n = conv_kernel.get_node("N")
             n_shape = n.get_shape().as_list()
             n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
             tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
 
-            g = kernel.get_node("G")
+            g = conv_kernel.get_node("G")
             g_shape = g.get_shape().as_list()
             g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
             tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
 
             # Add it to the list of kernels
-            conv_kernels.append(kernel)
+            pointwise_kernels.append(pointwise_kernel)
+            conv_kernels.append(conv_kernel)
 
             # Next layer is concatenation of input and output of previous layer
             in_channels += cur_layer.growth_rate
 
     # Reuse this interface but each element is a list for each subsequent bottleneck
-    return Weights.DenseNetConvBlock(pointwise_kernels, conv_kernels)
+    return Weights.DenseNetConvBlock(pointwise_kernels=pointwise_kernels, conv_kernels=conv_kernels)

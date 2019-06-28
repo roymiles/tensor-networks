@@ -66,32 +66,34 @@ class MobileNetV2BottleNeck(ILayer):
     def create_weights(self):
         return self._build_method.mobilenetv2_bottleneck
 
-    def __call__(self, input, weights, switch_idx=0):
+    def __call__(self, input, weights, is_training):
 
         # Expansion layer
         net = tf.nn.conv2d(input, weights.expansion_kernel, strides=[1, 1, 1, 1], padding="SAME")
-        with tf.variable_scope(f"bn1_switch_{switch_idx}"):
-            net = tf.layers.batch_normalization(net)
+        net = tf.layers.batch_normalization(net, training=is_training)
         net = tf.nn.relu(net)
 
         # Depthwise layer
         net = tf.nn.depthwise_conv2d(net, weights.depthwise_kernel, strides=self._strides, padding="SAME")
-        with tf.variable_scope(f"bn2_switch_{switch_idx}"):
-            net = tf.layers.batch_normalization(net)
+        net = tf.layers.batch_normalization(net, training=is_training)
         net = tf.nn.relu(net)
 
         # Projection layer (linear)
         net = tf.nn.conv2d(net, weights.projection_kernel, strides=[1, 1, 1, 1], padding="SAME")
-        with tf.variable_scope(f"bn3_switch_{switch_idx}"):
-            net = tf.layers.batch_normalization(net)
+        net = tf.layers.batch_normalization(net, training=is_training)
 
         # Only residual add when strides is 1
         is_residual = True if self._strides == [1, 1, 1, 1] else False
-        is_conv_res = False if net.get_shape().as_list()[3] == input.get_shape().as_list()[3] else True
+        # is_conv_res = False if net.get_shape().as_list()[3] == input.get_shape().as_list()[3] else True
 
         if is_residual:
 
-            if is_conv_res:
+            if net.get_shape().as_list()[3] == input.get_shape().as_list()[3]:
+                return net + input
+            else:
+                return net
+
+            """if is_conv_res:
                 # See: https://github.com/MG2033/MobileNet-V2/blob/master/layers.py
                 # If not matching channels, place a 1x1 convolution to ensure match
                 x = tf.layers.conv2d(input, net.get_shape().as_list()[3], (1, 1), use_bias=False,
@@ -103,7 +105,7 @@ class MobileNetV2BottleNeck(ILayer):
 
                 return net + x
             else:
-                return net + input
+                return net + input"""
         else:
             return net
 
@@ -118,6 +120,11 @@ class MobileNetV2BottleNeck(ILayer):
 
     def get_strides(self):
         return self._strides
+
+# class OffsetConvolutionLayer(ILayer):
+    """
+        Factors 
+    """
 
 
 class PointwiseDot(ILayer):
@@ -178,6 +185,12 @@ class CustomBottleneck(ILayer):
     def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME", partitions=[0.8, 0.8],
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None, ranks=None):
+        """
+            Custom implementation for the depthwise separable layers
+
+            The pointwise convolution is separated across the input channel dimensions
+            Whereas the depthwise + standard convolution
+        """
         super().__init__()
 
         px = strides[0]

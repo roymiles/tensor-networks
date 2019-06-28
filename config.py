@@ -4,6 +4,7 @@
 import os
 
 working_dir = "/media/roy/New Volume/"
+print(f"Working directory: {working_dir}")
 
 # Where all the tfds datasets are downloaded to
 tfds_dir = working_dir + "tensorflow-datasets"

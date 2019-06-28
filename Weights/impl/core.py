@@ -149,4 +149,4 @@ def dense_block(cur_layer, layer_idx):
         tf.summary.histogram(f"dense_block_conv_kernel_{layer_idx}_{i}", k2, collections=['train'])
 
     # Reuse this interface but each element is a list for each subsequent bottleneck
-    return Weights.DenseNetConvBlock(pointwise_kernels, conv_kernels)
+    return Weights.DenseNetConvBlock(pointwise_kernels=pointwise_kernels, conv_kernels=conv_kernels)

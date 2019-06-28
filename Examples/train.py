@@ -26,6 +26,7 @@ from transforms import normalize_images
 
 # For knowledge distillation
 from keras.applications.densenet import DenseNet169
+from keras.applications.mobilenetv2 import MobileNetV2
 from keras.preprocessing import image
 from keras.applications.resnet50 import preprocess_input, decode_predictions
 #base_model = ResNet50(weights='imagenet')
@@ -38,7 +39,8 @@ print(tf.__version__)
 
 # Run on multiple models/architectures/learning methods
 pipeline = [
-    "DenseNet_ImageNet2012.json"
+    #"DenseNet_ImageNet2012.json"
+    "MobileNetV2_CIFAR10.json"
     #"DenseNet_CIFAR10.json"
     #"pipeline/Baseline.json",
     #"pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
@@ -271,16 +273,19 @@ if __name__ == '__main__':
                 # profiler.advise(options=opts)
 
                 # Decay learning rate every n epochs
-                if is_epoch_decay(epoch, args):
+                # if is_epoch_decay(epoch, args):
                     # When decaying the learning rate, use the one with the best results
                     # (not necessarily most recent ckpt)
+                    """
                     ckpts = os.listdir(checkpoint_dir)
                     best_ckpts = sorted([name for name in ckpts if 'best' in name])
                     if best_ckpts:
+                        # TODO: Find better way of extracting best ckpt
                         # If there is a best checkpoint, load most recent one
-                        saver.restore(sess, f"{checkpoint_dir}/{best_ckpts}")
-
-                    lr = lr * args.learning_rate_decay
+                        saver.restore(sess, f"{checkpoint_dir}/{best_ckpts[0]}")
+                    """
+                    # lr = lr * args.learning_rate_decay
+                lr = anneal_learning_rate(lr, epoch, step, args)
 
                 # ---------------- TESTING ---------------- #
                 best_acc = 0

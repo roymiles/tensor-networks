@@ -104,13 +104,14 @@ def get_optimizer(args):
 def preprocess_images_fn(ds_args):
     """ Data augmentation """
     # TODO: Hard coded sizes
-    # 40 -> 32
+    # 40 -> 32 for Cifar10/100
+    # 256 -> 224 for ImageNet
     return lambda x: tf.image.random_crop(tf.compat.v1.image.resize(tf.image.random_flip_left_right(x),
                                                                     # [ds_args.img_height, ds_args.img_width],
-                                                                    [256, 256],
+                                                                    [40, 40],
                                                                     method=tf.image.ResizeMethod.BILINEAR,
                                                                     align_corners=False),
-                                          size=[224, 224, 3])
+                                          size=[32, 32, 3])
 
 
 def is_epoch_decay(epoch, args):
@@ -126,3 +127,34 @@ def is_epoch_decay(epoch, args):
             return True
 
     return False
+
+
+def anneal_learning_rate(lr, epoch, step, args):
+    """ Perform learning rate annealing, as defined by the training .json/.yaml config """
+    try:
+        if hasattr(args, "basic_lr_annealing"):
+
+            # These are basic learning rate annealing strategies
+            if hasattr(args.basic_lr_annealing, "num_epochs_decay"):
+                # Decay every n epochs
+                if epoch % args.num_epochs_decay == 0:
+                    return lr * args.basic_lr_annealing.lr_decay
+            elif hasattr(args, 'epoch_decay_boundaries'):
+                # Decay at predefined epoch boundaries
+                if epoch in args.epoch_decay_boundaries:
+                    return lr * args.basic_lr_annealing.lr_decay
+            else:
+                raise Exception("Unspecified learning rate annealing strategy")
+
+        elif hasattr(args, 'cosine_decay'):
+            # Cosine annealing learning rate scheduler with periodic restarts.
+            return tf.train.cosine_decay(lr, step, args.cosine_decay.decay_steps)
+
+        else:
+            # Don't perform any learning rate annealing
+            return lr
+
+    except AttributeError:
+        print("Invalid learning rate annealing structure in config")
+
+
