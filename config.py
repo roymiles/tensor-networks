@@ -1,6 +1,8 @@
 """ Generic configuration file with no dependencies
     For example, learning rate, batch size etc """
 
+import os
+
 working_dir = "/media/roy/New Volume/"
 
 # Where all the tfds datasets are downloaded to
@@ -30,3 +32,24 @@ save_dir = output_dir + "models"
 # Where the class labels are stored
 labels_dir = output_dir + "labels"
 
+# If the directories do not exist, make them
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+if not os.path.exists(profiling_dir):
+    os.makedirs(profiling_dir)
+
+if not os.path.exists(tensorboard_dir):
+    os.makedirs(tensorboard_dir)
+
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+
+if not os.path.exists(tflite_dir):
+    os.makedirs(tflite_dir)
+
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+if not os.path.exists(labels_dir):
+    os.makedirs(labels_dir)
