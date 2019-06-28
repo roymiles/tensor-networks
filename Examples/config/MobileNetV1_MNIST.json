@@ -11,5 +11,9 @@
   "num_epochs_decay": 2,
 
   "test_every": 1,
-  "seed": 42
+  "seed": 42,
+
+
+  "preprocessing":
+  {"train": "random_crop": {"height": 10, "width": 10}}
 }

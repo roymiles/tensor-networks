@@ -12,6 +12,10 @@ from Architectures.impl.AlexNet import AlexNet
 from Architectures.impl.DenseNet import DenseNet
 from transforms import aspect_preserving_resize
 
+"""
+    This file provides utility functions for using the .json/.yaml configuration files
+"""
+
 
 def _dict_object_hook(d): return namedtuple('X', d.keys())(*d.values())
 
@@ -20,34 +24,24 @@ def _dict_object_hook(d): return namedtuple('X', d.keys())(*d.values())
 def json2obj(data): return json.loads(data, object_hook=_dict_object_hook)
 
 
-_JSON = 0
-_YAML = 1
-
-
-def load_config(name, mode=_JSON, as_obj=True):
+def load_config(filename):
     """ Load training configuration """
-    if mode == _JSON:
-        """ Load .json format """
-        with open(f"{os.getcwd()}/config/{name}") as json_file:
-            if as_obj:
-                # As object
-                d = json_file.read()
-                x = json2obj(d)
-                return x
-            else:
-                # As dictionary
-                return json.load(json_file)
-    elif mode == _YAML:
-        """ Load .yaml format """
-        with open(f"{os.getcwd()}/config/{name}", 'r') as yaml_file:
+    _, config_ext = os.path.splitext(filename)
+
+    if config_ext == ".json":
+
+        with open(f"{os.getcwd()}/config/{filename}") as json_file:
+            d = json_file.read()
+            x = json2obj(d)
+            return x
+
+    elif config_ext == ".yaml":
+
+        with open(f"{os.getcwd()}/config/{filename}", 'r') as yaml_file:
             d = yaml_file.safe_load()
-            if as_obj:
-                # As object
-                x = _dict_object_hook(d)
-                return x
-            else:
-                # As dictionary
-                return d
+            x = _dict_object_hook(d)
+            return x
+
     else:
         raise Exception("Unknown file type")
 
@@ -83,50 +77,82 @@ def get_optimizer(args):
         Get the optimizer based on the arguments
 
         :param args: Object containing arguments as members, including name of optimizer, learning rate etc
-        :return: Optimizer, just call .minimize on this object
+        :return: Optimizer, just call .minimize on this object AND the learning rate placeholder
     """
 
     with tf.variable_scope("input"):
         learning_rate = tf.placeholder(tf.float64, shape=[])
 
-    name = args.optimizer
-    if name == "Adam":
+    opt = args.optimizer
+    if opt.name == "Adam":
         return tf.train.AdamOptimizer(learning_rate=learning_rate), learning_rate
-    elif name == "RMSProp":
+    elif opt.name == "RMSProp":
         return tf.train.RMSPropOptimizer(learning_rate=learning_rate), learning_rate
-    elif name == "Momentum":
-        return tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=args.momentum,
-                                          use_nesterov=args.use_nesterov), learning_rate
+    elif opt.name == "Momentum":
+        return tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=opt.momentum,
+                                          use_nesterov=opt.use_nesterov), learning_rate
     else:
         raise Exception("Unknown optimizer")
 
 
-def preprocess_images_fn(ds_args):
-    """ Data augmentation """
-    # TODO: Hard coded sizes
+def preprocess_images_fn(args, ds_args, is_training=True):
+    """ Apply the pre-processing transforms as defined by the config """
+    from transforms import *
+
     # 40 -> 32 for Cifar10/100
     # 256 -> 224 for ImageNet
-    return lambda x: tf.image.random_crop(tf.compat.v1.image.resize(tf.image.random_flip_left_right(x),
-                                                                    # [ds_args.img_height, ds_args.img_width],
-                                                                    [40, 40],
-                                                                    method=tf.image.ResizeMethod.BILINEAR,
-                                                                    align_corners=False),
-                                          size=[32, 32, 3])
+
+    if is_training:
+        transforms = args.pre_processing.train
+    else:
+        transforms = args.pre_processing.test
+
+    # List of all the transform functions
+    funcs = []
+
+    for name, properties in transforms._asdict().items():
+        if name == "normalize":
+            funcs.append(lambda x, mean=ds_args.mean, std=ds_args.std: normalize_images(x, mean, std))
+        elif name == "random_crop":
+            funcs.append(lambda x, width=properties.width, height=properties.height:
+                         tf.image.random_crop(x, size=[width, height, 3]))
+        elif name == "random_flip_left_right":
+            funcs.append(lambda x: tf.image.random_flip_left_right(x))
+        elif name == "resize":
+            funcs.append(lambda x, width=properties.width, height=properties.height:
+                         tf.compat.v1.image.resize(x, [width, height],
+                                                   method=tf.image.ResizeMethod.BILINEAR,
+                                                   align_corners=False))
+
+    # Combine the list of transforms into a single lambda expression
+    def f(x):
+        # reversed(funcs) if applying transforms bottom up (in config)
+        for func in funcs:
+            x = func(x)
+
+        return x
+
+    return f
 
 
-def is_epoch_decay(epoch, args):
-    """ Can decay depending on list or every n epochs """
-    if epoch == 0:
-        return False
+def generate_unique_name(args, ds_args):
+    """ Using the configuration, generate a semi unique string name for saving logs, checkpoints etc """
+    unique_name = f"arch_{args.architecture}_ds_{args.dataset_name}_opt_{args.optimizer.name}"
+    if hasattr(args, 'build_method'):
+        unique_name += f"_build_method_{args.build_method}"
 
-    if hasattr(args, 'num_epochs_decay'):
-        if epoch % args.num_epochs_decay == 0:
-            return True
-    elif hasattr(args, 'epoch_decay_boundaries'):
-        if epoch in args.epoch_decay_boundaries:
-            return True
+    """
+    if args.method == "custom-bottleneck":
+        if hasattr(args, 'ranks'):
+            unique_name += "_ranks_"
+            unique_name += '_'.join(str(x) for x in args.ranks)
+    
+        if hasattr(args, 'partitions'):
+            unique_name += "_partitions_"
+            unique_name += '_'.join(str(x) for x in args.partitions)
+    """
 
-    return False
+    return unique_name
 
 
 def anneal_learning_rate(lr, epoch, step, args):

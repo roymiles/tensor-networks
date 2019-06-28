@@ -29,7 +29,6 @@ from keras.applications.densenet import DenseNet169
 from keras.applications.mobilenetv2 import MobileNetV2
 from keras.preprocessing import image
 from keras.applications.resnet50 import preprocess_input, decode_predictions
-#base_model = ResNet50(weights='imagenet')
 
 # The info messages are getting tedious now
 tf.logging.set_verbosity(tf.logging.WARN)
@@ -39,16 +38,7 @@ print(tf.__version__)
 
 # Run on multiple models/architectures/learning methods
 pipeline = [
-    #"DenseNet_ImageNet2012.json"
     "MobileNetV2_CIFAR10.json"
-    #"DenseNet_CIFAR10.json"
-    #"pipeline/Baseline.json",
-    #"pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
-    #"pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
-    #"pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
-    #"pipeline/CustomBottleNeck_64x64_0.8_0.5.json",
-    #"pipeline/CustomBottleNeck_128x128_0.2_0.5.json",
-    #"pipeline/CustomBottleNeck_128x128_0.2_0.8.json",
 ]
 
 if __name__ == '__main__':
@@ -68,20 +58,8 @@ if __name__ == '__main__':
             seed = 345
 
         # Unique name for this model and training method
-        unique_name = f"arch_{args.architecture}_ds_{args.dataset_name}_opt_{args.optimizer}_seed_{seed}"
-        if hasattr(args, 'build_method'):
-            unique_name += f"_build_method_{args.build_method}"
-
-        """
-        if args.method == "custom-bottleneck":
-            if hasattr(args, 'ranks'):
-                unique_name += "_ranks_"
-                unique_name += '_'.join(str(x) for x in args.ranks)
-
-            if hasattr(args, 'partitions'):
-                unique_name += "_partitions_"
-                unique_name += '_'.join(str(x) for x in args.partitions)
-        """
+        unique_name = generate_unique_name(args, ds_args)
+        unique_name += f"_seed_{seed}"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):
@@ -114,7 +92,7 @@ if __name__ == '__main__':
         # Build your input pipeline
         ds_train = ds_train.map(
             lambda x: {
-                "image": preprocess_images_fn(ds_args)(x['image']),
+                "image": preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
                 "label": x['label'],
             }
         ).shuffle(args.batch_size * 50).batch(args.batch_size)
@@ -272,19 +250,7 @@ if __name__ == '__main__':
                 # Auto detect problems and generate advice.
                 # profiler.advise(options=opts)
 
-                # Decay learning rate every n epochs
-                # if is_epoch_decay(epoch, args):
-                    # When decaying the learning rate, use the one with the best results
-                    # (not necessarily most recent ckpt)
-                    """
-                    ckpts = os.listdir(checkpoint_dir)
-                    best_ckpts = sorted([name for name in ckpts if 'best' in name])
-                    if best_ckpts:
-                        # TODO: Find better way of extracting best ckpt
-                        # If there is a best checkpoint, load most recent one
-                        saver.restore(sess, f"{checkpoint_dir}/{best_ckpts[0]}")
-                    """
-                    # lr = lr * args.learning_rate_decay
+                # Perform learning rate annealing
                 lr = anneal_learning_rate(lr, epoch, step, args)
 
                 # ---------------- TESTING ---------------- #
@@ -345,7 +311,8 @@ if __name__ == '__main__':
                         saver.save(sess, last_ckpt)
 
                         if avg_acc > best_acc:
-                            last_ckpt = f"{checkpoint_dir}/best_epoch{epoch}_acc{avg_acc}.ckpt"
+                            # Found a new best validation accuracy model
+                            last_ckpt = f"{checkpoint_dir}/best_epoch{epoch}_acc{avg_acc:.2f}.ckpt"
                             saver.save(sess, last_ckpt)
                             best_acc = avg_acc
 
