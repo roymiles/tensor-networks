@@ -162,6 +162,19 @@ class Graph:
         nodes = list(g.nodes(data=True))
         for n in nodes:
             print("Node {}".format(n))
+            
+	def create_summaries(self, layer_idx)
+		""" Create Tensbrboard summaries for all the nodes """
+		node_names = self._graph.nodes.keys()
+		for node_name in node_names:
+			node = self._graph.nodes[node_name]["tfvar"]
+			shape = node.get_shape().as_list()
+			tf.summary.histogram(f"{node_name}_{layer_idx}", node, collections=['train'])
+			
+			# If 2D tensor, add as image summary
+			if len(shape) == 2:
+				n = tf.reshape(node, shape=(1, shape[0], shape[1], 1))
+				tf.summary.image(f"{node_name}_{layer_idx}", n, collections=['train'])
 
     @staticmethod
     def number_of_nodes(g):
