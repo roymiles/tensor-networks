@@ -38,20 +38,7 @@ def convolution(cur_layer, layer_idx, name="Convolution"):
         kernel.set_output_shape(["W", "H", "C", "N"])
 
         # Some plots for Tensorboard
-        c = kernel.get_node("C")
-        c_shape = c.get_shape().as_list()
-        c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
-        tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
-
-        n = kernel.get_node("N")
-        n_shape = n.get_shape().as_list()
-        n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
-        tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
-
-        g = kernel.get_node("G")
-        g_shape = g.get_shape().as_list()
-        g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
-        tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
+        kernel.create_summaries()
 
         bias = None
         if cur_layer.using_bias():
