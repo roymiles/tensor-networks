@@ -66,7 +66,7 @@ class Graph:
         return self
 
     def add_edge(self, u_of_edge, v_of_edge, length, name, initializer=tf.glorot_normal_initializer(),
-                 regularizer=None, shared=False, collections=None):
+                 regularizer=None, shared=False, collections=None, handcrafted=False):
         """
         Adds an edge between two tensors. If these tensors do not exist, it will create them
 
@@ -80,6 +80,7 @@ class Graph:
         :param regularizer: If a regularization term, for example L2 norm, weight decay
         :param shared: (boolean) If the weight is shared across layers
         :param collections: Used if you want to group tensorflow variables
+        :param handcrafted: If using tf.Constant, non-learnable
         """
 
         if self._is_compiled:
@@ -94,7 +95,8 @@ class Graph:
         if not self._graph.has_node(v_of_edge):
             # Can specify if v is shared or part of a collection
             self._graph.add_node(v_of_edge, dummy_node=False, initializer=initializer,
-                                 regularizer=regularizer, shared=shared, collections=collections, handcrafted=True)
+                                 regularizer=regularizer, shared=shared, collections=collections,
+                                 handcrafted=handcrafted)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
@@ -127,14 +129,17 @@ class Graph:
                 with tf.variable_scope("tfvar", reuse=tf.AUTO_REUSE):
 
                     # TODO: Note this crashes if node is not 2D!
-                    # if "handcrafted" in self._graph.nodes[node]:
-                    #    c = np.array([sine2D(dims[1], dims[2])])
-                    #    self._graph.nodes[node]["tfvar"] = tf.constant(value=c,
-                    #                                                  name="{}{}_handcrafted".format(scope_name, node),
-                    #                                                   dtype=tf.float32)
+                    if "handcrafted" in self._graph.nodes[node] and 1==2:
+                        # c = np.array([sine2D(dims[1], dims[2])])  # 1 x w x h
+                        # self._graph.nodes[node]["tfvar"] = tf.constant(value=c,
+                        #                                              name="{}{}_handcrafted".format(scope_name, node),
+                        #                                               dtype=tf.float32)
+                        self._graph.nodes[node]["tfvar"] = tf.constant(np.random.normal(loc=0.0,
+                                                                                        scale=1.0, size=dims)
+                                                                       .astype(np.float32))
 
-                    # else:
-                    self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
+                    else:
+                        self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
                                                                            shape=dims,
                                                                            initializer=init, regularizer=reg,
                                                                            collections=collections,

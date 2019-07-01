@@ -51,7 +51,8 @@ class MobileNetV2BottleNeck(ILayer):
         :param expansion: Expansion factor
         :param filters: Number of output channels
         :param strides: Depthwise stride
-        :param ranks: Used if building weights using Graphs
+        :param ranks: Used if building weights using Graphs. Define the % of input channels/output channels for the
+                      expansion and projection kernels
         :param weight_decay: Weight decay for L2 regularisation of expansion and projection weights
         """
         super().__init__()

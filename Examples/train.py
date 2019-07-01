@@ -37,8 +37,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 print(tf.__version__)
 
 pipeline = [
-    "pipeline/MobileNetV2/MobileNetV2_CIFAR10.json",
-    "pipeline/MobileNetV2/MobileNetV2_CIFAR10_96x56x56x96.json",
+    "pipeline/MobileNetV2/MobileNetV2_CIFAR10_1.0x0.2.json",
+    #"pipeline/MobileNetV2/MobileNetV2_CIFAR10.json",
+    #"pipeline/MobileNetV2/MobileNetV2_CIFAR10_1.2x0.2x0.1.2.json",
 ]
 # Run on multiple models/architectures/learning methods
 
@@ -384,9 +385,9 @@ if __name__ == '__main__':
                                       initializer_nodes="")
 
             # Export model tflite
-            export_tflite_from_frozen_graph(f"{save_graph_path}/frozen_model_eval.pb",
-                                            input_nodes=["input/input_node"], output_nodes=["network/output_node"],
-                                            export_path=save_graph_path)
+            # export_tflite_from_frozen_graph(f"{save_graph_path}/frozen_model_eval.pb",
+            #                                input_nodes=["input/input_node"], output_nodes=["network/output_node"],
+            #                                export_path=save_graph_path)
             # endregion
             logging.info("Finished")
 

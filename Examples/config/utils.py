@@ -163,6 +163,7 @@ def anneal_learning_rate(lr, epoch, step, args, sess=None):
     try:
         if hasattr(args, "lr_annealing"):
 
+            assert hasattr(args.lr_annealing, "name"), "Must specify the type of learning rate annealing"
             if args.lr_annealing.name == "num_epochs_decay":
                 # Decay every n epochs
                 if epoch % args.lr_annealing.num_epochs_decay == 0:
@@ -185,6 +186,7 @@ def anneal_learning_rate(lr, epoch, step, args, sess=None):
 
     except AttributeError:
         # Not performing any lr annealing
+        raise Exception("Probably should not end up here...")
         return lr
 
 

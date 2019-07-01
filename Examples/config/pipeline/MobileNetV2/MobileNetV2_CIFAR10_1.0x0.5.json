@@ -32,5 +32,5 @@
 
   "test_every": 1,
   "build_method": "sandbox",
-  "ranks": [96, 56, 56, 96]
+  "ranks": [1.0, 0.5]
 }

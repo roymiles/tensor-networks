@@ -9,6 +9,6 @@ def sine2D(w, h):
     one_cycle = 2 * np.pi * ns / w
     for k in range(h):
         t_k = k * one_cycle
-        c[k, :] = np.cos(t_k)
+        c[:, k] = np.cos(t_k)
 
     return c

@@ -155,9 +155,11 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
 
         # Auxilliary ranks
+        r_c = int(ranks[0] * input_filters)
+        r_n = int(ranks[1] * expansion * input_filters)
         expansion_kernel.add_edge("WH", "G", name="r1", length=1)
-        expansion_kernel.add_edge("C", "G", name="r2", length=ranks[0])
-        expansion_kernel.add_edge("N", "G", name="r3", length=ranks[1])
+        expansion_kernel.add_edge("C", "G", name="r2", length=r_c)
+        expansion_kernel.add_edge("N", "G", name="r3", length=r_n)
         expansion_kernel.compile()
         expansion_kernel.set_output_shape(["W", "H", "C", "N"])
 
@@ -168,6 +170,36 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
                                            trainable=True)
 
         # Projection layer
+        projection_kernel = tf.get_variable(f"projection_{layer_idx}",
+                                            shape=[1, 1, input_filters*expansion, output_filters],
+                                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                            initializer=tf.keras.initializers.glorot_normal(),
+                                            regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                                            trainable=True)
+
+        # 1 x R*I x E*I
+        # Flip it and use for projection
+        """proj_g = tf.transpose(tf.squeeze(expansion_kernel.get_node("G"), name=f"projection_{layer_idx}_G"))
+        proj_k = tf.get_variable(f"projection_{layer_idx}_K",
+                                 shape=[input_filters * expansion, r_n],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                 initializer=tf.keras.initializers.glorot_normal(),
+                                 regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                                 trainable=True)
+        proj_m = tf.get_variable(f"projection_{layer_idx}_M",
+                                 shape=[r_c, output_filters],
+                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                 initializer=tf.keras.initializers.glorot_normal(),
+                                 regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                                 trainable=True)
+
+        p1 = tf.linalg.matmul(proj_k, proj_g)
+        p2 = tf.linalg.matmul(p1, proj_m)
+        projection_kernel = tf.reshape(p2, shape=[1, 1, expansion * input_filters, output_filters],
+                                       name=f"projection_{layer_idx}")"""
+
+
+        """
         projection_kernel.add_node("WH", shape=[1, 1],
                                    names=["W", "H"],
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
@@ -185,14 +217,17 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
 
         projection_kernel.add_edge("WH", "G", name="r1", length=1)
-        projection_kernel.add_edge("C", "G", name="r2", length=ranks[2])
-        projection_kernel.add_edge("N", "G", name="r3", length=ranks[3])
+        projection_kernel.add_edge("C", "G", name="r2", length=int(ranks[2] * input_filters * expansion))
+        projection_kernel.add_edge("N", "G", name="r3", length=int(ranks[3] * output_filters))
+        # projection_kernel.add_edge("C", "G", name="r2", length=int(ranks[2] * output_filters))
+        # projection_kernel.add_edge("N", "G", name="r3", length=int(ranks[3] * output_filters))
         projection_kernel.compile()
         projection_kernel.set_output_shape(["W", "H", "C", "N"])
+        """
 
         # Tensorflow summaries
         expansion_kernel.create_summaries()
-        projection_kernel.create_summaries()
+        # projection_kernel.create_summaries()
 
         return Weights.Mobilenetv2Bottleneck(expansion_kernel, depthwise_kernel, projection_kernel)
 

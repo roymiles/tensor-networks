@@ -90,13 +90,15 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
         input_filters = cur_layer.get_in_channels()  # Number of input channels
 
         # Standard MobileNet
-        expansion_kernel = tf.get_variable(f"expansion_{layer_idx}", shape=[1, 1, input_filters, input_filters*expansion],
+        expansion_kernel = tf.get_variable(f"expansion_{layer_idx}",
+                                           shape=[1, 1, input_filters, input_filters*expansion],
                                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                            initializer=tf.keras.initializers.glorot_normal(),
                                            regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
                                            trainable=True)
 
-        depthwise_kernel = tf.get_variable(f"depthwise_{layer_idx}", shape=[3, 3, input_filters*expansion, 1],
+        depthwise_kernel = tf.get_variable(f"depthwise_{layer_idx}",
+                                           shape=[3, 3, input_filters*expansion, 1],
                                            collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                            initializer=tf.keras.initializers.glorot_normal(),
                                            regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
