@@ -83,12 +83,12 @@ class MobileNetV2BottleNeck(ILayer):
         # Expansion layer
         net = tf.nn.conv2d(input, weights.expansion_kernel, strides=[1, 1, 1, 1], padding="SAME")
         net = tf.layers.batch_normalization(net, training=is_training)
-        net = tf.nn.relu(net)
+        net = tf.nn.relu6(net)
 
         # Depthwise layer
         net = tf.nn.depthwise_conv2d(net, weights.depthwise_kernel, strides=self._strides, padding="SAME")
         net = tf.layers.batch_normalization(net, training=is_training)
-        net = tf.nn.relu(net)
+        net = tf.nn.relu6(net)
 
         # Projection layer (linear)
         net = tf.nn.conv2d(net, weights.projection_kernel, strides=[1, 1, 1, 1], padding="SAME")

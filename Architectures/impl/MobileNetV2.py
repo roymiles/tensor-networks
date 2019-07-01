@@ -25,7 +25,7 @@ class MobileNetV2(IArchitecture):
             # in: 224 x 224 x 3
             ConvLayer(shape=[3, 3, ds_args.num_channels, 32], strides=(2, 2), use_bias=False),
             BatchNormalisationLayer(),
-            ReLU(),
+            ReLU6(),
 
             MobileNetV2BottleNeck(in_channels=32, expansion=1, filters=16, strides=(1, 1), build_method=build_method, ranks=ranks),
 
@@ -57,7 +57,7 @@ class MobileNetV2(IArchitecture):
 
             ConvLayer(shape=[1, 1, 320, 1280], strides=(1, 1), use_bias=False),
             BatchNormalisationLayer(),
-            ReLU(),
+            ReLU6(),
 
             # Classification part
             GlobalAveragePooling(keep_dims=False),
