@@ -184,10 +184,10 @@ class Graph:
                     shape = tfvar.get_shape().as_list()
                     tf.summary.histogram(f"{node_name}", tfvar, collections=['train'])
 
-                # If 2D tensor, add as image summary
-                if len(shape) == 2:
-                    n = tf.reshape(tfvar, shape=(1, shape[0], shape[1], 1))
-                    tf.summary.image(f"{node_name}", n, collections=['train'])
+                    # If 2D tensor, add as image summary
+                    if len(shape) == 2:
+                        n = tf.reshape(tfvar, shape=(1, shape[0], shape[1], 1))
+                        tf.summary.image(f"{node_name}", n, collections=['train'])
 
     @staticmethod
     def number_of_nodes(g):

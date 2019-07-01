@@ -31,7 +31,7 @@ class MobileNetV1(IArchitecture):
                 DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False,
                                    kernel_initializer=tf.keras.initializers.he_normal(),
                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
-                BatchNormalisationLayer(self._switch_list),
+                BatchNormalisationLayer(),
                 ReLU(),
                 # Pointwise
                 ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
@@ -39,7 +39,7 @@ class MobileNetV1(IArchitecture):
                           kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
                 # Not managed to integrate moving average decay
-                BatchNormalisationLayer(self._switch_list),
+                BatchNormalisationLayer(),
                 ReLU()
             ]
         elif self._method == "factored-pw-kernel":
@@ -47,7 +47,7 @@ class MobileNetV1(IArchitecture):
                 DepthwiseConvLayer(shape=[w, h, c, depth_multiplier], strides=(stride, stride), use_bias=False,
                                    kernel_initializer=tf.keras.initializers.he_normal(),
                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
-                BatchNormalisationLayer(self._switch_list),
+                BatchNormalisationLayer(),
                 ReLU(),
                 # Using core factors for the pointwise kernel
                 ConvLayer(shape=[1, 1, c * depth_multiplier, depth], use_bias=False,
@@ -55,7 +55,7 @@ class MobileNetV1(IArchitecture):
                           kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
                 # PointwiseDot(shape=[c * depth_multiplier, 128, 128, depth]),
                 # Not managed to integrate moving average decay
-                BatchNormalisationLayer(self._switch_list),
+                BatchNormalisationLayer(),
                 ReLU()
             ]
         elif self._method == "custom-bottleneck":
@@ -65,7 +65,7 @@ class MobileNetV1(IArchitecture):
                                          kernel_initializer=tf.keras.initializers.he_normal(),
                                          kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
                                          partitions=self._partitions, ranks=[1, self._ranks[0], self._ranks[1]]),
-                BatchNormalisationLayer(self._switch_list),
+                BatchNormalisationLayer(),
                 ReLU()
             ]
         else:
@@ -80,7 +80,6 @@ class MobileNetV1(IArchitecture):
         :param args: Model training parameters
         :param ds_args: Dataset parameters
         """
-        self._switch_list = args.switch_list
         self._weight_decay = args.weight_decay
         self._method = args.method
         self._ranks = args.ranks
@@ -88,28 +87,43 @@ class MobileNetV1(IArchitecture):
         network = [
             ConvLayer(shape=[3, 3, ds_args.num_channels, 32], strides=(2, 2),
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
-            BatchNormalisationLayer(self._switch_list),
+            BatchNormalisationLayer(),
             ReLU(),
 
-            *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),
+            *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=32),
             *self.DepthSepConv(shape=[3, 3, 64], stride=2, depth=128),
-            *self.DepthSepConv(shape=[3, 3, 128], stride=1, depth=128),
-            *self.DepthSepConv(shape=[3, 3, 128], stride=2, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 256], stride=1, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 256], stride=2, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=2, depth=1024),
-            *self.DepthSepConv(shape=[3, 3, 1024], stride=1, depth=1024),
+            *self.DepthSepConv(shape=[3, 3, 128], stride=1, depth=64),
+            *self.DepthSepConv(shape=[3, 3, 192], stride=2, depth=256),
+            *self.DepthSepConv(shape=[3, 3, 256], stride=1, depth=128),
+            *self.DepthSepConv(shape=[3, 3, 384], stride=2, depth=512),
+            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=256),
+            *self.DepthSepConv(shape=[3, 3, 768], stride=1, depth=256),
+            *self.DepthSepConv(shape=[3, 3, 1024], stride=1, depth=256),
+            *self.DepthSepConv(shape=[3, 3, 1280], stride=1, depth=256),
+            *self.DepthSepConv(shape=[3, 3, 1536], stride=1, depth=256),
+            *self.DepthSepConv(shape=[3, 3, 1792], stride=2, depth=2048),
+            *self.DepthSepConv(shape=[3, 3, 2048], stride=1, depth=512),
+
+            #*self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),
+            #*self.DepthSepConv(shape=[3, 3, 64], stride=2, depth=128),
+            #*self.DepthSepConv(shape=[3, 3, 128], stride=1, depth=128),
+            #*self.DepthSepConv(shape=[3, 3, 128], stride=2, depth=256),
+            #*self.DepthSepConv(shape=[3, 3, 256], stride=1, depth=256),
+            #*self.DepthSepConv(shape=[3, 3, 256], stride=2, depth=512),
+            #*self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
+            #*self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
+            #*self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
+            #*self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
+            #*self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=512),
+            #*self.DepthSepConv(shape=[3, 3, 512], stride=2, depth=1024),
+            #*self.DepthSepConv(shape=[3, 3, 1024], stride=1, depth=1024),
 
             # ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
             GlobalAveragePooling(keep_dims=False),
             Flatten(),
-            FullyConnectedLayer(shape=[1024, ds_args.num_classes],
-                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay))
+            FullyConnectedLayer(shape=[2560, ds_args.num_classes],
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
+                                use_bias=True)
         ]
 
         super().__init__(network)

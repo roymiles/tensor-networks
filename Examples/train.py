@@ -37,7 +37,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 print(tf.__version__)
 
 pipeline = [
-    "pipeline/MobileNetV2/MobileNetV2_CIFAR10_1.0x0.2.json",
+    "pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
+    "pipeline/CustomBottleNeck_64x64_0.2_0.8.json",
+    "pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
+    "pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
+    "pipeline/CustomBottleNeck_64x64_0.8_0.5.json",
+    "pipeline/CustomBottleNeck_128x128_0.2_0.8.json",
+    "pipeline/CustomBottleNeck_128x128_0.8_0.2.json"
     #"pipeline/MobileNetV2/MobileNetV2_CIFAR10.json",
     #"pipeline/MobileNetV2/MobileNetV2_CIFAR10_1.2x0.2x0.1.2.json",
 ]
@@ -62,7 +68,7 @@ if __name__ == '__main__':
         # Unique name for this model and training method
         unique_name = generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "test5"
+        unique_name = "mobv1test_4"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):

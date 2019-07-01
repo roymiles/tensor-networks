@@ -166,14 +166,18 @@ def anneal_learning_rate(lr, epoch, step, args, sess=None):
             assert hasattr(args.lr_annealing, "name"), "Must specify the type of learning rate annealing"
             if args.lr_annealing.name == "num_epochs_decay":
                 # Decay every n epochs
-                if epoch % args.lr_annealing.num_epochs_decay == 0:
+                if epoch % args.lr_annealing.num_epochs_decay == 0 and epoch != 0:
                     return lr * args.lr_annealing.lr_decay
             elif args.lr_annealing.name == "epoch_decay_boundaries":
                 # Decay at predefined epoch boundaries
                 if epoch in args.lr_annealing.epoch_decay_boundaries:
                     return lr * args.lr_annealing.lr_decay
             elif args.lr_annealing.name == "noisy_linear_cosine_decay":
-                decayed_lr = tf.train.noisy_linear_cosine_decay(lr, step, args.noisy_linear_cosine_decay.decay_steps)
+                decayed_lr = tf.train.noisy_linear_cosine_decay(lr, step, args.lr_annealing.decay_steps)
+                return sess.run(decayed_lr)
+            elif args.lr_annealing.name == "natural_exp_decay":
+                decayed_lr = tf.compat.v1.train.natural_exp_decay(lr, step, args.lr_annealing.decay_steps,
+                                                                  args.lr_annealing.decay_rate)
                 return sess.run(decayed_lr)
             else:
                 raise Exception("Unspecified learning rate annealing strategy")
