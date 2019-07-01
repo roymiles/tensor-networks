@@ -121,21 +121,21 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
     """
 
     with tf.variable_scope("MobileNetV2Bottleneck"):
-        weight_decay = 0.00004
-        t = cur_layer.get_t()  # Expansion
 
-        # Yes, letter choice is contradictory with convention here, where C is commonly input channels
-        c = cur_layer.get_c()  # Number of output channels
-        k = cur_layer.get_k()  # Number of input channels
+        weight_decay = cur_layer.get_weight_decay()
+        ranks = cur_layer.get_ranks()
+        expansion = cur_layer.get_expansion()  # Expansion
+        output_filters = cur_layer.get_filters()  # Number of output channels
+        input_filters = cur_layer.get_in_channels()  # Number of input channels
 
         # H x W x k -> H x W x (tk)    1 x 1 x k x tk
-        expansion_kernel = Graph("bneck_expansion_{}".format(layer_idx))
+        expansion_kernel = Graph("expansion_{}".format(layer_idx))
 
         # H x W x (tk) -> H/s x W/s x (tk)     3 x 3 x tk x 1   (last dim is depth multiplier)
-        depthwise_kernel = Graph("bneck_depthwise_{}".format(layer_idx))
+        # Depthwise not using Graph
 
         # H/s x W/s x (tk) -> H/s x W/s x n     1 x 1 x tk x n
-        projection_kernel = Graph("bneck_projection_{}".format(layer_idx))
+        projection_kernel = Graph("projection_{}".format(layer_idx))
 
         # Factorising the pointwise kernels
         expansion_kernel.add_node("WH", shape=[1, 1],
@@ -143,79 +143,58 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                   initializer=tf.keras.initializers.glorot_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
-        expansion_kernel.add_node("C", shape=[k],
+        expansion_kernel.add_node("C", shape=[input_filters],
                                   names=["C"],
                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                   initializer=tf.keras.initializers.glorot_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
-        expansion_kernel.add_node("N", shape=[t * k],
+        expansion_kernel.add_node("N", shape=[expansion * input_filters],
                                   names=["N"],
                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                   initializer=tf.keras.initializers.glorot_normal(),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
-        expansion_kernel.add_edge("WH", "G", name="r1", length=1)
-        expansion_kernel.add_edge("C", "G", name="r2", length=56)
-        expansion_kernel.add_edge("N", "G", name="r3", length=56)
-        expansion_kernel.compile()
 
-        # ---
+        # Auxilliary ranks
+        expansion_kernel.add_edge("WH", "G", name="r1", length=1)
+        expansion_kernel.add_edge("C", "G", name="r2", length=ranks[0])
+        expansion_kernel.add_edge("N", "G", name="r3", length=ranks[1])
+        expansion_kernel.compile()
+        expansion_kernel.set_output_shape(["W", "H", "C", "N"])
+
+        depthwise_kernel = tf.get_variable(f"depthwise_{layer_idx}", shape=[3, 3, input_filters * expansion, 1],
+                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+                                           initializer=tf.keras.initializers.glorot_normal(),
+                                           regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                                           trainable=True)
+
+        # Projection layer
         projection_kernel.add_node("WH", shape=[1, 1],
                                    names=["W", "H"],
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                    initializer=tf.keras.initializers.glorot_normal(),
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
-        projection_kernel.add_node("C", shape=[t * k],
+        projection_kernel.add_node("C", shape=[input_filters * expansion],
                                    names=["C"],
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                    initializer=tf.keras.initializers.glorot_normal(),
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
-        projection_kernel.add_node("N", shape=[c],
+        projection_kernel.add_node("N", shape=[output_filters],
                                    names=["N"],
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
                                    initializer=tf.keras.initializers.glorot_normal(),
                                    regularizer=tf.contrib.layers.l2_regularizer(weight_decay))
 
         projection_kernel.add_edge("WH", "G", name="r1", length=1)
-        projection_kernel.add_edge("C", "G", name="r2", length=56)
-        projection_kernel.add_edge("N", "G", name="r3", length=56)
+        projection_kernel.add_edge("C", "G", name="r2", length=ranks[2])
+        projection_kernel.add_edge("N", "G", name="r3", length=ranks[3])
         projection_kernel.compile()
+        projection_kernel.set_output_shape(["W", "H", "C", "N"])
 
-        depthwise_kernel.add_node("WHCM", shape=[3, 3, t * k, 1],
-                                  names=["W", "H", "C", "M"],
-                                  collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                  initializer=tf.keras.initializers.glorot_normal(),
-                                  regularizer=tf.contrib.layers.l2_regularizer(weight_decay)).compile()
+        # Tensorflow summaries
+        expansion_kernel.create_summaries()
+        projection_kernel.create_summaries()
 
-        # Some tensorflow summaries for the core tensors g
-        # First index, because spatial index is of size 1
-        g1 = tf.reshape(expansion_kernel.get_node("G"), shape=(1, 56, 56, 1))
-        g2 = tf.reshape(projection_kernel.get_node("G"), shape=(1, 56, 56, 1))
-
-        tf.summary.image("Expansion g", g1)
-        tf.summary.image("Projection g", g2)
-        tf.summary.histogram("Expansion g", g1)
-        tf.summary.histogram("Projection g", g2)
-
-        # Use biases for all the convolutions
-        expansion_bias = tf.get_variable(f"expansion_bias_{layer_idx}", shape=[t * k],
-                                         initializer=tf.keras.initializers.constant(0),
-                                         collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES])
-
-        depthwise_bias = tf.get_variable(f"depthwise_bias_{layer_idx}", shape=[t * k],
-                                         initializer=tf.keras.initializers.constant(0),
-                                         collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES])
-
-        projection_bias = tf.get_variable(f"projection_bias_{layer_idx}", shape=[c],
-                                          initializer=tf.keras.initializers.constant(0),
-                                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES])
-
-        tf.summary.histogram("expansion_bias", expansion_bias)
-        tf.summary.histogram("depthwise_bias", depthwise_bias)
-        tf.summary.histogram("projection_bias", projection_bias)
-
-        return Weights.Mobilenetv2Bottleneck(expansion_kernel, expansion_bias,
-                                             depthwise_kernel, depthwise_bias,
-                                             projection_kernel, projection_bias)
+        return Weights.Mobilenetv2Bottleneck(expansion_kernel, depthwise_kernel, projection_kernel)
 
 
 def pointwise_dot(cur_layer, layer_idx):

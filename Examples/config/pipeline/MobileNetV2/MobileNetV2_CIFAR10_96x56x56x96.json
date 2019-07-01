@@ -1,0 +1,36 @@
+{
+  "architecture": "MobileNetV2",
+  "dataset_name": "CIFAR10",
+  "batch_size": 128,
+
+  "optimizer": {
+    "name": "Momentum",
+    "momentum": 0.9,
+    "use_nesterov": false
+  },
+
+  "learning_rate": 2e-2,
+  "num_epochs": 300,
+
+  "lr_annealing": {
+    "epoch_decay_boundaries": [5, 50, 100, 150, 200],
+    "lr_decay": 0.5
+  },
+
+  "pre_processing":
+  {
+    "train":
+    {
+      "resize": {"width": 40, "height": 40},
+      "random_crop": {"width": 32, "height": 32},
+      "random_flip_left_right": true
+    },
+    "test":
+    {
+    }
+  },
+
+  "test_every": 1,
+  "build_method": "sandbox",
+  "ranks": [96, 56, 56, 96]
+}

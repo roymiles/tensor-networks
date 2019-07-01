@@ -143,19 +143,17 @@ def preprocess_images_fn(args, ds_args, is_training=True):
 def generate_unique_name(args, ds_args):
     """ Using the configuration, generate a semi unique string name for saving logs, checkpoints etc """
     unique_name = f"arch_{args.architecture}_ds_{args.dataset_name}_opt_{args.optimizer.name}"
+
     if hasattr(args, 'build_method'):
         unique_name += f"_build_method_{args.build_method}"
 
-    """
-    if args.method == "custom-bottleneck":
-        if hasattr(args, 'ranks'):
-            unique_name += "_ranks_"
-            unique_name += '_'.join(str(x) for x in args.ranks)
-    
-        if hasattr(args, 'partitions'):
-            unique_name += "_partitions_"
-            unique_name += '_'.join(str(x) for x in args.partitions)
-    """
+    if hasattr(args, 'ranks'):
+        unique_name += "_ranks_"
+        unique_name += '_'.join(str(x) for x in args.ranks)
+
+    if hasattr(args, 'partitions'):
+        unique_name += "_partitions_"
+        unique_name += '_'.join(str(x) for x in args.partitions)
 
     return unique_name
 
@@ -180,6 +178,9 @@ def anneal_learning_rate(lr, epoch, step, args, sess=None):
                 raise Exception("Unspecified learning rate annealing strategy")
 
             # Not decaying for this epoch
+            return lr
+        else:
+            # No lr annealing
             return lr
 
     except AttributeError:

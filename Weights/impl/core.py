@@ -84,9 +84,8 @@ def mobilenetv2_bottleneck(cur_layer, layer_idx):
         Standard MobileNetV2 bottleneck layer (expansion, depthwise, linear projection and residual add)
     """
     with tf.variable_scope("MobileNetV2Bottleneck"):
-        weight_decay = 0.00004
+        weight_decay = cur_layer.get_weight_decay()
         expansion = cur_layer.get_expansion()  # Expansion
-
         output_filters = cur_layer.get_filters()  # Number of output channels
         input_filters = cur_layer.get_in_channels()  # Number of input channels
 

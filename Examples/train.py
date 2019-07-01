@@ -36,10 +36,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 print(tf.__version__)
 
-# Run on multiple models/architectures/learning methods
 pipeline = [
-    "MobileNetV2_CIFAR10.json"
+    "pipeline/MobileNetV2/MobileNetV2_CIFAR10.json",
+    "pipeline/MobileNetV2/MobileNetV2_CIFAR10_96x56x56x96.json",
 ]
+# Run on multiple models/architectures/learning methods
 
 if __name__ == '__main__':
 

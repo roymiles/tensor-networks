@@ -42,7 +42,8 @@ class SwitchableBatchNormalisationLayer(ILayer):
 
 
 class MobileNetV2BottleNeck(ILayer):
-    def __init__(self, in_channels, expansion, filters, build_method=Weights.impl.core, strides=(1, 1)):
+    def __init__(self, in_channels, expansion, filters, build_method=Weights.impl.core, strides=(1, 1), ranks=None,
+                 weight_decay=0.00004):
         """
         See: https://towardsdatascience.com/review-mobilenetv2-light-weight-model-image-classification-8febb490e61c
 
@@ -50,6 +51,8 @@ class MobileNetV2BottleNeck(ILayer):
         :param expansion: Expansion factor
         :param filters: Number of output channels
         :param strides: Depthwise stride
+        :param ranks: Used if building weights using Graphs
+        :param weight_decay: Weight decay for L2 regularisation of expansion and projection weights
         """
         super().__init__()
 
@@ -60,8 +63,16 @@ class MobileNetV2BottleNeck(ILayer):
         self._in_channels = in_channels
         self._expansion = expansion
         self._filters = filters
+        self._ranks = ranks
+        self._weight_decay = weight_decay
 
         super().__init__()
+
+    def get_weight_decay(self):
+        return self._weight_decay
+
+    def get_ranks(self):
+        return self._ranks
 
     def create_weights(self):
         return self._build_method.mobilenetv2_bottleneck

@@ -145,6 +145,7 @@ class Graph:
         self._is_compiled = True
 
     def set_output_shape(self, shape):
+        """ Set the output shape defined by the order of output edges for after graph compilation """
         if not self._is_compiled:
             raise Exception("Can only set the output shape after the graph is compiled")
 
@@ -168,14 +169,16 @@ class Graph:
         with tf.variable_scope(self._name):
             node_names = self._graph.nodes.keys()
             for node_name in node_names:
-                node = self._graph.nodes[node_name]["tfvar"]
-                shape = node.get_shape().as_list()
-                tf.summary.histogram(f"{node_name}", node, collections=['train'])
+                node = self._graph.nodes[node_name]
+                if not node["dummy_node"]:
+                    tfvar = self._graph.nodes[node_name]["tfvar"]
+                    shape = tfvar.get_shape().as_list()
+                    tf.summary.histogram(f"{node_name}", tfvar, collections=['train'])
 
-            # If 2D tensor, add as image summary
-            if len(shape) == 2:
-                n = tf.reshape(node, shape=(1, shape[0], shape[1], 1))
-                tf.summary.image(f"{node_name}", n, collections=['train'])
+                # If 2D tensor, add as image summary
+                if len(shape) == 2:
+                    n = tf.reshape(tfvar, shape=(1, shape[0], shape[1], 1))
+                    tf.summary.image(f"{node_name}", n, collections=['train'])
 
     @staticmethod
     def number_of_nodes(g):
