@@ -1,6 +1,6 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
-import Layers.impl.contrib as contrib
+from Layers.impl.contrib import PartitionedDepthwiseSeparableLayer
 import Weights.impl.sandbox
 
 
@@ -8,7 +8,7 @@ class MobileNetV1(IArchitecture):
     """ This is the original MobileNet architecture for ImageNet
         Of course, the convolutional layers are replaced with depthwise separable layers """
 
-    def DepthSepConv(self, shape, stride, depth, depth_multiplier=1):
+    def DepthSepConv(self, shape, stride, depth, depth_multiplier=1, partitions=None):
         """
         Depthwise convolution followed by a pointwise convolution (with BN and ReLU in-between)
 
@@ -16,6 +16,7 @@ class MobileNetV1(IArchitecture):
         :param stride:
         :param depth:
         :param depth_multiplier:
+        :param partitions: [dw, std, fact, std]
         :return:
         """
 
@@ -60,13 +61,20 @@ class MobileNetV1(IArchitecture):
             ]
         elif self._method == "custom-bottleneck":
             # Custom bottleneck
+            if partitions:
+                p = partitions
+            else:
+                p = self._partitions
+
             sequential = [
-                contrib.CustomBottleneck(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride),
-                                         kernel_initializer=tf.keras.initializers.he_normal(),
-                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
-                                         partitions=self._partitions, ranks=[1, self._ranks[0], self._ranks[1]]),
+                PartitionedDepthwiseSeparableLayer(shape=[w, h, c, depth], use_bias=False, strides=(stride, stride),
+                                                   partitions=p,
+                                                   kernel_initializer=tf.keras.initializers.he_normal(),
+                                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
+                                                   # partitions=self._partitions,
+                                                   ranks=[1, self._ranks[0], self._ranks[1]]),
                 BatchNormalisationLayer(),
-                ReLU()
+                HSwish()
             ]
         else:
             raise Exception("Unknown method for MobileNetV1 architecture")
@@ -88,21 +96,29 @@ class MobileNetV1(IArchitecture):
             ConvLayer(shape=[3, 3, ds_args.num_channels, 32], strides=(2, 2),
                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay)),
             BatchNormalisationLayer(),
-            ReLU(),
+            HSwish(),
 
-            *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=32),
-            *self.DepthSepConv(shape=[3, 3, 64], stride=2, depth=128),
-            *self.DepthSepConv(shape=[3, 3, 128], stride=1, depth=64),
-            *self.DepthSepConv(shape=[3, 3, 192], stride=2, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 256], stride=1, depth=128),
-            *self.DepthSepConv(shape=[3, 3, 384], stride=2, depth=512),
-            *self.DepthSepConv(shape=[3, 3, 512], stride=1, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 768], stride=1, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 1024], stride=1, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 1280], stride=1, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 1536], stride=1, depth=256),
-            *self.DepthSepConv(shape=[3, 3, 1792], stride=2, depth=2048),
-            *self.DepthSepConv(shape=[3, 3, 2048], stride=1, depth=512),
+            # Higher partition = less compression (% standard)
+            *self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=32, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 64], stride=1, depth=32, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 96], stride=1, depth=32, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 128], stride=1, depth=32, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 156], stride=1, depth=32, partitions=[0, 0]),
+
+            *self.DepthSepConv(shape=[3, 3, 48], stride=2, depth=64, partitions=[0, 0]),
+
+
+            *self.DepthSepConv(shape=[3, 3, 64], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 80], stride=2, depth=96, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 96], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 112], stride=2, depth=124, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 124], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 140], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 156], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 172], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 188], stride=1, depth=16, partitions=[0, 0]),
+            *self.DepthSepConv(shape=[3, 3, 204], stride=2, depth=256, partitions=[0, 0]),
+            # *self.DepthSepConv(shape=[3, 3, 2048], stride=1, depth=512),
 
             #*self.DepthSepConv(shape=[3, 3, 32], stride=1, depth=64),
             #*self.DepthSepConv(shape=[3, 3, 64], stride=2, depth=128),
@@ -121,7 +137,7 @@ class MobileNetV1(IArchitecture):
             # ConvLayer(shape=[1, 1, 1024, 1024], use_bias=False),
             GlobalAveragePooling(keep_dims=False),
             Flatten(),
-            FullyConnectedLayer(shape=[2560, ds_args.num_classes],
+            FullyConnectedLayer(shape=[256, ds_args.num_classes],
                                 kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self._weight_decay),
                                 use_bias=True)
         ]

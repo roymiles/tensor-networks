@@ -293,7 +293,7 @@ def pointwise_dot(cur_layer, layer_idx):
     return Weights.PointwiseDot(c, g, n, bias)
 
 
-def custom_bottleneck(cur_layer, layer_idx):
+def partitioned_depthwise_separable(cur_layer, layer_idx):
     # W x H x C x N
     shape = cur_layer.get_shape()
 
@@ -311,10 +311,10 @@ def custom_bottleneck(cur_layer, layer_idx):
         # If the dimensions are large, we want to compress more (as this can mega inflate the number of parameters)
         # We do this by raising to the power of N, so domain kept to [0, 1]
         # Division by constant just makes it not blow up a lot (get reduced very very small)
-        partitions = [cur_layer.partitions[0] ** (shape[2]/256),
-                      cur_layer.partitions[1] ** (shape[3]/256)]
+        # partitions = [cur_layer.partitions[0] ** (shape[2]/256),
+        #              cur_layer.partitions[1] ** (shape[3]/256)]
 
-        conv_size = clamp(int(shape[2] * partitions[0]), 0, shape[2])  # Standard convolution
+        conv_size = clamp(int(shape[2] * cur_layer.partitions[0]), 0, shape[2])  # Standard convolution
         depthwise_size = shape[2] - conv_size      # Depthwise
         logging.info(f"Depthwise: {depthwise_size}, Standard: {conv_size}")
 
@@ -337,8 +337,10 @@ def custom_bottleneck(cur_layer, layer_idx):
 
         # Size of partition for second stage
         # Compressed across out-channels (kernels) N
-        pointwise_size = clamp(int(shape[3] * partitions[1]), 0, shape[3])  # Standard pointwise
+        pointwise_size = clamp(int(shape[3] * cur_layer.partitions[1]), 0, shape[3])  # Standard pointwise
         factored_pointwise_size = shape[3] - pointwise_size       # Factored pointwise (compressed)
+        # pointwise_size = partitions[2]
+        # factored_pointwise_size = partitions[3]
         logging.info(f"Factored PW: {factored_pointwise_size}, Standard: {pointwise_size}\n")
 
         factored_pointwise_kernel = None
@@ -389,8 +391,8 @@ def custom_bottleneck(cur_layer, layer_idx):
                                    collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.BIASES],
                                    trainable=True)
 
-        return Weights.CustomBottleneck(conv_kernel, depthwise_kernel, pointwise_kernel, factored_pointwise_kernel,
-                                        bias)
+        return Weights.PartitionedDepthwiseSeparableLayer(conv_kernel, depthwise_kernel, pointwise_kernel,
+                                                          factored_pointwise_kernel, bias)
 
 
 def dense_block(cur_layer, layer_idx):
@@ -399,52 +401,65 @@ def dense_block(cur_layer, layer_idx):
     with tf.variable_scope(f"DenseBlock_{layer_idx}"):
         in_channels = cur_layer.in_channels
         for i in range(cur_layer.num_layers):
-            pointwise_kernel = tf.get_variable(f"pointwise_kernel_{layer_idx}_{i}",
-                                               shape=[1, 1, in_channels, 4 * cur_layer.growth_rate],
-                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
-                                               initializer=cur_layer.kernel_initializer,
-                                               regularizer=cur_layer.kernel_regularizer,
-                                               trainable=True)
+            # pointwise_kernel = tf.get_variable(f"pointwise_kernel_{layer_idx}_{i}",
+            #                                   shape=[1, 1, in_channels, 4 * cur_layer.growth_rate],
+            #                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+            #                                   initializer=cur_layer.kernel_initializer,
+            #                                   regularizer=cur_layer.kernel_regularizer,
+            #                                   trainable=True)
+            # conv_kernel = tf.get_variable(f"depthwise_kernel_{layer_idx}",
+            #                                   shape=[3, 3, in_channels, cur_layer.growth_rate],
+            #                                   collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS],
+            #                                   trainable=True)
 
-            conv_kernel = Graph(f"conv_graph_{i}")
+            with tf.variable_scope(f"pointwise_kernel"):
+                pointwise_kernel = Graph(str(i))
 
-            # Add the nodes w/ exposed indices
-            conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
-                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            conv_kernel.add_node("C", shape=[in_channels], names=["C"],
-                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-            conv_kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"],
-                                 collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                # Add the nodes w/ exposed indices
+                pointwise_kernel.add_node("WH", shape=[1, 1], names=["W", "H"],
+                                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                pointwise_kernel.add_node("C", shape=[in_channels], names=["C"],
+                                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                pointwise_kernel.add_node("N", shape=[4 * cur_layer.growth_rate], names=["N"], shared=True,
+                                          collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
-            # Auxiliary indices
-            # NOTE: Must specify shared at start
-            # Put more emphasis on spatial dimensions here. Transition layer is for depthwise.
-            conv_kernel.add_edge("WH", "G", name="r0", length=16)
-            conv_kernel.add_edge("C", "G", name="r1", length=int(in_channels/16))
-            conv_kernel.add_edge("N", "G", name="r2", length=cur_layer.growth_rate/3)
+                # Auxiliary indices
+                # NOTE: Must specify shared at start
+                pointwise_kernel.add_edge("WH", "Gp", name="r0", length=1, shared=True)
+                pointwise_kernel.add_edge("C", "Gp", name="r1", length=1)
+                pointwise_kernel.add_edge("N", "Gp", name="r2", length=512)
 
-            # Compile/generate the tf.Variables and add to the set of weights
-            conv_kernel.compile()
-            conv_kernel.set_output_shape(["W", "H", "C", "N"])
+                # Compile/generate the tf.Variables and add to the set of weights
+                pointwise_kernel.compile()
+                pointwise_kernel.set_output_shape(["W", "H", "C", "N"])
 
-            # Was having some issues
-            # Graph.debug(conv_kernel.get_graph(), f"debug_{i}")
+                # Summaries / Histograms
+                pointwise_kernel.create_summaries()
 
-            # Some plots for Tensorboard
-            c = conv_kernel.get_node("C")
-            c_shape = c.get_shape().as_list()
-            c = tf.reshape(c, shape=(1, c_shape[0], c_shape[1], 1))
-            tf.summary.image(f"C_{layer_idx}", c, collections=['train'])
+            # -----------------------------------
+            with tf.variable_scope(f"conv_kernel"):
+                conv_kernel = Graph(str(i))
 
-            n = conv_kernel.get_node("N")
-            n_shape = n.get_shape().as_list()
-            n = tf.reshape(n, shape=(1, n_shape[0], n_shape[1], 1))
-            tf.summary.image(f"N_{layer_idx}", n, collections=['train'])
+                # Add the nodes w/ exposed indices
+                conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
+                                     collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                conv_kernel.add_node("C", shape=[4 * cur_layer.growth_rate], names=["C"],
+                                     collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
+                conv_kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"], shared=True,
+                                     collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
-            g = conv_kernel.get_node("G")
-            g_shape = g.get_shape().as_list()
-            g = tf.reshape(g, shape=(g_shape[0], g_shape[1], g_shape[2], 1))
-            tf.summary.image(f"G_{layer_idx}", g, collections=['train'])
+                # Auxiliary indices
+                # NOTE: Must specify shared at start
+                conv_kernel.add_edge("WH", "Gc", name="r0", length=9, shared=True)
+                conv_kernel.add_edge("C", "Gc", name="r1", length=128)
+                conv_kernel.add_edge("N", "Gc", name="r2", length=512)
+
+                # Compile/generate the tf.Variables and add to the set of weights
+                conv_kernel.compile()
+                conv_kernel.set_output_shape(["W", "H", "C", "N"])
+
+                # Summaries / Histograms
+                conv_kernel.create_summaries()
 
             # Add it to the list of kernels
             pointwise_kernels.append(pointwise_kernel)

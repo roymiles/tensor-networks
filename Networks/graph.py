@@ -29,7 +29,7 @@ class Graph:
         self._name = name
 
     def add_node(self, u_of_edge, shape, names, initializer=tf.glorot_normal_initializer(), regularizer=None,
-                 shared=False, collections=None):
+                 shared=None, collections=None):
         """ Creates a node with dangling edges defined by shape
             Internally, these creates dummy nodes on these dangling edges
 
@@ -39,7 +39,9 @@ class Graph:
             :param initializer: Initialization strategy
             :param regularizer: If a regularization term, for example L2 norm, weight decay
             :param shared: (boolean) If the weight is shared across layers
-            :param collections: Used if you want to group tensorflow variables """
+            :param collections: Used if you want to group tensorflow variables
+            :param shared: When creating the tensorflow variable, ignore the Graph name scope
+        """
 
         if self._is_compiled:
             raise Exception("Unable to add more edge/nodes once the graph is compiled")
@@ -49,7 +51,7 @@ class Graph:
         if not self._graph.has_node(u_of_edge):
             # TODO: How can we integrate shared property (share weights across layers)
             self._graph.add_node(u_of_edge, dummy_node=False, initializer=initializer, regularizer=regularizer,
-                                 shared=None, collections=collections)  # Make it possible to share (shared=shared)
+                                 shared=shared, collections=collections)  # Make it possible to share (shared=shared)
 
         # Create a dummy node for each of the exposed indices
         dummy_node_names = []
@@ -95,8 +97,8 @@ class Graph:
         if not self._graph.has_node(v_of_edge):
             # Can specify if v is shared or part of a collection
             self._graph.add_node(v_of_edge, dummy_node=False, initializer=initializer,
-                                 regularizer=regularizer, shared=shared, collections=collections,
-                                 handcrafted=handcrafted)
+                                 regularizer=regularizer, shared=shared, collections=collections)
+                                 # handcrafted=handcrafted)
 
         self._graph.add_edge(u_of_edge, v_of_edge, weight=length, name=name)
 
@@ -139,10 +141,6 @@ class Graph:
                         #                                               .astype(np.float32))
 
                     else:
-                        print(scope_name)
-                        if scope_name == "projection_22/":
-                            print("kjbnjn")
-                        print(node)
                         self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
                                                                            shape=dims,
                                                                            initializer=init, regularizer=reg,

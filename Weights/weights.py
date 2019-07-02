@@ -24,8 +24,9 @@ class Weights:
                                                                  "projection_kernel"])
     PointwiseDot = namedtuple('PointwiseDot', ["c", "g", "n", "bias"])
 
-    CustomBottleneck = namedtuple('CustomBottleneck', ["conv_kernel", "depthwise_kernel", "pointwise_kernel",
-                                                       "factored_pointwise_kernel", "bias"])
+    PartitionedDepthwiseSeparableLayer = namedtuple('PartitionedDepthwiseSeparableLayer',
+                                                    ["conv_kernel", "depthwise_kernel", "pointwise_kernel",
+                                                     "factored_pointwise_kernel", "bias"])
 
     DenseNetConvBlock = namedtuple('DenseNetConvBlock', ["pointwise_kernels", "conv_kernels"])
 

@@ -158,7 +158,7 @@ def generate_unique_name(args, ds_args):
     return unique_name
 
 
-def anneal_learning_rate(lr, epoch, step, args, sess=None):
+def anneal_learning_rate(lr, epoch, step, args, sess, num_epochs):
     """ Perform learning rate annealing, as defined by the training .json/.yaml config """
     try:
         if hasattr(args, "lr_annealing"):
@@ -173,7 +173,13 @@ def anneal_learning_rate(lr, epoch, step, args, sess=None):
                 if epoch in args.lr_annealing.epoch_decay_boundaries:
                     return lr * args.lr_annealing.lr_decay
             elif args.lr_annealing.name == "noisy_linear_cosine_decay":
-                decayed_lr = tf.train.noisy_linear_cosine_decay(lr, step, args.lr_annealing.decay_steps)
+                decayed_lr = tf.train.noisy_linear_cosine_decay(lr, epoch, num_epochs)
+                return sess.run(decayed_lr)
+            elif args.lr_annealing.name == "cosine_decay":
+                decayed_lr = tf.train.cosine_decay(lr, epoch, num_epochs)
+                return sess.run(decayed_lr)
+            elif args.lr_annealing.name == "cosine_decay_restarts":
+                decayed_lr = tf.train.cosine_decay_restarts(lr, epoch, num_epochs)
                 return sess.run(decayed_lr)
             elif args.lr_annealing.name == "natural_exp_decay":
                 decayed_lr = tf.compat.v1.train.natural_exp_decay(lr, step, args.lr_annealing.decay_steps,

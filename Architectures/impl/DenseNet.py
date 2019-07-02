@@ -1,6 +1,6 @@
 from Architectures.architectures import IArchitecture
 from Layers.impl.core import *
-import Layers.impl.contrib as contrib
+from Layers.impl.contrib import DenseBlock
 from math import floor
 
 # NOTE: LOOK AT KERAS IMPLEMENTATION FOR THIS ARCHITECTURE
@@ -30,12 +30,12 @@ class DenseNet(IArchitecture):
             elif self.args.build_method == "sandbox":
                 network = [
                     BatchNormalisationLayer(),
-                    ReLU(),
+                    HSwish(),
                     ConvLayer(shape=[1, 1, in_channels, out_channels], use_bias=False,
-                              build_method=Weights.impl.sandbox, ranks=[1, in_channels//4, out_channels//4],
+                              # build_method=Weights.impl.sandbox, ranks=[1, in_channels//4, out_channels//4],
                               kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self.args.weight_decay)),
                     DropoutLayer(rate=self.args.dropout_rate),
-                    ReLU(),
+                    HSwish(),
                     AveragePoolingLayer(pool_size=(2, 2))
                 ]
             else:
@@ -92,44 +92,43 @@ class DenseNet(IArchitecture):
             # Initial convolution layer
             ConvLayer(shape=(7, 7, ds_args.num_channels, 64), use_bias=False, padding="SAME"),
             BatchNormalisationLayer(),
-            ReLU(),
+            HSwish(),
             MaxPoolingLayer(pool_size=(2, 2)),
-            # NOTE: These hardcoded parameters only work for depth = 169
 
             # Dense - Block 1 and transition(56x56)
-            contrib.DenseBlock("DenseBlock1", in_channels=in_channels0, num_layers=stages[0],
-                               dropout_rate=args.dropout_rate,
-                               growth_rate=args.growth_rate,
-                               build_method=build_method,
-                               kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
+            DenseBlock("DenseBlock1", in_channels=in_channels0, num_layers=stages[0],
+                       dropout_rate=args.dropout_rate,
+                       growth_rate=args.growth_rate,
+                       build_method=build_method,
+                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
             *self.transition_layer("TransitionLayer1", in_channels=in_channels11),
 
             # Dense-Block 2 and transition (28x28)
-            contrib.DenseBlock("DenseBlock2", in_channels=in_channels12, num_layers=stages[1],
-                               dropout_rate=args.dropout_rate,
-                               growth_rate=args.growth_rate,
-                               build_method=build_method,
-                               kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
+            DenseBlock("DenseBlock2", in_channels=in_channels12, num_layers=stages[1],
+                       dropout_rate=args.dropout_rate,
+                       growth_rate=args.growth_rate,
+                       build_method=build_method,
+                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
             *self.transition_layer("TransitionLayer2", in_channels=in_channels21),
 
             # Dense-Block 3 and transition (14x14)
-            contrib.DenseBlock("DenseBlock3", in_channels=in_channels22, num_layers=stages[2],
-                               dropout_rate=args.dropout_rate,
-                               growth_rate=args.growth_rate,
-                               build_method=build_method,
-                               kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
+            DenseBlock("DenseBlock3", in_channels=in_channels22, num_layers=stages[2],
+                       dropout_rate=args.dropout_rate,
+                       growth_rate=args.growth_rate,
+                       build_method=build_method,
+                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
             *self.transition_layer("TransitionLayer3", in_channels=in_channels31),
 
             # Dense-Block 4 and transition (7x7)
-            contrib.DenseBlock("DenseBlock4", in_channels=in_channels32, num_layers=stages[3],
-                               dropout_rate=args.dropout_rate,
-                               growth_rate=args.growth_rate,
-                               build_method=build_method,
-                               kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
+            DenseBlock("DenseBlock4", in_channels=in_channels32, num_layers=stages[3],
+                       dropout_rate=args.dropout_rate,
+                       growth_rate=args.growth_rate,
+                       build_method=build_method,
+                       kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay)),
             *self.transition_layer("TransitionLayer4", in_channels=in_channels41),
 
             BatchNormalisationLayer(),
-            ReLU(),
+            HSwish(),
 
             # Max or Average
             GlobalAveragePooling(keep_dims=False),

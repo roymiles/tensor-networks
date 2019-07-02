@@ -94,10 +94,10 @@ class Network:
 
                 return cur_layer(x, kernel=w.kernel, bias=w.bias)
 
-            elif isinstance(cur_layer, contrib.CustomBottleneck):
+            elif isinstance(cur_layer, contrib.PartitionedDepthwiseSeparableLayer):
                 w = self._weights.get_layer_weights(layer_idx)
 
-                assert isinstance(w, Weights.CustomBottleneck), \
+                assert isinstance(w, Weights.PartitionedDepthwiseSeparableLayer), \
                     "The layer weights don't match up with the layer type"
 
                 return cur_layer(x, w, is_training=is_training)

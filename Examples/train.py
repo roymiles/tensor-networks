@@ -37,21 +37,23 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 print(tf.__version__)
 
 pipeline = [
-    "pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
-    "pipeline/CustomBottleNeck_64x64_0.2_0.8.json",
-    "pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
-    "pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
-    "pipeline/CustomBottleNeck_64x64_0.8_0.5.json",
-    "pipeline/CustomBottleNeck_128x128_0.2_0.8.json",
-    "pipeline/CustomBottleNeck_128x128_0.8_0.2.json"
-    #"pipeline/MobileNetV2/MobileNetV2_CIFAR10.json",
-    #"pipeline/MobileNetV2/MobileNetV2_CIFAR10_1.2x0.2x0.1.2.json",
+    # "pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
+    "DenseNet_CIFAR100.json",
+    # "pipeline/CustomBottleNeck_64x64_0.2_0.8.json",
+    # "pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
+    # "pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
+    # "pipeline/CustomBottleNeck_64x64_0.8_0.5.json",
+    # "pipeline/CustomBottleNeck_128x128_0.2_0.8.json",
+    # "pipeline/CustomBottleNeck_128x128_0.8_0.2.json"
+    # "pipeline/MobileNetV2/MobileNetV2_CIFAR10.json",
+    # "pipeline/MobileNetV2/MobileNetV2_CIFAR10_1.2x0.2x0.1.2.json",
 ]
 # Run on multiple models/architectures/learning methods
 
 if __name__ == '__main__':
 
     for args_name in pipeline:
+        tf.reset_default_graph()
         args = load_config(args_name)
         ds_args = load_config(f"datasets/{args.dataset_name}.json")
 
@@ -63,12 +65,12 @@ if __name__ == '__main__':
         if hasattr(args, 'seed'):
             seed = args.seed
         else:
-            seed = 345
+            seed = 12
 
         # Unique name for this model and training method
         unique_name = generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "mobv1test_4"
+        unique_name = "test6"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):
@@ -108,6 +110,10 @@ if __name__ == '__main__':
             "image": preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
             "label": x['label'],
         }).shuffle(args.batch_size * 50).batch(1000)
+
+        # Number of decay steps for training
+        # decay_steps = args.num_epochs * int(ds_args.train_size / args.batch_size)
+        # print(f"Decay steps = {decay_steps}")
 
         train_iterator = ds_train.make_initializable_iterator()
         next_train_element = train_iterator.get_next()
@@ -261,7 +267,7 @@ if __name__ == '__main__':
                 # profiler.advise(options=opts)
 
                 # Perform learning rate annealing
-                lr = anneal_learning_rate(lr, epoch, step, args, sess)
+                lr = anneal_learning_rate(lr, epoch, step, args, sess, num_epochs=args.num_epochs)
 
                 # ---------------- TESTING ---------------- #
                 best_acc = 0

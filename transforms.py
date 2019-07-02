@@ -21,9 +21,9 @@ def normalize_images(images, mean, std):
 
     imgs = np.array(images)
     for i in range(3):
-        images[..., i] = (imgs[..., i] - mean[i]) / std[i]
+        imgs[..., i] = (imgs[..., i] - mean[i]) / std[i]
 
-    return images
+    return imgs
 
 
 def aspect_preserving_resize(image, resize_min):

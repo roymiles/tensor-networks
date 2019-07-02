@@ -1,8 +1,7 @@
 {
-  "architecture": "MobileNetV1",
-  "dataset_name": "CIFAR10",
+  "architecture": "DenseNet",
+  "dataset_name": "CIFAR100",
   "batch_size": 256,
-  "weight_decay": 5e-4,
 
   "optimizer": {
     "name": "Momentum",
@@ -16,15 +15,13 @@
   "lr_annealing": {
     "name": "epoch_decay_boundaries",
     "epoch_decay_boundaries": [150, 225],
-    "lr_decay": 0.5
+    "lr_decay": 0.1
   },
 
   "pre_processing":
   {
     "train":
     {
-      "resize": {"width": 40, "height": 40},
-      "random_crop": {"width": 32, "height": 32},
       "random_flip_left_right": true
     },
     "test":
@@ -32,8 +29,14 @@
     }
   },
 
+  "growth_rate": 32,
+  "reduction": 0.5,
+  "build_method": "sandbox",
+  "depth": 169,
+  "dropout_rate": 0.25,
+
+  "weight_decay": 1e-4,
   "test_every": 1,
-  "method": "custom-bottleneck",
-  "ranks": [64, 64],
-  "partitions": [0.2, 0.5]
+  "seed": 1232,
+  "ranks": [96, 96]
 }

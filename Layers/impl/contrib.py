@@ -180,8 +180,9 @@ class PointwiseDot(ILayer):
         return net
 
 
-class CustomBottleneck(ILayer):
-    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME", partitions=[0.8, 0.8],
+class PartitionedDepthwiseSeparableLayer(ILayer):
+    def __init__(self, shape, strides=(1, 1), use_bias=True, padding="SAME",  # partitions=[0.8, 0.8],
+                 partitions=None,
                  kernel_initializer=tf.glorot_normal_initializer(), bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None, ranks=None):
         """
@@ -203,7 +204,6 @@ class CustomBottleneck(ILayer):
         self._padding = padding
         self._use_bias = use_bias
 
-        # Can't be bothered to make getters for these, just make them public (I trust myself not to touch them)
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
         self.kernel_regularizer = kernel_regularizer
@@ -214,7 +214,7 @@ class CustomBottleneck(ILayer):
 
     def create_weights(self):
         # Only one way to create these weights for now
-        return Weights.impl.sandbox.custom_bottleneck
+        return Weights.impl.sandbox.partitioned_depthwise_separable
 
     def get_shape(self):
         return self._shape
@@ -251,7 +251,7 @@ class CustomBottleneck(ILayer):
 
         # BN + ReLU
         net = tf.layers.batch_normalization(net, training=is_training)
-        net = tf.nn.relu(net)
+        net = net * tf.nn.relu6(net + 3) / 6  # HSwish
 
         # Pointwise
         if weights.pointwise_kernel is not None:
@@ -318,6 +318,7 @@ class DenseBlock(ILayer):
             net = tf.nn.relu(net)
 
             net = tf.nn.conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
+            # net = tf.nn.depthwise_conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
             net = tf.layers.dropout(net, rate=self.dropout_rate, training=is_training)
             net = tf.concat([input, net], axis=3)
             return net
@@ -327,7 +328,7 @@ class DenseBlock(ILayer):
         with tf.variable_scope(self.name):
             net = input
             for i in range(self.num_layers):
-                net = self.add_layer(f"composite_layer_{i}", net, weights.pointwise_kernel[i], weights.conv_kernel[i],
+                net = self.add_layer(f"composite_layer_{i}", net, weights.pointwise_kernels[i], weights.conv_kernels[i],
                                      is_training)
                 # output channels = input channels + growth rate
 
