@@ -416,7 +416,7 @@ def dense_block(cur_layer, layer_idx):
                 pointwise_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
-                pointwise_kernel.add_node("WH", shape=[1, 1], names=["W", "H"],
+                pointwise_kernel.add_node("WH", shape=[1, 1], names=["W", "H"], shared=True,
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 pointwise_kernel.add_node("C", shape=[in_channels], names=["C"],
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
@@ -425,9 +425,9 @@ def dense_block(cur_layer, layer_idx):
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                pointwise_kernel.add_edge("WH", "Gp", name="r0", length=1, shared=True)
-                pointwise_kernel.add_edge("C", "Gp", name="r1", length=1)
-                pointwise_kernel.add_edge("N", "Gp", name="r2", length=512)
+                pointwise_kernel.add_edge("WH", "C", name="r0", length=8)
+                pointwise_kernel.add_edge("WH", "N", name="r1", length=256)
+                pointwise_kernel.add_edge("C", "N", name="r2", length=8)
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 pointwise_kernel.compile()
@@ -441,7 +441,7 @@ def dense_block(cur_layer, layer_idx):
                 conv_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
-                conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
+                conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"], shared=True,
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 conv_kernel.add_node("C", shape=[4 * cur_layer.growth_rate], names=["C"],
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
@@ -450,9 +450,9 @@ def dense_block(cur_layer, layer_idx):
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                conv_kernel.add_edge("WH", "Gc", name="r0", length=9, shared=True)
-                conv_kernel.add_edge("C", "Gc", name="r1", length=128)
-                conv_kernel.add_edge("N", "Gc", name="r2", length=512)
+                conv_kernel.add_edge("WH", "C", name="r0", length=8)
+                conv_kernel.add_edge("WH", "N", name="r1", length=256)
+                conv_kernel.add_edge("C", "N", name="r2", length=8)
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 conv_kernel.compile()

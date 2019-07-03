@@ -121,6 +121,7 @@ class Graph:
             if not self._graph.nodes[node]['dummy_node']:
                 # Dummy nodes do not have an associated tf.Variable
 
+                # If sharing, don't include graph name in scope (shared across graphs)
                 scope_name = ""
                 if not self._graph.nodes[node]['shared']:
                     scope_name += "{}/".format(self._name)

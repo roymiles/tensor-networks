@@ -224,11 +224,16 @@ class DropoutLayer(ILayer):
 
 
 class BatchNormalisationLayer(ILayer):
-    def __init__(self):
+    """ If affine is False, the scale and offset parameters won't be used """
+    def __init__(self, affine=True):
+        self._affine = affine
+        # If true, use both the following params
+        self._center = affine
+        self._offset = affine
         super().__init__()
 
     def __call__(self, input, is_training):
-        net = tf.layers.batch_normalization(input, training=is_training)
+        net = tf.layers.batch_normalization(input, training=is_training, center=self._center, scale=self._offset)
         return net
 
 

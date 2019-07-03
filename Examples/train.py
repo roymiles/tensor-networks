@@ -70,7 +70,7 @@ if __name__ == '__main__':
         # Unique name for this model and training method
         unique_name = generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "test6"
+        unique_name = "test13"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):

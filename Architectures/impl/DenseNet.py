@@ -30,12 +30,12 @@ class DenseNet(IArchitecture):
             elif self.args.build_method == "sandbox":
                 network = [
                     BatchNormalisationLayer(),
-                    HSwish(),
+                    ReLU(),
                     ConvLayer(shape=[1, 1, in_channels, out_channels], use_bias=False,
                               # build_method=Weights.impl.sandbox, ranks=[1, in_channels//4, out_channels//4],
                               kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=self.args.weight_decay)),
                     DropoutLayer(rate=self.args.dropout_rate),
-                    HSwish(),
+                    ReLU(),
                     AveragePoolingLayer(pool_size=(2, 2))
                 ]
             else:
@@ -71,7 +71,7 @@ class DenseNet(IArchitecture):
         elif args.depth == 161:
             stages = [6, 12, 36, 24]
         else:
-            stages = [args.d1, args.d2, args.d3, args.d4]
+            stages = args.stages
 
         # Pre-calculate all the input channel dims
         in_channels0 = 64
@@ -92,7 +92,7 @@ class DenseNet(IArchitecture):
             # Initial convolution layer
             ConvLayer(shape=(7, 7, ds_args.num_channels, 64), use_bias=False, padding="SAME"),
             BatchNormalisationLayer(),
-            HSwish(),
+            ReLU(),
             MaxPoolingLayer(pool_size=(2, 2)),
 
             # Dense - Block 1 and transition(56x56)
@@ -128,7 +128,7 @@ class DenseNet(IArchitecture):
             *self.transition_layer("TransitionLayer4", in_channels=in_channels41),
 
             BatchNormalisationLayer(),
-            HSwish(),
+            ReLU(),
 
             # Max or Average
             GlobalAveragePooling(keep_dims=False),

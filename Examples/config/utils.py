@@ -121,6 +121,9 @@ def preprocess_images_fn(args, ds_args, is_training=True):
         if name == "random_crop":
             funcs.append(lambda x, width=properties.width, height=properties.height:
                          tf.image.random_crop(x, size=[width, height, 3]))
+        elif name == "pad":
+            _paddings = [[4, 4], [4, 4], [0, 0]]
+            funcs.append(lambda x, paddings=_paddings: tf.pad(x, paddings))
         elif name == "random_flip_left_right":
             funcs.append(lambda x: tf.image.random_flip_left_right(x))
         elif name == "resize":
