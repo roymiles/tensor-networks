@@ -2,12 +2,8 @@ import tensorflow as tf
 import random
 import string
 
-print(tf.__version__)
 
 """ Generic functions """
-
-l2_reg = tf.contrib.layers.l2_regularizer(scale=1.0)
-
 
 def variance_regularizor(scale):
     """ Variance across all dimensions/axis """

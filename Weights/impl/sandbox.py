@@ -416,11 +416,13 @@ def dense_block(cur_layer, layer_idx):
                 pointwise_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
-                pointwise_kernel.add_node("WH", shape=[1, 1], names=["W", "H"], shared=True,
+                pointwise_kernel.add_node("WH", shape=[1, 1], names=["W", "H"],
+                                          shared=True,
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 pointwise_kernel.add_node("C", shape=[in_channels], names=["C"],
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-                pointwise_kernel.add_node("N", shape=[4 * cur_layer.growth_rate], names=["N"], shared=True,
+                pointwise_kernel.add_node("N", shape=[cur_layer.bottleneck * cur_layer.growth_rate], names=["N"],
+                                          shared=True,
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
                 # Auxiliary indices
@@ -438,14 +440,17 @@ def dense_block(cur_layer, layer_idx):
 
             # -----------------------------------
             with tf.variable_scope(f"conv_kernel"):
+                """
                 conv_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
-                conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"], shared=True,
+                conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
+                                     shared=True,
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-                conv_kernel.add_node("C", shape=[4 * cur_layer.growth_rate], names=["C"],
+                conv_kernel.add_node("C", shape=[cur_layer.bottleneck * cur_layer.growth_rate], names=["C"],
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
-                conv_kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"], shared=True,
+                conv_kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"],
+                                     shared=True,
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
                 # Auxiliary indices
@@ -460,10 +465,18 @@ def dense_block(cur_layer, layer_idx):
 
                 # Summaries / Histograms
                 conv_kernel.create_summaries()
-
+                """
+                group_conv_kernels = []
+                for g in range(cur_layer.bottleneck):
+                    group_conv_kernels.append(tf.get_variable(f"conv_group_kernel_{g}_{layer_idx}",
+                                                              shape=[3, 3, in_channels // cur_layer.bottleneck,
+                                                                     cur_layer.growth_rate // cur_layer.bottleneck],
+                                                              collections=[tf.GraphKeys.GLOBAL_VARIABLES,
+                                                                           tf.GraphKeys.WEIGHTS],
+                                                              trainable=True))
             # Add it to the list of kernels
             pointwise_kernels.append(pointwise_kernel)
-            conv_kernels.append(conv_kernel)
+            conv_kernels.append(group_conv_kernels)  # / conv_kernels
 
             # Next layer is concatenation of input and output of previous layer
             in_channels += cur_layer.growth_rate

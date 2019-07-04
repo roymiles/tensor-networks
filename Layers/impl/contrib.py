@@ -1,4 +1,4 @@
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from Layers.layer import ILayer
 import Weights.impl.core
 import Weights.impl.sandbox
@@ -281,7 +281,8 @@ class PartitionedDepthwiseSeparableLayer(ILayer):
 
 
 class DenseBlock(ILayer):
-    def __init__(self, name, in_channels, num_layers, growth_rate, dropout_rate, build_method=Weights.impl.sandbox,
+    def __init__(self, name, in_channels, num_layers, growth_rate, dropout_rate, bottleneck,
+                 build_method=Weights.impl.sandbox,
                  kernel_initializer=tf.glorot_normal_initializer(),  bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         """
@@ -297,6 +298,7 @@ class DenseBlock(ILayer):
         self.growth_rate = growth_rate
         self.build_method = build_method
         self.dropout_rate = dropout_rate
+        self.bottleneck = bottleneck
 
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
@@ -317,7 +319,22 @@ class DenseBlock(ILayer):
             net = tf.layers.batch_normalization(net, training=is_training)
             net = tf.nn.relu(net)
 
-            net = tf.nn.conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
+            # net = tf.nn.conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
+
+            # ---- Group convolution ---- #
+            # Apply the group convolution kernels to disjoint sets of the input feature maps
+            group_conv_out = []
+            in_channels = input.get_shape().as_list()[3]
+            group_size = in_channels / len(conv_kernel)
+            for i, group_conv_kernel in enumerate(conv_kernel):
+                offset = i * group_size   # Each of size in_channels / num_groups
+                group_conv_out.append(tf.nn.conv2d(net[:, :, :, offset:offset+group_size], group_conv_kernel,
+                                                   strides=[1, 1, 1, 1], padding="SAME"))
+
+            # Concatenate the results
+            net = tf.concat(group_conv_kernel, axis=3)
+            # -------------------------- #
+
             # net = tf.nn.depthwise_conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
             net = tf.layers.dropout(net, rate=self.dropout_rate, training=is_training)
             net = tf.concat([input, net], axis=3)

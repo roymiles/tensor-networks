@@ -9,26 +9,41 @@ import logging
 import sys
 sys.path.append('..')
 
+import tensorflow as tf
+
 import tensorflow_datasets as tfds
 import os
 from tqdm import tqdm
 import config as conf
-from base import *
-from tflite import *
-from Examples.config.utils import *
+
+import base as base
+import tflite as tflite
+import Examples.config.utils as utils
 
 from Networks.network import Network as MyNetwork
 import numpy as np
 from tensorflow.python.client import timeline
-from tensorflow.python.tools import freeze_graph, optimize_for_inference_lib
+from tensorflow.python.tools import freeze_graph
 from tensorflow.python.platform import gfile
 from transforms import normalize_images
+import random
 
 # For knowledge distillation
 from keras.applications.densenet import DenseNet169
-from keras.applications.mobilenetv2 import MobileNetV2
-from keras.preprocessing import image
-from keras.applications.resnet50 import preprocess_input, decode_predictions
+from keras.models import Model
+densenet = DenseNet169(weights='imagenet', input_shape=(32, 32, 3), include_top=False)
+# for layer in densenet.layers:
+#    print(layer.name)
+teacher = Model(inputs=densenet.input, outputs=[densenet.get_layer('conv2_block6_concat').output,
+                                                densenet.get_layer('conv3_block12_concat').output,
+                                                densenet.get_layer('conv4_block32_concat').output,
+                                                densenet.get_layer('conv5_block32_concat').output])
+# See: https://github.com/keras-team/keras/issues/6462#issuecomment-319232504
+teacher._make_predict_function()
+# inp = np.random.rand(5, 32, 32, 3)
+# out = teacher.predict(inp)
+# print(out)
+# exit()
 
 # The info messages are getting tedious now
 tf.logging.set_verbosity(tf.logging.WARN)
@@ -38,7 +53,7 @@ print(tf.__version__)
 
 pipeline = [
     # "pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
-    "DenseNet_CIFAR100.json",
+    "DenseNet_CIFAR10.json",
     # "pipeline/CustomBottleNeck_64x64_0.2_0.8.json",
     # "pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
     # "pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
@@ -54,8 +69,8 @@ if __name__ == '__main__':
 
     for args_name in pipeline:
         tf.reset_default_graph()
-        args = load_config(args_name)
-        ds_args = load_config(f"datasets/{args.dataset_name}.json")
+        args = utils.load_config(args_name)
+        ds_args = utils.load_config(f"datasets/{args.dataset_name}.json")
 
         # This is needed, else the logging file is not made (in PyCharm)
         # https://stackoverflow.com/questions/30861524/logging-basicconfig-not-creating-log-file-when-i-run-in-pycharm
@@ -68,9 +83,9 @@ if __name__ == '__main__':
             seed = 12
 
         # Unique name for this model and training method
-        unique_name = generate_unique_name(args, ds_args)
+        unique_name = utils.generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "test13"
+        unique_name = "group_conv_test"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):
@@ -88,6 +103,7 @@ if __name__ == '__main__':
 
         # See available datasets
         print(tfds.list_builders())
+        logging.info(f"Tensorflow version: {tf.__version__}")
 
         # Already downloaded
         datasets = tfds.load(args.dataset_name.lower(), data_dir=conf.tfds_dir)
@@ -102,12 +118,12 @@ if __name__ == '__main__':
 
         # Build the input pipeline
         ds_train = ds_train.map(lambda x: {
-            "image": preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
+            "image": utils.preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
             "label": x['label'],
         }).shuffle(args.batch_size * 50).batch(args.batch_size)
 
         ds_test = ds_test.map(lambda x: {
-            "image": preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
+            "image": utils.preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
             "label": x['label'],
         }).shuffle(args.batch_size * 50).batch(1000)
 
@@ -126,14 +142,18 @@ if __name__ == '__main__':
                                name="input_node")
             y = tf.placeholder(tf.float32, shape=[None, ds_args.num_classes])
             is_training = tf.placeholder(tf.bool, shape=[], name="is_training")
+
+            # hints = tf.ragged.placeholder(tf.float32, ragged_rank=[[args.batch_size, 8, 8, 100],
+            #                                                       [args.batch_size, 8, 8, 100]])
+
             switch_idx = tf.placeholder(tf.int32, shape=[])
             switch = tf.placeholder(tf.float32, shape=[])
 
-        architecture = get_architecture(args, ds_args)
+        architecture = utils.get_architecture(args, ds_args)
         model = MyNetwork(architecture=architecture)
         model.build()
 
-        logits_op = model(x, is_training=is_training, switch_idx=switch_idx, switch=switch)
+        logits_op = model(x, is_training=is_training, switch_idx=switch_idx, switch=switch)  # hints=hints
 
         with tf.variable_scope("loss"):
             loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(y, logits_op))
@@ -152,7 +172,7 @@ if __name__ == '__main__':
         # This update op ensures the moving averages for BN
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-            opt, learning_rate = get_optimizer(args)
+            opt, learning_rate = utils.get_optimizer(args)
             train_op = opt.minimize(loss_op, global_step=global_step)
 
         # Tensorboard
@@ -162,7 +182,7 @@ if __name__ == '__main__':
         num_params = 0
         for v in tf.trainable_variables():
             logging.info(v)
-            num_params += tfvar_size(v)
+            num_params += base.tfvar_size(v)
 
         logging.info(f"Number of parameters = {num_params}")
 
@@ -216,6 +236,15 @@ if __name__ == '__main__':
                         images = images / 255.0
                         images = normalize_images(images, ds_args.mean, ds_args.std)
 
+                        # Run through the teacher model too
+                        """_hints = teacher.predict(images)
+                        print(_hints)
+                        print(_hints[0].shape)
+                        print(_hints[1].shape)
+                        print(_hints[2].shape)
+                        print(_hints[3].shape)
+                        exit()"""
+
                         # One hot encode
                         labels = np.eye(ds_args.num_classes)[labels]
 
@@ -225,6 +254,9 @@ if __name__ == '__main__':
                             y: labels,
                             learning_rate: lr,
                             is_training: True,
+
+                            # hints: _hints,
+
                             switch_idx: sw_idx,
                             switch: sw
                         }
@@ -267,7 +299,13 @@ if __name__ == '__main__':
                 # profiler.advise(options=opts)
 
                 # Perform learning rate annealing
-                lr = anneal_learning_rate(lr, epoch, step, args, sess, num_epochs=args.num_epochs)
+                lr = utils.anneal_learning_rate(current_learning_rate=lr,
+                                                initial_learning_rate=args.learning_rate,
+                                                epoch=epoch,
+                                                step=step,
+                                                args=args,
+                                                sess=sess,
+                                                num_epochs=args.num_epochs)
 
                 # ---------------- TESTING ---------------- #
                 best_acc = 0

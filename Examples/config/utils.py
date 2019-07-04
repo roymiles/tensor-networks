@@ -161,7 +161,13 @@ def generate_unique_name(args, ds_args):
     return unique_name
 
 
-def anneal_learning_rate(lr, epoch, step, args, sess, num_epochs):
+def anneal_learning_rate(current_learning_rate,
+                         initial_learning_rate,
+                         epoch,
+                         step,
+                         args,
+                         sess,
+                         num_epochs):
     """ Perform learning rate annealing, as defined by the training .json/.yaml config """
     try:
         if hasattr(args, "lr_annealing"):
@@ -170,36 +176,37 @@ def anneal_learning_rate(lr, epoch, step, args, sess, num_epochs):
             if args.lr_annealing.name == "num_epochs_decay":
                 # Decay every n epochs
                 if epoch % args.lr_annealing.num_epochs_decay == 0 and epoch != 0:
-                    return lr * args.lr_annealing.lr_decay
+                    return current_learning_rate * args.lr_annealing.lr_decay
             elif args.lr_annealing.name == "epoch_decay_boundaries":
                 # Decay at predefined epoch boundaries
                 if epoch in args.lr_annealing.epoch_decay_boundaries:
-                    return lr * args.lr_annealing.lr_decay
+                    return current_learning_rate * args.lr_annealing.lr_decay
             elif args.lr_annealing.name == "noisy_linear_cosine_decay":
-                decayed_lr = tf.train.noisy_linear_cosine_decay(lr, epoch, num_epochs)
+                decayed_lr = tf.train.noisy_linear_cosine_decay(initial_learning_rate, epoch, num_epochs)
                 return sess.run(decayed_lr)
             elif args.lr_annealing.name == "cosine_decay":
-                decayed_lr = tf.train.cosine_decay(lr, epoch, num_epochs)
+                decayed_lr = tf.train.cosine_decay(initial_learning_rate, epoch, num_epochs)
                 return sess.run(decayed_lr)
             elif args.lr_annealing.name == "cosine_decay_restarts":
-                decayed_lr = tf.train.cosine_decay_restarts(lr, epoch, num_epochs)
+                decayed_lr = tf.train.cosine_decay_restarts(initial_learning_rate, epoch, num_epochs)
                 return sess.run(decayed_lr)
             elif args.lr_annealing.name == "natural_exp_decay":
-                decayed_lr = tf.compat.v1.train.natural_exp_decay(lr, step, args.lr_annealing.decay_steps,
+                decayed_lr = tf.compat.v1.train.natural_exp_decay(initial_learning_rate, step,
+                                                                  args.lr_annealing.decay_steps,
                                                                   args.lr_annealing.decay_rate)
                 return sess.run(decayed_lr)
             else:
                 raise Exception("Unspecified learning rate annealing strategy")
 
             # Not decaying for this epoch
-            return lr
+            return current_learning_rate
         else:
             # No lr annealing
-            return lr
+            return current_learning_rate
 
     except AttributeError:
         # Not performing any lr annealing
-        raise Exception("Probably should not end up here...")
-        return lr
+        # raise Exception("Unspecified learning rate schedule")
+        return current_learning_rate
 
 

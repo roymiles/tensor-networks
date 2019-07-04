@@ -68,7 +68,7 @@ class Network:
                     tf_weights = create_op()(cur_layer, layer_idx)
                     self._weights.set_weights(layer_idx, tf_weights)
 
-    def run_layer(self, x, layer_idx, name, is_training=True, switch_idx=0, switch=1.0):
+    def run_layer(self, x, layer_idx, name, is_training=True, switch_idx=0, switch=1.0, hints=None):
         """ Pass input through a single layer
             Operation is dependant on the layer type
 
@@ -156,13 +156,14 @@ class Network:
                 print(f"The following layer does not have a concrete implementation: {cur_layer}")
                 return cur_layer(x)
 
-    def __call__(self, x, is_training, switch_idx=0, switch=1.0):
+    def __call__(self, x, is_training, switch_idx=0, switch=1.0, hints=None):
         """ Complete forward pass for the entire network
 
             :param x: The input to the network e.g. a batch of images
             :param switch_idx: Associated switch index from the switch list
             :param switch: Current switch in range 0, 1
             :param is_training: bool, is training or testing mode
+            :param hints: A teacher models layer outputs for the same input data
         """
 
         tf.summary.image("input_data", x, collections=['train', 'test'])
@@ -172,7 +173,7 @@ class Network:
             net = x
             for n in range(self.get_num_layers()):
                 net = self.run_layer(net, layer_idx=n, name=f"layer_{n}",
-                                     is_training=is_training, switch_idx=switch_idx, switch=switch)
+                                     is_training=is_training, switch_idx=switch_idx, switch=switch, hints=hints)
 
             # Identity is used so we can give a node name to the output
             # The operation affectively does nothing

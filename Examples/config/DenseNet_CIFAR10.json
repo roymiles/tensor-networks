@@ -1,12 +1,12 @@
 {
   "architecture": "DenseNet",
-  "dataset_name": "CIFAR100",
-  "batch_size": 128,
+  "dataset_name": "CIFAR10",
+  "batch_size": 64,
 
   "optimizer": {
     "name": "Momentum",
     "momentum": 0.9,
-    "use_nesterov": false
+    "use_nesterov": true
   },
 
   "learning_rate": 0.1,
@@ -29,17 +29,14 @@
     }
   },
 
-  "growth_rate": 12,
+  "growth_rates": [8, 16, 32],
   "reduction": 0.5,
-  "build_method": "sandbox",
-
-  "depth": "notusedm8",
-  "stages": [12, 12, 12, 12],
-
-  "dropout_rate": 0.25,
+  "build_method": "standard",
+  "stages": [14, 14, 14],
+  "dropout_rate": 0,
+  "bottleneck": 4,
 
   "weight_decay": 1e-4,
   "test_every": 1,
-  "seed": 1232,
-  "ranks": [96, 96]
+  "seed": 0
 }
