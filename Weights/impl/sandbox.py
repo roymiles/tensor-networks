@@ -427,9 +427,8 @@ def dense_block(cur_layer, layer_idx):
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                pointwise_kernel.add_edge("WH", "C", name="r0", length=8)
+                pointwise_kernel.add_edge("WH", "C", name="r0", length=16)
                 pointwise_kernel.add_edge("WH", "N", name="r1", length=256)
-                pointwise_kernel.add_edge("C", "N", name="r2", length=8)
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 pointwise_kernel.compile()
@@ -467,9 +466,10 @@ def dense_block(cur_layer, layer_idx):
                 conv_kernel.create_summaries()
                 """
                 group_conv_kernels = []
+                in_c = cur_layer.bottleneck * cur_layer.growth_rate
                 for g in range(cur_layer.bottleneck):
-                    group_conv_kernels.append(tf.get_variable(f"conv_group_kernel_{g}_{layer_idx}",
-                                                              shape=[3, 3, in_channels // cur_layer.bottleneck,
+                    group_conv_kernels.append(tf.get_variable(f"layer_{i}_conv_group_kernel_{g}_{layer_idx}",
+                                                              shape=[3, 3, in_c // cur_layer.bottleneck,
                                                                      cur_layer.growth_rate // cur_layer.bottleneck],
                                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES,
                                                                            tf.GraphKeys.WEIGHTS],

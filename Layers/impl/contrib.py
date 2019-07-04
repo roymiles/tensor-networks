@@ -324,15 +324,15 @@ class DenseBlock(ILayer):
             # ---- Group convolution ---- #
             # Apply the group convolution kernels to disjoint sets of the input feature maps
             group_conv_out = []
-            in_channels = input.get_shape().as_list()[3]
-            group_size = in_channels / len(conv_kernel)
+            in_channels = net.get_shape().as_list()[3]
+            group_size = int(in_channels / len(conv_kernel))
             for i, group_conv_kernel in enumerate(conv_kernel):
                 offset = i * group_size   # Each of size in_channels / num_groups
                 group_conv_out.append(tf.nn.conv2d(net[:, :, :, offset:offset+group_size], group_conv_kernel,
                                                    strides=[1, 1, 1, 1], padding="SAME"))
 
             # Concatenate the results
-            net = tf.concat(group_conv_kernel, axis=3)
+            net = tf.concat(group_conv_out, axis=3)
             # -------------------------- #
 
             # net = tf.nn.depthwise_conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")

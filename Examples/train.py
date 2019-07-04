@@ -85,7 +85,7 @@ if __name__ == '__main__':
         # Unique name for this model and training method
         unique_name = utils.generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "group_conv_test"
+        unique_name = "group3x3_WHcore"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):

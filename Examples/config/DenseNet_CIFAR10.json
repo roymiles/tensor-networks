@@ -31,7 +31,7 @@
 
   "growth_rates": [8, 16, 32],
   "reduction": 0.5,
-  "build_method": "standard",
+  "build_method": "sandbox",
   "stages": [14, 14, 14],
   "dropout_rate": 0,
   "bottleneck": 4,
