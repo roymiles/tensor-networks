@@ -53,7 +53,7 @@ print(tf.__version__)
 
 pipeline = [
     # "pipeline/CustomBottleNeck_64x64_0.2_0.5.json",
-    "DenseNet_CIFAR10.json",
+    "DenseNet_CIFAR10.yaml",
     # "pipeline/CustomBottleNeck_64x64_0.2_0.8.json",
     # "pipeline/CustomBottleNeck_64x64_0.2_1.0.json",
     # "pipeline/CustomBottleNeck_64x64_0.5_0.5.json",
@@ -85,7 +85,7 @@ if __name__ == '__main__':
         # Unique name for this model and training method
         unique_name = utils.generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "group3x3_WHcore"
+        unique_name = "tryingshtuff"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):
@@ -184,7 +184,13 @@ if __name__ == '__main__':
             logging.info(v)
             num_params += base.tfvar_size(v)
 
+        # Ignoring BN params etc
+        num_weight_params = 0
+        for v in tf.get_collection(tf.GraphKeys.WEIGHTS):
+            num_weight_params += base.tfvar_size(v)
+
         logging.info(f"Number of parameters = {num_params}")
+        logging.info(f"Number of WEIGHT parameters = {num_weight_params}")
 
         # Add ops to save and restore all the variables.
         saver = tf.train.Saver()

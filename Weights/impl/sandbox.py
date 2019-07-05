@@ -83,12 +83,15 @@ def depthwise_convolution(cur_layer, layer_idx, ranks):
         return Weights.DepthwiseConvolution(kernel, bias)
 
 
-def fully_connected(cur_layer, layer_idx, ranks):
+def fully_connected(cur_layer, layer_idx):
     """
         Connected I, O to a core tensor g (affectively a matrix)
     """
     with tf.variable_scope("FullyConnected"):
         shape = cur_layer.get_shape()
+
+        ranks = cur_layer.ranks
+        assert len(ranks) == 2, "Must specified r0, r1"
 
         kernel = Graph("fc_{}".format(layer_idx))
 
@@ -104,6 +107,7 @@ def fully_connected(cur_layer, layer_idx, ranks):
 
         # Compile the graph and add to the set of weights
         kernel.compile()
+        kernel.set_output_shape(["I", "O"])
 
         bias = None
         if cur_layer.using_bias():
@@ -427,19 +431,19 @@ def dense_block(cur_layer, layer_idx):
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                pointwise_kernel.add_edge("WH", "C", name="r0", length=16)
-                pointwise_kernel.add_edge("WH", "N", name="r1", length=256)
+                pointwise_kernel.add_edge("WH", "C", name="r0", length=16)  # 16
+                pointwise_kernel.add_edge("WH", "N", name="r1", length=256)  # 256
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 pointwise_kernel.compile()
                 pointwise_kernel.set_output_shape(["W", "H", "C", "N"])
 
                 # Summaries / Histograms
-                pointwise_kernel.create_summaries()
+                # pointwise_kernel.create_summaries()
 
             # -----------------------------------
             with tf.variable_scope(f"conv_kernel"):
-                """
+
                 conv_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
@@ -454,16 +458,17 @@ def dense_block(cur_layer, layer_idx):
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                conv_kernel.add_edge("WH", "C", name="r0", length=8)
-                conv_kernel.add_edge("WH", "N", name="r1", length=256)
-                conv_kernel.add_edge("C", "N", name="r2", length=8)
+                conv_kernel.add_edge("WH", "C", name="r0", length=8)  # 8
+                conv_kernel.add_edge("WH", "N", name="r1", length=256)  # 256
+                conv_kernel.add_edge("C", "N", name="r2", length=8)  # 8
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 conv_kernel.compile()
                 conv_kernel.set_output_shape(["W", "H", "C", "N"])
 
                 # Summaries / Histograms
-                conv_kernel.create_summaries()
+                # conv_kernel.create_summaries()
+
                 """
                 group_conv_kernels = []
                 in_c = cur_layer.bottleneck * cur_layer.growth_rate
@@ -473,10 +478,11 @@ def dense_block(cur_layer, layer_idx):
                                                                      cur_layer.growth_rate // cur_layer.bottleneck],
                                                               collections=[tf.GraphKeys.GLOBAL_VARIABLES,
                                                                            tf.GraphKeys.WEIGHTS],
-                                                              trainable=True))
+                                                           trainable=True))
+                """
             # Add it to the list of kernels
             pointwise_kernels.append(pointwise_kernel)
-            conv_kernels.append(group_conv_kernels)  # / conv_kernels
+            conv_kernels.append(conv_kernel)  # group_conv_kernels / conv_kernels
 
             # Next layer is concatenation of input and output of previous layer
             in_channels += cur_layer.growth_rate

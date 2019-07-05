@@ -89,10 +89,10 @@ class Graph:
             raise Exception("Unable to add more edge/nodes once the graph is compiled")
 
         # Check if the nodes exist. If they do not, add them.
-        # NOTE: Assumes nodes that do not exist are not dummy nodes
+        # NOTE: Assumes nodes that do not exist are NOT dummy nodes
         if not self._graph.has_node(u_of_edge):
-            self._graph.add_node(u_of_edge, dummy_node=False, initializer=tf.glorot_normal_initializer(),
-                                 regularizer=None, shared=None, collections=None)
+            self._graph.add_node(u_of_edge, dummy_node=False, initializer=initializer,
+                                 regularizer=regularizer, shared=None, collections=collections)
 
         if not self._graph.has_node(v_of_edge):
             # Can specify if v is shared or part of a collection

@@ -319,8 +319,10 @@ class DenseBlock(ILayer):
             net = tf.layers.batch_normalization(net, training=is_training)
             net = tf.nn.relu(net)
 
-            # net = tf.nn.conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
+            # Standard convolution
+            net = tf.nn.conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
 
+            """
             # ---- Group convolution ---- #
             # Apply the group convolution kernels to disjoint sets of the input feature maps
             group_conv_out = []
@@ -334,6 +336,7 @@ class DenseBlock(ILayer):
             # Concatenate the results
             net = tf.concat(group_conv_out, axis=3)
             # -------------------------- #
+            """
 
             # net = tf.nn.depthwise_conv2d(net, conv_kernel, strides=[1, 1, 1, 1], padding="SAME")
             net = tf.layers.dropout(net, rate=self.dropout_rate, training=is_training)

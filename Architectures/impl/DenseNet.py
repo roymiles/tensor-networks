@@ -80,7 +80,8 @@ class DenseNet(IArchitecture):
 
         network = [
             # Initial convolution layer
-            ConvLayer(shape=(7, 7, ds_args.num_channels, 64), use_bias=False, padding="SAME"),
+            ConvLayer(shape=(7, 7, ds_args.num_channels, 64), use_bias=False, padding="SAME",
+                      build_method=Weights.impl.core, ranks=None),
             BatchNormalisationLayer(),
             ReLU(),
             MaxPoolingLayer(pool_size=(2, 2))
@@ -110,7 +111,8 @@ class DenseNet(IArchitecture):
             GlobalAveragePooling(keep_dims=False),
 
             # Top
-            FullyConnectedLayer(shape=(in_channels, ds_args.num_classes))
+            FullyConnectedLayer(shape=(in_channels, ds_args.num_classes),
+                                build_method=Weights.impl.sandbox, ranks=[256, 128])
         ])
 
         print(network)

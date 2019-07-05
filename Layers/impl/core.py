@@ -134,7 +134,7 @@ class FullyConnectedLayer(ILayer):
     def __init__(self, shape, build_method=Weights.impl.core, use_bias=True,
                  kernel_initializer=tf.glorot_normal_initializer(),
                  bias_initializer=tf.zeros_initializer(),
-                 kernel_regularizer=None, bias_regularizer=None):
+                 kernel_regularizer=None, bias_regularizer=None, ranks=None):
 
         super().__init__()
         self._shape = shape
@@ -145,6 +145,8 @@ class FullyConnectedLayer(ILayer):
         self.bias_initializer = bias_initializer
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
+
+        self.ranks = ranks
 
     def create_weights(self):
         return self._build_method.fully_connected
