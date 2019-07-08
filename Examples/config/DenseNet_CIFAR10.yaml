@@ -29,6 +29,31 @@ stages:
 - 7
 - 7
 - 7
+
+ranks:
+  # pw: c x0 wh x1 n
+  # conv: c x0 wh x1 n
+- pw:
+  - 8
+  - 32
+  conv:
+  - 8
+  - 32
+
+- pw:
+  - 16
+  - 64
+  conv:
+  - 16
+  - 64
+
+- pw:
+  - 32
+  - 128
+  conv:
+  - 32
+  - 128
+
 dropout_rate: 0
 bottleneck: 4
 weight_decay: 0.0001

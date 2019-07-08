@@ -3,6 +3,7 @@ from Weights.weights import Weights
 from Networks.graph import Graph
 import logging
 from base import clamp
+import numpy as np
 
 
 def convolution(cur_layer, layer_idx, name="Convolution"):
@@ -404,6 +405,7 @@ def dense_block(cur_layer, layer_idx):
     conv_kernels = []
     with tf.variable_scope(f"DenseBlock_{layer_idx}"):
         in_channels = cur_layer.in_channels
+        ranks = cur_layer.ranks
         for i in range(cur_layer.num_layers):
             # pointwise_kernel = tf.get_variable(f"pointwise_kernel_{layer_idx}_{i}",
             #                                   shape=[1, 1, in_channels, 4 * cur_layer.growth_rate],
@@ -420,26 +422,32 @@ def dense_block(cur_layer, layer_idx):
                 pointwise_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
+                var = np.cbrt(np.sqrt(1.0 / np.sum(ranks.conv)))
+                # Technically will only work properly if not sharing weights
+                init = tf.initializers.truncated_normal(mean=0.0, stddev=np.sqrt(var))
                 pointwise_kernel.add_node("WH", shape=[1, 1], names=["W", "H"],
                                           shared=True,
+                                          initializer=init,
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 pointwise_kernel.add_node("C", shape=[in_channels], names=["C"],
+                                          initializer=init,
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 pointwise_kernel.add_node("N", shape=[cur_layer.bottleneck * cur_layer.growth_rate], names=["N"],
+                                          initializer=init,
                                           shared=True,
                                           collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                pointwise_kernel.add_edge("WH", "C", name="r0", length=16)  # 16
-                pointwise_kernel.add_edge("WH", "N", name="r1", length=256)  # 256
+                pointwise_kernel.add_edge("WH", "C", name="r0", length=ranks.pw[0])  # 16
+                pointwise_kernel.add_edge("WH", "N", name="r1", length=ranks.pw[1])  # 256
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 pointwise_kernel.compile()
                 pointwise_kernel.set_output_shape(["W", "H", "C", "N"])
 
                 # Summaries / Histograms
-                # pointwise_kernel.create_summaries()
+                pointwise_kernel.create_summaries()
 
             # -----------------------------------
             with tf.variable_scope(f"conv_kernel"):
@@ -447,27 +455,32 @@ def dense_block(cur_layer, layer_idx):
                 conv_kernel = Graph(str(i))
 
                 # Add the nodes w/ exposed indices
+                var = np.cbrt(np.sqrt(1.0 / np.sum(ranks.conv)))
+                init = tf.initializers.truncated_normal(mean=0.0, stddev=np.sqrt(var))
                 conv_kernel.add_node("WH", shape=[3, 3], names=["W", "H"],
                                      shared=True,
+                                     initializer=init,
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 conv_kernel.add_node("C", shape=[cur_layer.bottleneck * cur_layer.growth_rate], names=["C"],
+                                     initializer=init,
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
                 conv_kernel.add_node("N", shape=[cur_layer.growth_rate], names=["N"],
+                                     initializer=init,
                                      shared=True,
                                      collections=[tf.GraphKeys.GLOBAL_VARIABLES, tf.GraphKeys.WEIGHTS])
 
                 # Auxiliary indices
                 # NOTE: Must specify shared at start
-                conv_kernel.add_edge("WH", "C", name="r0", length=8)  # 8
-                conv_kernel.add_edge("WH", "N", name="r1", length=256)  # 256
-                conv_kernel.add_edge("C", "N", name="r2", length=8)  # 8
+                conv_kernel.add_edge("WH", "C", name="r0", length=ranks.conv[0])  # 8
+                conv_kernel.add_edge("WH", "N", name="r1", length=ranks.conv[1])  # 256
+                # conv_kernel.add_edge("C", "N", name="r2", length=ranks.conv[2])  # 8
 
                 # Compile/generate the tf.Variables and add to the set of weights
                 conv_kernel.compile()
                 conv_kernel.set_output_shape(["W", "H", "C", "N"])
 
                 # Summaries / Histograms
-                # conv_kernel.create_summaries()
+                conv_kernel.create_summaries()
 
                 """
                 group_conv_kernels = []

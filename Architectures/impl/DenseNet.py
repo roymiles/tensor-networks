@@ -94,6 +94,7 @@ class DenseNet(IArchitecture):
                                      growth_rate=growth_rate,
                                      bottleneck=args.bottleneck,
                                      build_method=build_method,
+                                     ranks=args.ranks[i],
                                      kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=args.weight_decay))
 
             in_channels = in_channels + (stage * growth_rate)
@@ -112,7 +113,7 @@ class DenseNet(IArchitecture):
 
             # Top
             FullyConnectedLayer(shape=(in_channels, ds_args.num_classes),
-                                build_method=Weights.impl.sandbox, ranks=[256, 128])
+                                build_method=Weights.impl.core, ranks=None)
         ])
 
         print(network)

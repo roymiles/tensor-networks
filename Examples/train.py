@@ -85,7 +85,7 @@ if __name__ == '__main__':
         # Unique name for this model and training method
         unique_name = utils.generate_unique_name(args, ds_args)
         unique_name += f"_seed_{seed}"
-        unique_name = "tryingshtuff"
+        unique_name = "test3"
 
         switch_list = [1.0]
         if hasattr(args, 'switch_list'):
@@ -116,21 +116,26 @@ if __name__ == '__main__':
         else:
             ds_train, ds_test = datasets['train'], datasets['test']
 
+        # Prefetch size
+        n_train = ds_args.train_size // args.batch_size
+        n_test = ds_args.test_size // args.batch_size
+
         # Build the input pipeline
-        ds_train = ds_train.map(lambda x: {
+        ds_train = ds_train.shuffle(args.batch_size * 50).map(lambda x: {
             "image": utils.preprocess_images_fn(args, ds_args, is_training=True)(x['image']),
             "label": x['label'],
-        }).shuffle(args.batch_size * 50).batch(args.batch_size)
+        }).batch(args.batch_size).prefetch(n_train)
 
-        ds_test = ds_test.map(lambda x: {
+        ds_test = ds_test.shuffle(args.batch_size * 50).map(lambda x: {
             "image": utils.preprocess_images_fn(args, ds_args, is_training=False)(x['image']),
             "label": x['label'],
-        }).shuffle(args.batch_size * 50).batch(1000)
+        }).batch(args.batch_size).prefetch(n_test)
 
         # Number of decay steps for training
         # decay_steps = args.num_epochs * int(ds_args.train_size / args.batch_size)
         # print(f"Decay steps = {decay_steps}")
 
+        # or make_initializable_iterator()
         train_iterator = ds_train.make_initializable_iterator()
         next_train_element = train_iterator.get_next()
 

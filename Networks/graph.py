@@ -144,7 +144,8 @@ class Graph:
                     else:
                         self._graph.nodes[node]["tfvar"] = tf.get_variable("{}{}_trainable".format(scope_name, node),
                                                                            shape=dims,
-                                                                           initializer=init, regularizer=reg,
+                                                                           initializer=init,
+                                                                           regularizer=reg,
                                                                            collections=collections,
                                                                            trainable=True)
 

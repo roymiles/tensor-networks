@@ -282,7 +282,7 @@ class PartitionedDepthwiseSeparableLayer(ILayer):
 
 class DenseBlock(ILayer):
     def __init__(self, name, in_channels, num_layers, growth_rate, dropout_rate, bottleneck,
-                 build_method=Weights.impl.sandbox,
+                 build_method=Weights.impl.sandbox, ranks=None,
                  kernel_initializer=tf.glorot_normal_initializer(),  bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None, bias_regularizer=None):
         """
@@ -299,6 +299,7 @@ class DenseBlock(ILayer):
         self.build_method = build_method
         self.dropout_rate = dropout_rate
         self.bottleneck = bottleneck
+        self.ranks = ranks
 
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
